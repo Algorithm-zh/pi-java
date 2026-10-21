@@ -4,7 +4,7 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M0 骨架与架构文档已完成**。业务代码从 M1 开始按里程碑增量交付，
+> 当前状态：**M1 会话领域与持久化已完成**。M2 开始接入模型与流式 LLM Gateway。
 > 每个里程碑都包含实现、测试、文档与 git 提交。
 
 ## 核心设计
@@ -40,7 +40,8 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 mvn -q verify
 ```
 
-当前 M0 已验证通过：编译、Checkstyle、ArchUnit。
+当前 M1 已验证通过：65 个测试全绿，Checkstyle/ArchUnit 通过，
+domain 行覆盖 89.4%、application 行覆盖 98.9%。
 
 ## 文档
 
@@ -56,6 +57,7 @@ mvn -q verify
 - [测试与质量](docs/07-testing-and-quality.md)
 - [路线图](docs/08-roadmap.md)
 - [M0 里程碑记录](docs/milestones/M0.md)
+- [M1 里程碑记录](docs/milestones/M1.md)
 
 架构决策：
 

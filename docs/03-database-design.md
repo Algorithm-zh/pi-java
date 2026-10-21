@@ -50,6 +50,9 @@
 | entry.parent_id | 树 | 无 | 同会话树形关系，应用层校验 |
 | plugin / policy | 独立 | 无 | 通过 workspace_key/tool_name 逻辑关联 |
 
+> 父会话删除后，子会话的 `parent_session_id` 为 NULL，但 `origin/depth/root_session_id` 保留。
+> 领域层的 `SessionIdentity` 允许这种“孤儿”形态在重建时出现；创建新子会话仍必须提供父会话。
+
 ## 3. MySQL DDL
 
 字符集统一 `utf8mb4`，排序规则 `utf8mb4_0900_ai_ci`，引擎 InnoDB。

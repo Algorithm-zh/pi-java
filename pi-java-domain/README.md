@@ -39,5 +39,7 @@ com.piagent.domain
 
 ## 当前状态
 
-M0：包结构与约定已建立，业务类型从 M1 开始落地。详见
-[领域模型](../docs/02-domain-model.md)。
+M1 已完成：`shared`（ULID/错误码/异常/Guard）与 `session`（聚合、entry、消息 sealed、
+10 种 payload、投影器、分支策略、仓储端口）已落地，domain 单测 30 个、行覆盖 89.4%。
+其余上下文的类型从 M2 起按里程碑加入。详见
+[领域模型](../docs/02-domain-model.md) 与 [M1 记录](../docs/milestones/M1.md)。

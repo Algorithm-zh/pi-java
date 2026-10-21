@@ -38,4 +38,6 @@ com.piagent.infrastructure
 
 ## 当前状态
 
-M0：模块与依赖边界已建立。M1 落地 MyBatis 仓储，M2 落地 LLM adapter。
+M1 已完成 `persistence.session`：PO/Mapper/仓储、payload 与消息 JSON 编解码、
+Spring 装配；H2 集成测试覆盖唯一键、CAS、级联与父会话删除。M2 落地 LLM adapter。
+详见 [M1 记录](../docs/milestones/M1.md)。

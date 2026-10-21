@@ -1,0 +1,15 @@
+# 集成测试专用：内存 H2 + H2 Flyway 迁移。
+# 每个测试类启动的 Spring 上下文共用一个内存库，测试之间用 SQL 清理数据。
+spring:
+  datasource:
+    url: "jdbc:h2:mem:pi_java_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  flyway:
+    locations: classpath:db/migration/h2
+
+logging:
+  level:
+    root: WARN
+    com.piagent: INFO

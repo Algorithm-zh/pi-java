@@ -180,6 +180,23 @@ WireMock 覆盖：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
+M1 实测（2026-10-21）：
+
+| 模块 | 行覆盖 | 门槛 |
+|---|---|---|
+| `pi-java-domain` | 89.4% | ≥ 60% |
+| `pi-java-application` | 98.9% | ≥ 60% |
+
+application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 app 模块的 H2 集成测试覆盖，
+避免为了覆盖率把基础设施依赖倒灌进应用层。
+
+## 7.4 测试环境
+
+- `pi-java-app/src/test/resources/application-test.yml` 提供内存 H2（MySQL 模式）；
+- 集成测试使用 `@ActiveProfiles("test")`，Flyway 扫描 `db/migration/h2`；
+- 测试类之间用 SQL 清空 `pi_session_entry` 与 `pi_session`，不依赖执行顺序；
+- 数据库连接串带 `DATABASE_TO_LOWER=TRUE` 与 `CASE_INSENSITIVE_IDENTIFIERS=TRUE`，与 demo 环境一致。
+
 ## 8. 端到端测试
 
 ### 8.1 demo E2E（M4 起）

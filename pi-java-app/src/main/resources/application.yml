@@ -34,6 +34,8 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
     default-fetch-size: 100
+    # 可空参数显式绑定 NULL，避免 H2/MySQL 对 JdbcType.OTHER 的处理差异。
+    jdbc-type-for-null: "NULL"
 
 # 运行时参数。全部有安全默认值，后续里程碑由配置绑定逐步消费。
 pi:

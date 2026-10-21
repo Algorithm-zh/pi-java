@@ -25,7 +25,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `id` | `SessionId` | ULID |
-| `parentSessionId` | `SessionId?` | fork / subagent 的父会话 |
+| `parentSessionId` | `SessionId?` | fork / subagent 的父会话；父会话被删除时为 null（孤儿态） |
 | `rootSessionId` | `SessionId` | 根会话，便于整棵树检索 |
 | `forkFromEntryId` | `EntryId?` | fork 的父会话起点 |
 | `depth` | `int` | 用户会话为 0，子代理逐级 +1 |
@@ -41,11 +41,16 @@
 
 行为：
 
-- `rename(String)`、`archive()`；
-- `moveLeaf(EntryId target, SessionBranchPolicy policy)`：只移动指针，不复制 entry；
+- `createRoot(id, title, config)` / `createChild(id, parent, forkFromEntryId, origin, title, config)`；
+- `rename(String)`、`changeModel(modelProfileId, thinkingLevel)`、`archive()`；
+- `moveLeaf(EntryId target)`：只移动指针，不复制 entry；目标合法性由 `SessionBranchPolicy` 校验；
 - `markRunning()` / `markWaitingApproval()` / `markIdle()`：受状态机约束；
-- `forkFrom(EntryId entryId, ...)`：创建 `origin=FORK` 的新聚合，root 指向原 root；
-- `ensureWritable()`：归档会话拒绝追加。
+- `withVersion(long)`：仓储 CAS 成功后同步版本；
+- `isEmpty()`：判断是否尚无 entry。
+
+父会话被删除时，外键会把子会话的 `parent_session_id` 置空。此时子会话以“孤儿”形态存在：
+`origin` 仍为 `FORK/SUBAGENT`、`depth > 0`、`rootSessionId` 保留原根 ID，但 `parentSessionId = null`。
+创建路径始终要求父会话；孤儿态只允许出现在持久化重建时，避免把删除父会话变成级联删除子会话。
 
 `ChatSession` 不持有完整 entry 列表。entry 可能很多，聚合只保存“当前指针 + 元数据”，
 entry 由 `SessionEntryStore` 按需读取。这样避免每次追加都加载整棵会话树。
@@ -88,14 +93,19 @@ SessionEntry(
 ```text
 AgentMessage
 ├── UserMessage(content: List<ContentBlock>, timestamp)
-├── AssistantMessage(content, modelRef, usage, stopReason, errorMessage?, timestamp)
-└── ToolResultMessage(toolCallId, toolName, content, isError, details: Map<String,Object>, timestamp)
+├── AssistantMessage(content, provider, model, usage, stopReason, errorMessage?, timestamp)
+├── ToolResultMessage(toolCallId, toolName, content, isError, details: Map<String,Object>, timestamp)
+├── CompactionSummaryMessage(summary, tokensBefore, timestamp)
+└── BranchSummaryMessage(summary, fromEntryId, timestamp)
 
 ContentBlock
 ├── TextBlock(text)
 ├── ThinkingBlock(thinking, signature?)
 └── ToolCallBlock(id, name, arguments: Map<String,Object>)
 ```
+
+后两种消息只由投影器根据 `COMPACTION` / `BRANCH_SUMMARY` entry 生成，
+不会作为 `MESSAGE` entry 再次落库。
 
 约束：
 
@@ -142,7 +152,7 @@ ContentBlock
 - 目标 entry 必须属于同一会话；
 - 目标不能是 toolResult（会把调用与结果拆开）；
 - 允许回到任意 user/assistant/compaction/custom 节点；
-- fork 的起点不能是当前 leaf 的祖先之外节点；
+- fork 起点同样必须是本会话中非 toolResult 的 entry；
 - 分支不复制 entry，不重写 `seq`。
 
 ### 2.6 端口

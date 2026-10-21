@@ -27,9 +27,14 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 ## 测试
 
 - `ModuleBoundaryTest`：模块依赖方向；
-- M1 起加入 H2 仓储集成测试；
+- `SessionPersistenceIntegrationTest`：H2 上的仓储、唯一键、CAS、级联；
+- `SessionApplicationIntegrationTest`：创建 → 追加 → 投影 → fork 的端到端路径；
 - M4 起加入 MockMvc/SSE 集成测试与 demo E2E。
+
+测试 profile 位于 `src/test/resources/application-test.yml`，使用内存 H2 与
+`db/migration/h2`；测试之间直接清理业务表，保证可重复执行。
 
 ## 当前状态
 
-M0：启动类、配置、ArchUnit 与 Flyway 目录已建立。
+M1：启动类、demo/mysql/test 配置、ArchUnit、Flyway V1 与会话集成测试已完成。
+Web UI 从 M4 开始。

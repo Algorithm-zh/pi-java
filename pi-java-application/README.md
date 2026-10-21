@@ -40,4 +40,6 @@ com.piagent.application
 
 ## 当前状态
 
-M0：模块与依赖边界已建立。M1 实现会话用例，M4 实现 Agent Loop。
+M1 已完成：`SessionApplicationService` 提供创建会话、追加用户消息、分支回退、
+fork 与上下文投影；10 个内存端口单测，行覆盖 98.9%。M2 进入模型接入，
+M4 实现 Agent Loop。详见 [M1 记录](../docs/milestones/M1.md)。
