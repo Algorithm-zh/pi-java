@@ -152,23 +152,30 @@ CREATE TABLE pi_model_profile (
 CREATE TABLE pi_tool_policy (
     id             BIGINT       NOT NULL AUTO_INCREMENT,
     scope          VARCHAR(16)  NOT NULL,
-    workspace_key  CHAR(64)     NOT NULL DEFAULT '',
+    workspace_key  CHAR(64)     NOT NULL,
     tool_name      VARCHAR(128) NOT NULL,
     effect         VARCHAR(16)  NOT NULL,
     approval_mode  VARCHAR(16)  NOT NULL,
     risk_level     VARCHAR(16)  NOT NULL,
     timeout_ms     INT          NULL,
     config_json    TEXT         NOT NULL,
-    version        BIGINT       NOT NULL DEFAULT 0,
+    version        BIGINT       NOT NULL DEFAULT 1,
     created_at     DATETIME(3)  NOT NULL,
     updated_at     DATETIME(3)  NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_policy_scope_workspace_tool (scope, workspace_key, tool_name)
+    UNIQUE KEY uk_tool_policy (scope, workspace_key, tool_name)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 ```
 
-`workspace_key = sha256(normalized cwd)`，避免 1024 字符路径进入唯一索引。
-USER 作用域的 `workspace_key` 为空串。
+- `workspace_key = sha256(normalized cwd)`，避免 1024 字符路径进入唯一索引；
+- USER 作用域使用 `WorkspaceKey.GLOBAL`（64 个 `0`），而不是空串——空串无法表达
+  “全局规则也参与 `workspace_key` 唯一键”的语义，且与 `CHAR(64)` 的长度约束冲突；
+- `version` 从 1 开始，与模型档案一致；仓储 `UPDATE ... WHERE id = ? AND version = ?`，
+  成功后 `version = version + 1`；
+- `timeout_ms` 为 NULL 表示沿用 `ToolDescriptor` 的默认超时；`config_json` 至少保存 `{}`。
+
+H2 迁移使用 `CLOB`、`TIMESTAMP(3)` 与 `CONSTRAINT uk_tool_policy UNIQUE (...)`，
+其余语义与 MySQL 一致。
 
 ### 3.4 `V4__plugin.sql`
 
@@ -367,7 +374,8 @@ COMMIT
 - 按类型审计：`(session_id, entry_type)`；
 - 审批待办：`(status, expires_at)`，过期扫描不扫全表；
 - entry payload 是主要增长源；v0.1 不做自动归档，文档提示定期备份与手动归档；
-- 单条 payload 上限由应用层限制（工具输出默认截断 64 KB，完整输出落临时文件）。
+- 单条 payload 上限由应用层限制；M3 只读工具按 60k–80k 字符截断（`read/grep` 80k，
+  `ls/glob` 60k），M6 的 `bash` 才把完整输出落临时文件并只在 entry 中保留路径。
 
 ## 10. 相关文档
 

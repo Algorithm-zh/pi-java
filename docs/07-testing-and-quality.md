@@ -61,13 +61,25 @@
 
 ### 4.2 工具与治理
 
-- 未知工具默认 DENY；
-- 只读工具默认 ALLOW；写工具默认 ASK；`bash` 默认 CRITICAL；
-- 策略优先级：WORKSPACE > USER > 默认，DENY 不被放宽；
+M3 已覆盖：
+
+- 工具名/描述/schema/超时约束；目录拒绝重名；未知工具 `TOOL_NOT_FOUND`；
+- 参数守卫：未知参数、必填缺失、类型错误、长度/范围越界均返回 `TOOL_INVALID_ARGUMENT`；
+- 策略：风险默认值（LOW ALLOW / MEDIUM/HIGH ASK / CRITICAL DENY）、
+  WORKSPACE > USER > 默认、`WorkspaceKey` 规范化与 `GLOBAL` 键；
+- 路径：空白路径、相对/绝对路径、`..` 逃逸、NUL、盘符切换、符号链接逃逸、
+  不存在路径、新建文件的最近存在祖先；
+- `read`：偏移/行数、二进制拒绝、单行与总输出截断、越界区间提示；
+- `ls/grep/glob`：深度、条目数、匹配数、二进制/大文件跳过、隐藏与构建目录跳过、
+  glob 根目录文件匹配、绝对 pattern 拒绝；
+- 超时生成 `TOOL_TIMEOUT`、中断生成 `CANCELLED`、handler 异常包装为 `isError=true`；
+- V3 仓储：往返、工作区+全局查询、CAS 冲突、唯一键冲突。
+
+M6 补充：
+
+- 写工具默认 `ASK`、`bash` 默认 `CRITICAL`（默认 DENY）；
 - 审批：PENDING→APPROVED/DENIED/EXPIRED/CANCELLED，终态不可逆；
-- 路径：`..` 逃逸、绝对路径越界、盘符切换、符号链接逃逸被拒绝；
-- 参数：`args_digest` 对键排序稳定，脱敏后不含密钥；
-- 工具超时/取消生成 `isError=true` 结果。
+- 参数：`args_digest` 对键排序稳定，脱敏后不含密钥。
 
 ### 4.3 运行时
 
@@ -152,7 +164,8 @@ WireMock 覆盖（10 个端到端用例）：
   - `version` CAS 失败回滚；
   - session 删除级联 entry/approval；
   - parent_session `SET NULL`；
-  - 审批唯一键 `(run_id, tool_call_id)`；
+  - 工具策略 `(scope, workspace_key, tool_name)` 唯一键、工作区+全局查询、CAS；
+  - 审批唯一键 `(run_id, tool_call_id)`（M6）；
   - 时间精度毫秒、UTF-8 中文往返；
 - MySQL 方言不靠 H2 完全替代：M9 增加本机 MySQL smoke（建库 → Flyway → 启动 → 一条会话）。
 
@@ -191,16 +204,19 @@ WireMock 覆盖（10 个端到端用例）：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
-M1/M2 实测（2026-10-21，`mvn -q verify`）：
+M3 实测（2026-10-21，`mvn -q verify`）：
 
-| 模块 | 行覆盖 | 门槛 |
-|---|---|---|
-| `pi-java-domain` | 85.4%（M1 89.4%） | ≥ 60% |
-| `pi-java-application` | 98.3%（M1 98.9%） | ≥ 60% |
+| 模块 | 行覆盖 | 测试数 | 门槛 |
+|---|---|---|---|
+| `pi-java-domain` | 86.7%（723/834） | 76 | ≥ 60% |
+| `pi-java-application` | 98.0%（148/151） | 24 | ≥ 60% |
+| `pi-java-infrastructure` | 64.1%（1022/1594） | 101（2 跳过） | 无门槛 |
+| `pi-java-trigger` | 91.5%（54/59） | 11 | 无门槛 |
+| `pi-java-app` | 33.3%（1/3，仅启动类） | 27 | 无门槛 |
 
-覆盖率相对 M1 略有下降是新增模型领域大量不可达的防御分支（provider 协议校验）
-所致，绝对门槛仍远高于 60%；后续里程碑继续要求“不得低于 60%，且新增行为必须有测试”。
-当前共 147 个测试：domain 52、application 18、infrastructure 46、trigger 8、app 23。
+当前共 239 个测试全绿。infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的
+关闭/拒绝分支与部分 IO 异常路径难以稳定触发；这些路径由行为测试和手工 smoke 兜底，
+不以排除代码的方式抬高数字。domain/application 始终保持 ≥ 60%，新增行为必须有测试。
 
 application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 app 模块的 H2 集成测试覆盖，
 避免为了覆盖率把基础设施依赖倒灌进应用层。

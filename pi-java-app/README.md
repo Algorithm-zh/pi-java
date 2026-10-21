@@ -38,5 +38,6 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 ## 当前状态
 
 M1 完成启动类、demo/mysql/test 配置、ArchUnit、Flyway V1 与会话集成测试；
-M2 增加 V2 迁移与模型档案 H2 往返/CAS 集成测试，共 23 个测试。
-Web UI 从 M4 开始。详见 [M2 记录](../docs/milestones/M2.md)。
+M2 增加 V2 迁移与模型档案 H2 往返/CAS 集成测试；M3 增加 V3 策略表与
+工具策略往返/工作区查询/CAS 集成测试，共 27 个测试。
+Web UI 从 M4 开始。详见 [M3 记录](../docs/milestones/M3.md)。

@@ -1,5 +1,6 @@
 package com.piagent.infrastructure.config;
 
+import com.piagent.domain.governance.service.ToolAccessPolicy;
 import com.piagent.domain.model.service.ModelSelectionPolicy;
 import com.piagent.domain.session.service.SessionBranchPolicy;
 import com.piagent.domain.session.service.SessionContextProjector;
@@ -66,5 +67,15 @@ public class CoreConfiguration {
     @Bean
     public ModelSelectionPolicy modelSelectionPolicy() {
         return new ModelSelectionPolicy();
+    }
+
+    /**
+     * 工具访问策略解析器。
+     *
+     * @return 策略
+     */
+    @Bean
+    public ToolAccessPolicy toolAccessPolicy() {
+        return new ToolAccessPolicy();
     }
 }

@@ -14,7 +14,7 @@
 com.piagent.infrastructure
 ├── persistence   MyBatis mapper、PO、仓储实现
 ├── llm           Fake / OpenAI-compatible provider，SSE 解析
-├── tool          read/ls/grep/glob/write/edit/bash、PathResolver、ProcessRunner
+├── tool          read/ls/grep/glob/write/edit/bash、RealPathResolver、ProcessRunner
 ├── plugin        manifest、ClassLoader、注册表、插件运行时
 ├── skill         目录扫描、frontmatter 解析
 ├── cache         Caffeine 缓存实现
@@ -40,6 +40,8 @@ com.piagent.infrastructure
 
 M1 完成 `persistence.session`（PO/Mapper/仓储、payload 与消息 JSON 编解码、Flyway V1）；
 M2 完成 `persistence.model`（V2、CAS 更新、capabilities codec）与 `llm`
-（Fake 脚本 provider、provider 路由、OpenAI-compatible 的请求映射/SSE 解析/重试/取消）。
-infrastructure 共 46 个测试，包含 WireMock 流式故障场景。M3 增加只读工具与路径沙箱。
-详见 [M2 记录](../docs/milestones/M2.md)。
+（Fake 脚本 provider、provider 路由、OpenAI-compatible 的请求映射/SSE 解析/重试/取消）；
+M3 完成 `tool`（RealPathResolver、read/ls/grep/glob、虚拟线程超时调用器）与
+`persistence.model` 下的 V3 工具策略仓储。infrastructure 共 101 个测试
+（2 个符号链接用例在无权限环境条件跳过），行覆盖 64.1%。详见
+[M3 记录](../docs/milestones/M3.md)。

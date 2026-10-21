@@ -327,25 +327,25 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 
 | 类型 | 说明 |
 |---|---|
-| `ToolName` | 小写、允许 `[a-z0-9_.-]`；插件工具必须带 `pluginId.` 前缀 |
+| `ToolName` | 小写字母开头，允许小写字母/数字/点/下划线/连字符，最长 128；插件工具在 M5 强制 `pluginId.` 前缀 |
 | `ToolCallId` | LLM 返回的调用 ID，包装 String |
-| `ExecutionMode` | `PARALLEL_SAFE / SERIAL_ONLY` |
+| `ExecutionMode` | `PARALLEL / SEQUENTIAL` |
 | `ToolRisk` | `LOW / MEDIUM / HIGH / CRITICAL` |
-| `ToolDescriptor` | 不可变目录项：名称、描述、JSON Schema 字符串、风险、执行模式、超时、来源 |
-| `ToolResult` | 内容块、`isError`、`details`、耗时 |
-| `ToolInvocation` | 运行态：调用 ID、工具名、参数、风险、状态、起止时间 |
+| `ToolDescriptor` | 不可变目录项：名称、描述（≤1024）、JSON Schema 字符串（≤20000）、风险、执行模式、超时（≤10 分钟） |
+| `ToolResult` | 调用 ID、工具名、文本内容、`error` 标志、结构化 `details`；失败不抛异常 |
+| `ToolInvocation` | 运行态：调用 ID、工具名、不可变参数、调用开始时冻结的 `SandboxPolicy` |
 
 工具定义**不是聚合根**：它没有独立生命周期，由 `ToolCatalog` 维护不可变快照。
 
 ### 5.2 领域服务与端口
 
-| 类型 | 职责 |
-|---|---|
-| `ToolCatalog` | 合并内置工具与插件工具；按会话/子代理白名单过滤；禁止重名与覆盖内置工具 |
-| `ToolExecutionPlanner` | 依据 `ExecutionMode` 将 toolCall 分批：可并行批 + 串行批，保持模型给出的顺序 |
-| `ToolArgumentGuard` | 校验必填参数、大小上限、禁止的字段组合；JSON Schema 深度校验由具体工具适配器完成 |
-| `ToolRegistry` | 端口：`List<ToolDescriptor> list()`, `Optional<ToolDescriptor> find(ToolName)` |
-| `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation invocation, CancellationToken token)` |
+| 类型 | 职责 | 状态 |
+|---|---|---|
+| `ToolCatalog` | 不可变目录；合并内置与插件工具、拒绝重名、按名查询；插件工具合并与白名单过滤在 M5 扩展 | M3 已实现 |
+| `ToolArgumentGuard` | 拒绝未知参数，读取必填字符串、可选字符串/整数/布尔并校验上限；JSON Schema 深度校验由具体 handler 完成 | M3 已实现 |
+| `ToolExecutionPlanner` | 依据 `ExecutionMode` 将 toolCall 分批：可并行批 + 串行批，保持模型给出的顺序 | M4 实现 |
+| `ToolRegistry` | 端口：`descriptors()`、`find(ToolName)`、`require(ToolName)` | M3 已实现 |
+| `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation)`；超时与中断由适配器处理 | M3 已实现；显式取消令牌在 M4 接入 |
 
 `ToolCatalog` 在每次 run 开始时取快照，run 期间插件卸载不影响本次执行。
 
@@ -355,26 +355,30 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 
 | 字段 | 说明 |
 |---|---|
-| `id` | 自增主键 |
+| `id` | 自增主键，0 表示未持久化 |
 | `scope` | `USER / WORKSPACE` |
-| `workspaceKey` | `sha256(normalized cwd)`，USER 作用域为空串 |
+| `workspaceKey` | `sha256(normalized cwd)`；USER 作用域使用 `WorkspaceKey.GLOBAL`（64 个 `0`） |
 | `toolName` | 工具名 |
 | `effect` | `ALLOW / ASK / DENY` |
 | `approvalMode` | `ONCE / SESSION / ALWAYS` |
 | `riskLevel` | 覆盖默认风险 |
-| `timeoutMs` | 覆盖工具默认超时 |
+| `timeoutMs` | 覆盖工具默认超时，100–600000ms，可空 |
 | `configJson` | 扩展配置，只读字符串 |
-| `version` | 乐观锁 |
+| `version` | 乐观锁，从 1 开始 |
 
-唯一键 `(scope, workspace_key, tool_name)`。规则缺失时使用代码内默认值：
+唯一键 `(scope, workspace_key, tool_name)`。规则缺失时按 `ToolAccessPolicy` 使用风险默认值：
 
-- 只读工具（`read/ls/grep/glob`）：`ALLOW`，`LOW`；
-- 写工具（`write/edit/bash`）：`ASK`，`HIGH`；`bash` 为 `CRITICAL`；
-- 未知工具：`DENY`。
+- `LOW` → `ALLOW`；
+- `MEDIUM / HIGH` → `ASK`；
+- `CRITICAL` → `DENY`。
 
-优先级：`WORKSPACE` 规则 > `USER` 规则 > 内置默认；`DENY` 一旦命中即拒绝，不允许被更宽规则覆盖。
+M3 的四个只读工具均为 `LOW`，因此默认放行。M6 计划让 `write/edit` 为 `HIGH`（默认 ASK）、
+`bash` 为 `CRITICAL`（默认 DENY，需用户显式创建策略才可执行）。工具目录中不存在的名称
+在取 `ToolDescriptor` 时即失败，不进入策略解析。
 
-### 6.2 聚合根 `ApprovalRequest`
+优先级：`WORKSPACE` 规则 > `USER` 规则 > 风险默认值；`DENY` 一旦命中即拒绝，不允许被更宽规则覆盖。
+
+### 6.2 聚合根 `ApprovalRequest`（M6 实现）
 
 状态机：
 
@@ -391,36 +395,47 @@ PENDING ──approve──► APPROVED
 
 `ApprovalPort` 是“向用户发起询问”的端口；领域层不关心 Web SSE 还是 CLI 提示。
 
-### 6.3 路径沙箱
+### 6.3 路径沙箱（M3 已实现）
 
 ```java
-record WorkspacePath(Path absolute, Path realPath) {}
+record SandboxPolicy(Path workspaceRoot, List<Path> writableRoots,
+                     boolean allowReadOutsideWorkspace) {
+    static SandboxPolicy readOnly(Path workspaceRoot);
+    static SandboxPolicy workspaceWritable(Path workspaceRoot);
+}
 
 final class PathSandbox {
-    SandboxDecision checkRead(WorkspacePath root, Path candidate);
-    SandboxDecision checkWrite(WorkspacePath root, Path candidate, SandboxPolicy policy);
+    Path resolveReadable(SandboxPolicy policy, String requested);
+    Path resolveWritable(SandboxPolicy policy, String requested);
 }
 ```
 
 规则：
 
-1. 转绝对路径并 `normalize()`；
-2. 拒绝 `..` 归一化后逃逸根目录；
-3. 拒绝盘符切换（Windows）与 UNC 路径逃逸；
-4. 写操作必须落在 `writableRoots` 之一，且不匹配 `denyGlobs`；
-5. 符号链接检测不在领域层做：infrastructure 的 `PathResolver` 用 `toRealPath()` 得到真实路径，
-   再交给 `PathSandbox` 复核。领域层只做纯路径判定，保证可单测、跨平台。
+1. 空白路径表示工作区根；相对路径基于根解析，绝对路径原样接受；
+2. `normalize()` 后转为绝对路径，`..` 归一化后逃逸根目录即拒绝；
+3. 含 NUL 或 `InvalidPathException` 返回 `PATH_INVALID`；
+4. 读路径必须落在 `workspaceRoot` 内（除非 `allowReadOutsideWorkspace`）；
+   写路径必须落在 `writableRoots` 之一；越界返回 `PATH_OUTSIDE_WORKSPACE`；
+5. 符号链接检测不在领域层做：infrastructure 的 `RealPathResolver` 先让 `PathSandbox`
+   做词法判定，再用 `toRealPath()` 取得真实路径并重新比较；遍历工具不跟随符号链接。
+   领域层保持纯函数、可单测、跨平台。
 
 ### 6.4 领域服务
 
-- `ToolAccessPolicy`：合并策略与默认值，输出 `PolicyDecision(effect, risk, approvalMode)`；
-- `PathSandbox`：纯路径判定；
-- `ApprovalExpiryPolicy`：默认 30 分钟，run 取消时立即取消等待。
+| 服务 | 职责 | 状态 |
+|---|---|---|
+| `ToolAccessPolicy` | 合并工作区/用户规则与风险默认值，输出 `PolicyEffect` | M3 已实现 |
+| `PathSandbox` | 纯路径判定 | M3 已实现 |
+| `ToolPolicyRepository` | 按工作区（含全局）查询规则、插入/CAS 更新 | M3 已实现 |
+| `ApprovalExpiryPolicy` | 默认 30 分钟过期，run 取消时立即取消等待 | M6 实现 |
 
 ### 6.5 端口
 
-`ToolPolicyRepository`、`ApprovalRepository`、`ApprovalPort`。
-审批决策**双写**：更新待办投影 + 追加 `APPROVAL` entry；审计以 entry 为准。
+- `ToolPolicyRepository`（M3）：`findByWorkspace(WorkspaceKey)`、`find(scope, key, tool)`、
+  `insert`、CAS `update`；
+- `ApprovalRepository`、`ApprovalPort`（M6）：审批决策**双写**，更新待办投影 + 追加
+  `APPROVAL` entry；审计以 entry 为准。
 
 ## 7. 上下文与技能 `domain.context`
 
@@ -469,7 +484,7 @@ final class PathSandbox {
 | INV-05 | 压缩切点不得落在 toolResult 上 | `CompactionPlanner` |
 | INV-06 | 同一 session 同时最多一个活跃 run | `RunRegistry` 原子注册 |
 | INV-07 | 审批终态不可逆；决策必须写 entry | `ApprovalRequest` + 应用层 |
-| INV-08 | 写路径必须在可写根内，真实路径复核 | `PathSandbox` + `PathResolver` |
+| INV-08 | 写路径必须在可写根内，真实路径复核 | `PathSandbox` + `RealPathResolver` |
 | INV-09 | 子代理工具集合 ⊆ 父工具集合；沙箱只收紧不放宽 | `SubagentPolicy` |
 | INV-10 | 插件 API 主版本必须为 1；不得覆盖内置工具 | `PluginCompatibilityChecker` |
 | INV-11 | 模型档案不存密钥，只存环境变量名 | 聚合构造校验 |

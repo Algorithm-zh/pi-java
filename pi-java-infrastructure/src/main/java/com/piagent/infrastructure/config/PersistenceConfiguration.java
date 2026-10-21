@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.infrastructure.persistence.codec.EntryPayloadCodec;
 import com.piagent.infrastructure.persistence.codec.ModelCapabilitiesCodec;
 import com.piagent.infrastructure.persistence.codec.SandboxJsonCodec;
+import com.piagent.infrastructure.persistence.codec.ToolPolicyConfigCodec;
 import com.piagent.infrastructure.persistence.model.ModelProfilePoConverter;
+import com.piagent.infrastructure.persistence.model.ToolPolicyPoConverter;
 import com.piagent.infrastructure.persistence.session.SessionEntryPoConverter;
 import com.piagent.infrastructure.persistence.session.SessionPoConverter;
 import org.apache.ibatis.annotations.Mapper;
@@ -86,5 +88,27 @@ public class PersistenceConfiguration {
     @Bean
     public SessionEntryPoConverter sessionEntryPoConverter(EntryPayloadCodec payloadCodec) {
         return new SessionEntryPoConverter(payloadCodec);
+    }
+
+    /**
+     * 工具策略配置编解码。
+     *
+     * @param mapper Jackson 映射器
+     * @return 编解码器
+     */
+    @Bean
+    public ToolPolicyConfigCodec toolPolicyConfigCodec(ObjectMapper mapper) {
+        return new ToolPolicyConfigCodec(mapper);
+    }
+
+    /**
+     * 工具策略行转换器。
+     *
+     * @param configCodec 配置编解码
+     * @return 转换器
+     */
+    @Bean
+    public ToolPolicyPoConverter toolPolicyPoConverter(ToolPolicyConfigCodec configCodec) {
+        return new ToolPolicyPoConverter(configCodec);
     }
 }

@@ -292,26 +292,37 @@ POST /api/v1/models/{id}/disable
 
 ## 5. 工具与策略 API
 
+M3 只实现工具目录查询：
+
 ```http
 GET /api/v1/tools?cwd=D:/code/demo
-GET /api/v1/tool-policies?cwd=D:/code/demo
-PUT /api/v1/tool-policies?cwd=D:/code/demo
 ```
 
-策略 PUT 请求：
+响应示例（截断）：
 
 ```json
-{
-  "rules": [
-    {"scope": "WORKSPACE", "toolName": "bash", "effect": "DENY", "riskLevel": "CRITICAL"},
-    {"scope": "WORKSPACE", "toolName": "write", "effect": "ASK", "approvalMode": "ONCE"}
-  ]
-}
+[
+  {
+    "name": "read",
+    "description": "Read a UTF-8 text file with line numbers.",
+    "inputSchema": "{\"type\":\"object\",\"properties\":{...},\"required\":[\"path\"]}",
+    "risk": "LOW",
+    "executionMode": "PARALLEL",
+    "timeoutMs": 10000,
+    "effect": "ALLOW",
+    "requiresApproval": false
+  }
+]
 ```
 
-- `cwd` 用于计算 `workspace_key`；省略时使用用户级作用域；
-- `GET /tools` 返回工具名、描述、风险、来源（BUILTIN/PLUGIN）、只读标记，不返回完整 schema；
-- 未知工具不能创建 ALLOW 规则（防止插件卸载后残留放行）。
+- `cwd` 用于计算 `workspace_key`（`sha256(normalized cwd)`）；省略时使用进程当前目录，
+  USER 规则通过 `GLOBAL` 键参与解析；
+- 返回完整 `inputSchema`，供前端展示参数与后续 LLM 请求复用；不是只返回摘要；
+- `effect` 是当前工作区解析后的结果（`ALLOW / ASK / DENY`），写入磁盘前会重新解析，
+  不信任客户端回传；
+- `cwd` 非法（如含 NUL）返回 400 `INVALID_ARGUMENT`；
+- 策略管理 `GET/PUT /api/v1/tool-policies` 推迟到 M6，与审批和写工具一起实现；
+  届时未知工具不能创建 ALLOW 规则，防止插件卸载后残留放行。
 
 ## 6. 插件 API
 

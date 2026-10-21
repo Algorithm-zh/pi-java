@@ -41,6 +41,6 @@ com.piagent.application
 ## 当前状态
 
 M1 完成 `SessionApplicationService`；M2 完成 `ModelProfileApplicationService`
-（创建、更新、启停、查询、启用校验）与对应 Command。18 个内存端口单测，
-行覆盖 98.3%。M3 增加工具目录查询，M4 实现 Agent Loop。详见
-[M2 记录](../docs/milestones/M2.md)。
+（创建、更新、启停、查询、启用校验）与对应 Command；M3 完成
+`ToolCatalogApplicationService`（工具目录 + 当前工作区策略效果）。24 个内存端口单测，
+行覆盖 98.0%。M4 实现 Agent Loop。详见 [M3 记录](../docs/milestones/M3.md)。

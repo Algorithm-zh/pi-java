@@ -1,6 +1,7 @@
 # 04 运行时与事件
 
-> 状态：M0 冻结。运行时由 application 层编排，domain 只提供状态机与规则；
+> 状态：M0 冻结；M3 已完成只读工具与路径沙箱，Agent Loop、SSE、审批分别在 M4/M6 落地。
+> 运行时由 application 层编排，domain 只提供状态机与规则；
 > 所有外部等待（LLM、工具、审批）都不持有数据库事务。
 
 ## 1. 运行时组件
@@ -17,7 +18,7 @@ SendMessageUseCase ──► RunLifecycle ──► RunRegistry（单 session �
         │                  ├──► TurnExecutor ──► LlmGateway ──► provider adapter
         │                  └──► ToolCallCoordinator
         │                         ├──► ToolAccessPolicy / ApprovalPort
-        │                         ├──► PathSandbox / PathResolver
+        │                         ├──► PathSandbox / RealPathResolver
         │                         ├──► ToolInvoker（内置/插件）
         │                         └──► SessionEntryStore（短事务追加）
         ▼
@@ -132,41 +133,70 @@ RUNNING ──need approval──► WAITING_APPROVAL ──resolved──► RU
 
 ### 4.1 顺序
 
+M3 已实现的部分（工具可直接通过 `ToolInvoker` 调用，尚未接入 Agent Loop）：
+
+```text
+ToolInvocation(callId, tool, arguments, sandbox)
+  -> ToolRegistry.require 取 ToolDescriptor（未注册抛 TOOL_NOT_FOUND）
+  -> ToolAccessPolicy.resolve（workspace > user > 风险默认；只读查询，不弹审批）
+  -> 具体 handler：ToolArgumentGuard 拒绝未知参数并校验必填/上限
+  -> RealPathResolver：PathSandbox 词法判定 + toRealPath 物理复核
+  -> BuiltInToolInvoker：虚拟线程执行、按 descriptor 超时、异常包装
+  -> ToolResult（失败为 isError=true，不向调用方抛业务异常）
+```
+
+M4/M5/M6 将补齐的完整管线：
+
 ```text
 ToolCallBlock
-  -> 从 run 开始时的 ToolCatalog 快照取 ToolDescriptor（未知工具直接 DENY）
-  -> 插件 ToolInterceptor（只允许 allow/deny，不允许改参数）
-  -> ToolAccessPolicy（workspace > user > 内置默认）
+  -> run 开始时的 ToolCatalog 快照取 ToolDescriptor
+  -> 插件 ToolInterceptor（只允许 allow/deny，不允许改参数；M5）
+  -> ToolAccessPolicy
        ALLOW -> 继续
-       ASK   -> 创建 ApprovalRequest，等待决策
-       DENY  -> 生成 isError 结果，写 APPROVAL? 不写（没有人工决策）
-  -> PathSandbox + PathResolver（文件类工具）
-  -> ToolArgumentGuard（必填、大小、敏感字段）
+       ASK   -> 创建 ApprovalRequest，等待决策（M6）
+       DENY  -> 生成 isError 结果，不写 APPROVAL（没有人工决策）
+  -> PathSandbox + RealPathResolver（文件类工具）
   -> ToolInvoker（超时、取消、输出截断）
-  -> 插件 ToolResultObserver（只读观察）
-  -> 追加 toolResult entry，发布事件
+  -> 插件 ToolResultObserver（只读观察；M5）
+  -> 追加 toolResult entry，发布事件（M4）
 ```
 
 ### 4.2 并行策略
 
-- `ToolExecutionPlanner` 将调用分为批：连续的 `PARALLEL_SAFE` 调用可并行，`SERIAL_ONLY` 单独成批；
-- 默认工具并行度 4，使用虚拟线程 + 信号量；
-- 需要人工审批的调用按模型给出顺序逐个询问，避免一次弹出多个审批框；
-- 批内任一调用被取消，取消令牌广播到该批所有工具；
-- 工具结果按原 toolCall 顺序写 entry，即使完成顺序不同。
+- `ExecutionMode` 已区分 `PARALLEL / SEQUENTIAL`；`ToolExecutionPlanner` 与分批执行在 M4
+  随 Agent Loop 实现；
+- 当前 `BuiltInToolInvoker` 的每次调用在独立虚拟线程上执行并等待超时，单个调用不阻塞平台线程；
+- 计划：默认工具并行度 4；需要人工审批的调用按模型给出顺序逐个询问；
+- 计划：批内任一调用被取消，取消信号广播到该批所有工具；
+- 计划：工具结果按原 toolCall 顺序写 entry，即使完成顺序不同。
 
 ### 4.3 超时与输出
 
+M3 已实现的只读工具：
+
 | 工具 | 默认超时 | 输出限制 |
 |---|---|---|
-| `read` / `ls` / `grep` / `glob` | 10s | 64 KB，超出截断并提示 |
-| `write` / `edit` | 10s | 结果摘要 8 KB |
-| `bash` | 120s（可被策略覆盖） | 64 KB；完整输出写临时文件并返回路径 |
-| `subagent` | 300s | 只返回摘要 + 子会话引用 |
+| `read` | 10s | 默认 400 行、最多 2000 行；单行 2000 字符；正文 80k 字符 |
+| `ls` | 10s | 深度 ≤ 3；最多 500 项；正文 60k 字符 |
+| `grep` | 20s | 最多扫描 5000 个文件、单文件 2 MB；默认 100/最多 500 条匹配；片段 300 字符；正文 80k 字符 |
+| `glob` | 20s | 最多遍历 20000 个文件；默认 200/最多 1000 条路径；正文 60k 字符 |
 
-超时视为工具失败：生成 `isError=true` 的结果，模型可据此调整，不终止整个 run。
+`read/ls/grep/glob` 都跳过二进制文件（前 8KB 含 NUL），遍历不跟随符号链接，并跳过
+隐藏目录与 `target/build/dist/node_modules/vendor/coverage/__pycache__/.venv/venv`。
 
-### 4.4 审批
+后续工具的计划上限：
+
+| 工具 | 默认超时 | 输出限制 |
+|---|---|---|
+| `write` / `edit`（M6） | 10s | 结果摘要 8 KB |
+| `bash`（M6） | 120s（可被策略覆盖） | 64 KB；完整输出写临时文件并返回路径 |
+| `subagent`（M8） | 300s | 只返回摘要 + 子会话引用 |
+
+超时视为工具失败：`BuiltInToolInvoker` 取消任务并返回 `isError=true`、
+`details.errorCode=TOOL_TIMEOUT` 的结果，模型可据此调整，不终止整个 run。
+线程中断返回 `CANCELLED`；handler 抛出的领域异常保留原错误码。
+
+### 4.4 审批（M6 实现）
 
 ```text
 create PENDING -> publish approval.required
@@ -183,27 +213,40 @@ create PENDING -> publish approval.required
 - `approvalMode=SESSION` 的允许只对当前会话当前 run 的后续相同工具生效（参数仍重新校验），
   不跨会话、不跨子代理；`ALWAYS` 写入策略表，需显式管理。
 
-### 4.5 路径沙箱
+### 4.5 路径沙箱（M3 已实现）
 
-`PathResolver`（infrastructure）负责：
+`PathSandbox`（domain）只做纯路径判定：空白表示工作区根、相对路径基于根解析、
+`normalize()` 后检查是否仍在允许的根内、拒绝 NUL 与非法路径。它不访问文件系统，
+因此无法识别符号链接、Windows junction 或大小写别名。
 
-1. 将 `cwd` 与用户路径解析为绝对路径；
-2. 对已存在路径调用 `toRealPath()`，对新建路径解析最近存在父目录的真实路径；
-3. 检测符号链接指向、大小写不敏感文件系统、Windows 盘符/UNC；
-4. 将真实路径交给 `PathSandbox` 复核。
+`RealPathResolver`（infrastructure）负责物理复核：
 
-`bash` 无法做路径级沙箱：它在 `cwd` 下启动子进程，通过审批、超时、输出截断和
+1. 先调用 `PathSandbox.resolveReadable/resolveWritable` 得到词法绝对路径；
+2. 读路径调用 `toRealPath()`，再把真实路径与真实工作区根比较；
+3. 写路径对尚不存在的目标找到最近存在的祖先，取真实路径后拼回缺失段，
+   再把结果与 `writableRoots` 的真实路径比较——既拒绝符号链接逃逸，又允许新建文件；
+4. 路径不存在返回 `PATH_NOT_FOUND`，其他 IO/格式错误返回 `PATH_INVALID`，
+   越界返回 `PATH_OUTSIDE_WORKSPACE`；
+5. `ls/grep/glob` 的遍历使用 `NOFOLLOW_LINKS` 语义，不跟随目录链接，避免目录环与越界。
+
+`bash`（M6）无法做路径级沙箱：它在 `cwd` 下启动子进程，通过审批、超时、输出截断和
 “默认禁用危险命令模式”降低风险。文档与 UI 必须明确这一限制，不能宣称 bash 被完全沙箱化。
 
 ## 5. 取消
 
-取消令牌（`CancellationToken`）贯穿：
+当前已实现：
 
-- LLM 流：关闭 HTTP body，停止解析；
-- 工具：`read` 等检查中断标记；`bash` 先 `destroy()`，5 秒后 `destroyForcibly()`，并清理子进程树；
-- 审批：唤醒等待者并以 CANCELLED 结束；
-- 子代理：父取消级联子 run；
-- 收尾：补写中断结果与 `RUN_SUMMARY(stopReason=ABORTED)`。
+- LLM 流：`LlmStream.cancel()/close()` 关闭 HTTP body，迭代立即结束；
+- 内置工具：`BuiltInToolInvoker` 超时后 `Future.cancel(true)`；等待线程被中断时
+  返回 `CANCELLED` 结果并恢复中断标记。
+
+M4/M6/M8 将补齐贯穿式取消：
+
+- Agent Loop 的 `CancellationToken` 广播到当前 turn 的 LLM、工具与审批（M4/M6）；
+- `bash` 先 `destroy()`，5 秒后 `destroyForcibly()`，并清理子进程树（M6）；
+- 审批：唤醒等待者并以 CANCELLED 结束（M6）；
+- 子代理：父取消级联子 run（M8）；
+- 收尾：补写中断结果与 `RUN_SUMMARY(stopReason=ABORTED)`（M4）。
 
 取消是幂等的；已进入终态的 run 忽略取消请求。
 

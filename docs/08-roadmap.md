@@ -1,6 +1,6 @@
 # 08 路线图
 
-> 状态：M1、M2 已完成（2026-10-21），M3 待开始。里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
+> 状态：M1、M2、M3 已完成（2026-10-21），下一步 M4。里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
 
@@ -17,7 +17,7 @@
 | **M0** | 骨架与文档 | 6+1 Maven 模块、Checkstyle/ArchUnit、Flyway 目录、docs/ADRs | `mvn -q -DskipTests package`；文档链接可解析 | `chore: bootstrap pi-java ddd skeleton and architecture docs` |
 | **M1** | 会话领域与持久化 | `ChatSession`、`SessionEntry`、消息模型、投影、分支策略、V1、MyBatis 仓储 | 投影/分支/fork/配对/ULID 单测；H2 仓储集成测试 | `feat(session): tree session log and context projection` |
 | **M2** | 模型接入 | `ModelProfile`、`LlmGateway`、Fake + OpenAI-compatible 适配器、V2、模型 API | WireMock 流式/重试/取消/错误；Fake 脚本测试 | `feat(model): model profiles and streaming llm gateway` |
-| **M3** | 工具与沙箱（只读） | `ToolDescriptor/Catalog`、PathSandbox/Resolver、read/ls/grep/glob、V3 | 路径穿越/符号链接/截断/超时；参数校验；策略默认值 | `feat(tool): read-only tools and path sandbox` |
+| **M3** | 工具与沙箱（只读） | `ToolDescriptor/Catalog`、PathSandbox/RealPathResolver、read/ls/grep/glob、V3、工具目录 API | 路径穿越/符号链接/截断/超时；参数校验；策略默认值 | `feat(tool): read-only tools and path sandbox` |
 | **M4** | Agent Loop + Web demo | Run 状态机、SSE、Web UI、Fake E2E、RUN_SUMMARY | 状态机、取消、SSE 回放、MockMvc、浏览器手工验证 | `feat(agent): agent loop, sse and read-only web demo` |
 | **M5** | 插件 SDK | plugin-api、child-first ClassLoader、PluginRuntime、示例插件、V4、插件 API | 类加载隔离、注册回滚、卸载、契约纯度、示例独立编译 | `feat(plugin): zero-dependency plugin sdk and example` |
 | **M6** | 审批 + 写工具 | ApprovalRequest、ToolPolicyRule、审批 API/SSE/UI、write/edit/bash、V5 | 审批并发/过期/取消、策略优先级、Windows 进程超时、脱敏 | `feat(governance): approval workflow and write tools` |
@@ -86,19 +86,28 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M3 工具与沙箱（只读）
 
+状态：已完成（2026-10-21），详见 [M3 记录](milestones/M3.md)。
+
 范围：
 
-- `domain.tool`：ToolDescriptor/Catalog/Planner/ArgumentGuard；
-- `domain.governance.PathSandbox`；
-- infrastructure：PathResolver、read/ls/grep/glob；
-- V3 策略表与默认策略；
-- 工具列表用例/API。
+- `domain.tool`：ToolDescriptor/Catalog/ArgumentGuard、ToolRegistry/ToolInvoker 端口；
+- `domain.governance`：SandboxPolicy/PathSandbox、ToolPolicyRule/Repository、ToolAccessPolicy；
+- infrastructure：RealPathResolver、read/ls/grep/glob、虚拟线程超时调用器；
+- V3 策略表（MyBatis 仓储 + CAS）；
+- 工具目录用例与 `GET /api/v1/tools`。
 
-验收：
+未包含（按计划后移）：
 
-- 路径穿越、符号链接、盘符切换被拒绝；
-- 输出截断 64 KB；超时可取消；
-- 未配置的未知工具默认 DENY。
+- `ToolExecutionPlanner` 与并行分批：M4 随 Agent Loop 实现；
+- 插件 hook 与工具拦截器：M5；
+- 审批、策略管理 API、write/edit/bash：M6。
+
+验收结果：
+
+- 路径穿越、符号链接、盘符切换被拒绝（Windows 下 2 个符号链接用例条件跳过）；
+- 输出按 60k–80k 字符截断；超时返回 `TOOL_TIMEOUT`，中断返回 `CANCELLED`；
+- 未知工具在 `ToolRegistry.require` 处失败，不进入策略解析；
+- `GET /api/v1/tools` 在 demo 应用实测返回四个工具与 `ALLOW` 效果。
 
 ### M4 Agent Loop + 首个 Web demo
 
@@ -234,7 +243,7 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 | entry envelope 反复改 | 数据迁移困难 | M0 冻结 envelope；payload 只加字段；黄金样本 round-trip |
 | 插件契约泄漏内部类型 | 第三方无法独立升级 | plugin-api 零依赖；ArchUnit；示例独立编译 |
 | 审批/取消/SSE 竞态 | 卡死或重复写 | 显式状态机；单 session 单 run；CAS；取消令牌；恢复流程 |
-| Windows 路径/进程差异 | 工具行为不一致 | PathResolver/ProcessRunner 抽象；条件测试；本机优先验证 |
+| Windows 路径/进程差异 | 工具行为不一致 | RealPathResolver/ProcessRunner 抽象；条件测试；本机优先验证 |
 | H2/MySQL 方言差异 | 生产迁移失败 | Flyway 分目录；CI H2 + 本机 MySQL smoke |
 | token 估算偏差 | 压缩不触发/不收敛 | 字符启发式 + usage 锚点；剪枝回退 |
 | 范围膨胀 | 无法交付 v0.1 | 非目标清单；里程碑门禁；新想法进 v0.2 |

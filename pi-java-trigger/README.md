@@ -28,5 +28,7 @@ CLI 与 Web 共享同一个应用层用例与数据库。
 
 ## 当前状态
 
-M0 建立模块；M2 完成 `/api/v1/models`（列表、详情、创建、更新、启停）与统一错误映射，
-8 个 standalone MockMvc 测试。M4 实现会话 SSE 与只读 Web demo，M9 实现完整 CLI。
+M0 建立模块；M2 完成 `/api/v1/models`（列表、详情、创建、更新、启停）与统一错误映射；
+M3 完成 `GET /api/v1/tools`（可选 `cwd`，返回 schema 与策略效果）。共 11 个
+standalone MockMvc 测试。M4 实现会话 SSE 与只读 Web demo，M6 增加策略管理 API，
+M9 实现完整 CLI。

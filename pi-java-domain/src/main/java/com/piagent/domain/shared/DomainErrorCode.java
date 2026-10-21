@@ -54,5 +54,26 @@ public enum DomainErrorCode {
     MODEL_CAPABILITY_MISSING,
 
     /** 模型档案已存在。 */
-    MODEL_ALREADY_EXISTS
+    MODEL_ALREADY_EXISTS,
+
+    /** 工具不存在或未注册。 */
+    TOOL_NOT_FOUND,
+
+    /** 工具参数不合法。 */
+    TOOL_INVALID_ARGUMENT,
+
+    /** 工具执行超时。 */
+    TOOL_TIMEOUT,
+
+    /** 工具执行失败。 */
+    TOOL_EXECUTION_FAILED,
+
+    /** 路径不在允许的读写范围内。 */
+    PATH_OUTSIDE_WORKSPACE,
+
+    /** 路径格式不合法。 */
+    PATH_INVALID,
+
+    /** 路径不存在。 */
+    PATH_NOT_FOUND
 }
