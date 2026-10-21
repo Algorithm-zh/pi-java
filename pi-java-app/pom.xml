@@ -72,6 +72,13 @@
                 <configuration>
                     <mainClass>com.piagent.app.PiJavaApplication</mainClass>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

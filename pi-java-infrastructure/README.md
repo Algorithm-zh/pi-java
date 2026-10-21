@@ -38,6 +38,8 @@ com.piagent.infrastructure
 
 ## 当前状态
 
-M1 已完成 `persistence.session`：PO/Mapper/仓储、payload 与消息 JSON 编解码、
-Spring 装配；H2 集成测试覆盖唯一键、CAS、级联与父会话删除。M2 落地 LLM adapter。
-详见 [M1 记录](../docs/milestones/M1.md)。
+M1 完成 `persistence.session`（PO/Mapper/仓储、payload 与消息 JSON 编解码、Flyway V1）；
+M2 完成 `persistence.model`（V2、CAS 更新、capabilities codec）与 `llm`
+（Fake 脚本 provider、provider 路由、OpenAI-compatible 的请求映射/SSE 解析/重试/取消）。
+infrastructure 共 46 个测试，包含 WireMock 流式故障场景。M3 增加只读工具与路径沙箱。
+详见 [M2 记录](../docs/milestones/M2.md)。

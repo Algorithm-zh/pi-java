@@ -1,6 +1,6 @@
 # 08 路线图
 
-> 状态：M1 已完成（2026-10-21），M2 待开始。里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
+> 状态：M1、M2 已完成（2026-10-21），M3 待开始。里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
 
@@ -65,19 +65,24 @@ mvn -q verify
 
 ### M2 模型接入
 
+状态：已完成（2026-10-21），详见 [M2 记录](milestones/M2.md)。
+
 范围：
 
-- `domain.model`、`ModelProfile`、`LlmGateway` 端口；
-- Fake provider（脚本化流、错误、取消）；
-- OpenAI-compatible provider（JDK HttpClient + SSE 解析）；
+- `domain.model`、`ModelProfile`、`ModelEndpoint`、`LlmGateway` 端口与 sealed delta；
+- Fake provider（脚本化流、工具调用、错误、取消、回声兜底）；
+- OpenAI-compatible provider（JDK HttpClient + 手写 SSE、分片工具调用、usage）；
 - V2；模型配置用例与 API；
-- 密钥只读环境变量。
+- 密钥只读环境变量，档案只存变量名。
 
 验收：
 
-- WireMock 覆盖流式、429/5xx、断流、取消、畸形 JSON；
+- WireMock 覆盖流式、429/5xx、401、上下文溢出、断流、取消、畸形 JSON、缺密钥；
 - 重试只发生在 adapter，且首个 delta 后不重试；
-- 模型 API 拒绝疑似密钥值。
+- 模型 API 拒绝疑似密钥值，实测创建/列表/启停/更新/404。
+
+实测：147 个测试全绿；domain 行覆盖 85.4%、application 98.3%；
+demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M3 工具与沙箱（只读）
 

@@ -39,7 +39,7 @@ com.piagent.domain
 
 ## 当前状态
 
-M1 已完成：`shared`（ULID/错误码/异常/Guard）与 `session`（聚合、entry、消息 sealed、
-10 种 payload、投影器、分支策略、仓储端口）已落地，domain 单测 30 个、行覆盖 89.4%。
-其余上下文的类型从 M2 起按里程碑加入。详见
-[领域模型](../docs/02-domain-model.md) 与 [M1 记录](../docs/milestones/M1.md)。
+M1 完成 `shared` 与 `session`；M2 完成 `model`（档案聚合、endpoint/能力/usage 值对象、
+选择策略、`LlmGateway` 流式端口与错误码）。domain 单测 52 个、行覆盖 85.4%。
+其余上下文的类型从 M3 起按里程碑加入。详见
+[领域模型](../docs/02-domain-model.md) 与 [M2 记录](../docs/milestones/M2.md)。

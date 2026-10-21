@@ -315,7 +315,7 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
 
 | 场景 | 行为 |
 |---|---|
-| LLM 429/5xx/网络错误，且尚未输出任何 delta | adapter 内重试最多 2 次（指数退避 + 抖动） |
+| LLM 429/5xx/408/网络或连接超时，且尚未输出任何 delta | adapter 内最多重试 2 次（共 3 次请求），短退避 150ms × 第几次重试 |
 | 已输出部分 delta 后失败 | 不重试，结束为 FAILED，已输出内容保留 |
 | context_length_exceeded | 压缩一次后重试；仍失败则 FAILED |
 | 工具超时/失败 | 生成 `isError=true` 结果，继续循环 |
@@ -325,6 +325,24 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
 | 子代理失败/超时 | 返回结构化结果；父 run 继续 |
 
 禁止双层重试：application 不重试 LLM 调用，只有 adapter 做传输级重试。
+
+### 10.1 LLM adapter 的实现边界
+
+- **惰性连接**：`stream()` 只做密钥检查、请求映射与 URI 拼接，首次 `hasNext()` 才发请求；
+  测试可在不触网的情况下取消。
+- **重试判定**：只对可重试错误码（408/429/5xx/网络/连接超时）在“首个 delta 之前”重试；
+  401/403、400 非上下文溢出、畸形 SSE 一律立即失败。
+- **总超时**：`LlmCallContext.timeout` 覆盖建连与读取全过程；每次读行前检查 deadline，
+  不是仅依赖 HttpClient 的单次请求超时。
+- **取消**：`cancel()` 关闭响应体，阻塞读抛 `IOException`；流已取消时 `hasNext()` 返回 false，
+  不把取消伪装成网络错误，也不触发重试。
+- **协议收尾**：收到 `[DONE]` 或 EOF 都调用解析器 `finish()`；空流、非法 JSON、
+  声明 `tool_calls` 却没有工具调用、工具缺少 id/name、参数不是 JSON 对象均报
+  `MALFORMED_RESPONSE`。
+- **usage 归一**：provider 未返回 `total_tokens` 时用 input + output 补齐；
+  `prompt_tokens_details.cached_tokens` 与 `prompt_cache_hit_tokens` 取较大值。
+- **密钥**：只在发送瞬间读取环境变量并放入 `Authorization`；缺失时返回
+  `MISSING_API_KEY`，不发起网络请求；错误信息不包含请求头与密钥。
 
 ## 11. 启动恢复
 

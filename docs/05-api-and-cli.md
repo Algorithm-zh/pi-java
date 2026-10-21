@@ -241,31 +241,54 @@ Content-Type: application/json
 
 ```http
 GET  /api/v1/models
+GET  /api/v1/models/{id}
 POST /api/v1/models
+PUT  /api/v1/models/{id}
 POST /api/v1/models/{id}/enable
 POST /api/v1/models/{id}/disable
 ```
 
-创建/更新请求：
+创建请求（更新使用同一 endpoint 结构，路径中的 `{id}` 为准）：
 
 ```json
 {
   "id": "deepseek-chat",
   "displayName": "DeepSeek Chat",
-  "provider": "OPENAI_COMPATIBLE",
-  "baseUrl": "https://api.deepseek.com/v1",
-  "apiKeyEnv": "DEEPSEEK_API_KEY",
-  "modelName": "deepseek-chat",
-  "contextWindow": 65536,
-  "maxOutputTokens": 8192,
-  "capabilities": {"streaming": true, "toolCalling": true, "thinking": false}
+  "endpoint": {
+    "provider": "OPENAI_COMPATIBLE",
+    "baseUrl": "https://api.deepseek.com",
+    "apiKeyEnv": "DEEPSEEK_API_KEY",
+    "modelName": "deepseek-chat",
+    "contextWindow": 65536,
+    "maxOutputTokens": 8192,
+    "capabilities": {"streaming": true, "toolCalls": true, "thinking": false}
+  }
 }
 ```
 
-- 只接受环境变量名，服务端拒绝看起来像密钥的值（长度、前缀、包含空格等）；
-- `contextWindow`、`maxOutputTokens` 必须为正；`baseUrl` 必须为 http/https；
-- 重复 id 视为更新，需带 `version`（乐观锁），冲突返回 409；
-- `FAKE` provider 不需要 `baseUrl/apiKeyEnv`。
+响应在请求字段之外增加 `enabled` 与 `version`，**任何响应都不返回密钥值**：
+
+```json
+{
+  "id": "deepseek-chat",
+  "displayName": "DeepSeek Chat",
+  "endpoint": {"provider": "OPENAI_COMPATIBLE", "...": "..."},
+  "enabled": true,
+  "version": 1
+}
+```
+
+约束与错误：
+
+- `apiKeyEnv` 只接受环境变量名；服务端校验 `[A-Z][A-Z0-9_]{0,127}`，不接收密钥字面量；
+- `contextWindow`、`maxOutputTokens` 必须为正且输出不超过上下文；`baseUrl` 必须为
+  http/https（`FAKE` 除外）；
+- `POST` 遇到重复 id 返回 409 `MODEL_ALREADY_EXISTS`；`PUT` 使用服务端读到的当前版本
+  做 CAS，并发冲突返回 409 `CONCURRENT_MODIFICATION`；
+- 未知 provider 返回 400 `INVALID_ARGUMENT`；空请求体、非法 JSON 返回 400；
+- 找不到档案返回 404 `MODEL_NOT_FOUND`；停用档案返回 409 `MODEL_DISABLED`（当用例要求
+  启用档案时）；
+- `enable/disable` 幂等：重复调用仍返回当前档案与版本。
 
 ## 5. 工具与策略 API
 

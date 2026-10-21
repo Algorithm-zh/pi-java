@@ -42,5 +42,17 @@ public enum DomainErrorCode {
     TOOL_CALL_MISMATCH,
 
     /** payload 版本或类型暂不支持。 */
-    UNSUPPORTED_PAYLOAD
+    UNSUPPORTED_PAYLOAD,
+
+    /** 模型档案不存在。 */
+    MODEL_NOT_FOUND,
+
+    /** 模型档案已停用。 */
+    MODEL_DISABLED,
+
+    /** 模型能力不满足当前请求。 */
+    MODEL_CAPABILITY_MISSING,
+
+    /** 模型档案已存在。 */
+    MODEL_ALREADY_EXISTS
 }

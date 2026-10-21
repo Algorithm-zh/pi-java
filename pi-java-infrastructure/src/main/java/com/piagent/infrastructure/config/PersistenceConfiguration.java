@@ -2,7 +2,9 @@ package com.piagent.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.infrastructure.persistence.codec.EntryPayloadCodec;
+import com.piagent.infrastructure.persistence.codec.ModelCapabilitiesCodec;
 import com.piagent.infrastructure.persistence.codec.SandboxJsonCodec;
+import com.piagent.infrastructure.persistence.model.ModelProfilePoConverter;
 import com.piagent.infrastructure.persistence.session.SessionEntryPoConverter;
 import com.piagent.infrastructure.persistence.session.SessionPoConverter;
 import org.apache.ibatis.annotations.Mapper;
@@ -43,6 +45,17 @@ public class PersistenceConfiguration {
     }
 
     /**
+     * 模型能力编解码。
+     *
+     * @param mapper Jackson 映射器
+     * @return 编解码器
+     */
+    @Bean
+    public ModelCapabilitiesCodec modelCapabilitiesCodec(ObjectMapper mapper) {
+        return new ModelCapabilitiesCodec(mapper);
+    }
+
+    /**
      * 会话行转换器。
      *
      * @param sandboxCodec 沙箱编解码
@@ -51,6 +64,17 @@ public class PersistenceConfiguration {
     @Bean
     public SessionPoConverter sessionPoConverter(SandboxJsonCodec sandboxCodec) {
         return new SessionPoConverter(sandboxCodec);
+    }
+
+    /**
+     * 模型档案行转换器。
+     *
+     * @param capabilitiesCodec 能力编解码
+     * @return 转换器
+     */
+    @Bean
+    public ModelProfilePoConverter modelProfilePoConverter(ModelCapabilitiesCodec capabilitiesCodec) {
+        return new ModelProfilePoConverter(capabilitiesCodec);
     }
 
     /**

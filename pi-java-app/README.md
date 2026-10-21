@@ -13,11 +13,12 @@
 ## 启动
 
 ```bash
-mvn -q -pl pi-java-app -am spring-boot:run
-# 或
 mvn -q -DskipTests package
 java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 ```
+
+开发期可用 `mvn -q -pl pi-java-app spring-boot:run`（需先执行一次
+`mvn -q -DskipTests install`，让依赖模块进入本地仓库）。
 
 默认 `demo` profile：H2 文件库 + Fake LLM，无需 API Key。
 MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 环境变量注入。
@@ -36,5 +37,6 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 
 ## 当前状态
 
-M1：启动类、demo/mysql/test 配置、ArchUnit、Flyway V1 与会话集成测试已完成。
-Web UI 从 M4 开始。
+M1 完成启动类、demo/mysql/test 配置、ArchUnit、Flyway V1 与会话集成测试；
+M2 增加 V2 迁移与模型档案 H2 往返/CAS 集成测试，共 23 个测试。
+Web UI 从 M4 开始。详见 [M2 记录](../docs/milestones/M2.md)。

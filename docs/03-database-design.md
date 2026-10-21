@@ -123,22 +123,28 @@ CREATE TABLE pi_model_profile (
     id                VARCHAR(64)  NOT NULL,
     display_name      VARCHAR(128) NOT NULL,
     provider          VARCHAR(32)  NOT NULL,
-    base_url          VARCHAR(512) NOT NULL,
-    api_key_env       VARCHAR(128) NULL,
+    base_url          VARCHAR(512) NOT NULL DEFAULT '',
+    api_key_env       VARCHAR(128) NOT NULL DEFAULT '',
     model_name        VARCHAR(128) NOT NULL,
     context_window    INT          NOT NULL,
     max_output_tokens INT          NOT NULL,
     capabilities_json TEXT         NOT NULL,
     enabled           BOOLEAN      NOT NULL DEFAULT TRUE,
-    version           BIGINT       NOT NULL DEFAULT 0,
+    version           BIGINT       NOT NULL DEFAULT 1,
     created_at        DATETIME(3)  NOT NULL,
     updated_at        DATETIME(3)  NOT NULL,
     PRIMARY KEY (id),
-    KEY idx_model_enabled (enabled)
+    KEY idx_model_profile_enabled (enabled)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 ```
 
-`api_key_env` **只存环境变量名**（如 `DEEPSEEK_API_KEY`），任何情况下不存密钥值。
+- `api_key_env` **只存环境变量名**（如 `DEEPSEEK_API_KEY`），任何情况下不存密钥值；
+  `FAKE` provider 允许空串，因此列是 `NOT NULL DEFAULT ''` 而不是 NULL，避免 H2/MySQL
+  对 NULL 语义的差异。
+- `capabilities_json` 只保存 `streaming/toolCalls/thinking`；上下文窗口与输出上限是
+  查询和校验都要用的数值，保留为独立列。
+- `version` 从 1 开始，应用层用读到的旧版本做 CAS；H2 迁移脚本使用 `TIMESTAMP(3)`
+  与 `CLOB`，索引单独 `CREATE INDEX`，其余语义与 MySQL 一致。
 
 ### 3.3 `V3__tool_policy.sql`
 

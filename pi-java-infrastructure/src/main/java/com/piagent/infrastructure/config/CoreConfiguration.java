@@ -1,5 +1,6 @@
 package com.piagent.infrastructure.config;
 
+import com.piagent.domain.model.service.ModelSelectionPolicy;
 import com.piagent.domain.session.service.SessionBranchPolicy;
 import com.piagent.domain.session.service.SessionContextProjector;
 import com.piagent.domain.shared.IdGenerator;
@@ -55,5 +56,15 @@ public class CoreConfiguration {
     @Bean
     public SessionBranchPolicy sessionBranchPolicy() {
         return new SessionBranchPolicy();
+    }
+
+    /**
+     * 模型选择策略。
+     *
+     * @return 策略
+     */
+    @Bean
+    public ModelSelectionPolicy modelSelectionPolicy() {
+        return new ModelSelectionPolicy();
     }
 }

@@ -25,7 +25,8 @@
 
 - [M0：骨架与文档](milestones/M0.md)
 - [M1：会话领域与持久化](milestones/M1.md)
-- M2–M9：随里程碑完成补齐
+- [M2：模型接入与流式 LLM Gateway](milestones/M2.md)
+- M3–M9：随里程碑完成补齐
 
 ## 模块文档
 

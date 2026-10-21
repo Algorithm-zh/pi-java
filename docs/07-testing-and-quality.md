@@ -100,37 +100,48 @@
 
 ### 5.1 FakeLlmProvider
 
-确定性脚本由测试提供：
+确定性脚本由测试或 demo 提供，每个回合描述增量、最终响应或失败位置：
 
 ```java
-FakeScript.builder()
-    .turn(t -> t.text("先读取文件").toolCall("read", Map.of("path", "pom.xml")))
-    .turn(t -> t.text("依赖如下...").stop())
-    .build();
+FakeLlmProvider fake = new FakeLlmProvider(
+        FakeTurn.text("先读取文件"),
+        FakeTurn.toolCall("read", Map.of("path", "pom.xml")),
+        FakeTurn.text("依赖如下...").withUsage(new Usage(100, 20, 0, 0, 120)));
 ```
 
 要求：
 
-- 支持文本增量、thinking 增量、toolCall、错误、取消；
-- 每个 delta 可配置延迟（虚拟时间优先，避免真实 sleep）；
-- 相同脚本必得相同事件序列，便于断言 SSE；
+- 支持文本、思考、工具调用、指定位置失败与延迟；`DoneDelta` 由流实现补发；
+- 失败必须发生在全部脚本 delta 之后，避免不可达增量；
+- 脚本耗尽后退化为回声（回显最后一条用户消息），保证 demo 永远有输出；
 - 所有离线 E2E 默认使用 Fake，不读取 API Key。
+
+已覆盖：文本与 usage、分片工具调用、部分输出后失败、首个 delta 前失败、
+慢流取消、关闭、回声兜底。
 
 ### 5.2 OpenAI-compatible
 
-WireMock 覆盖：
+WireMock 覆盖（10 个端到端用例）：
 
 | 场景 | 断言 |
 |---|---|
-| 正常 SSE | 逐块解析、toolCall 拼接、usage 提取 |
-| 429 后成功 | 重试 2 次内恢复，事件不重复 |
-| 500 持续 | 重试后 FAILED，错误信息脱敏 |
-| 首个 delta 后断流 | 不重试，已输出内容保留 |
-| 取消 | HTTP 连接关闭，线程退出，不泄漏 |
-| 畸形 JSON | 明确错误，不吞异常 |
-| context_length_exceeded | 触发一次压缩后重试 |
+| 正常 SSE | 逐块文本、`[DONE]`、usage（含缓存命中）、Authorization 头 |
+| 分片 toolCall | 按 index 合并参数，最终 `ToolCallBlock` 与 `TOOL_USE` |
+| 429 后成功 | 重试 2 次内恢复，共 2 次请求，事件不重复 |
+| 500 持续 | 3 次请求后抛 `SERVER_ERROR`，可重试标记正确 |
+| 401 | 不重试，抛 `AUTHENTICATION` |
+| 400 上下文溢出 | 映射 `CONTEXT_OVERFLOW`，不重试 |
+| 畸形 SSE | `MALFORMED_RESPONSE`，不重试 |
+| 首个 delta 后畸形 | 已输出文本保留，`response()` 为空，不重试 |
+| 缺失环境变量 | `MISSING_API_KEY`，0 次网络请求 |
+| 首次读取前取消 | `hasNext()` 立即 false，0 次网络请求 |
+
+另有 SSE 解析器单元测试覆盖 thinking 顺序、usage 缺省补齐、缓存字段取较大值、
+多工具调用按 index 排序、空流、`tool_calls` 与内容不一致、缺少工具 id/name、
+参数不是 JSON 对象等协议边界。
 
 不引入 Spring AI / LangChain4j；HTTP 使用 JDK `HttpClient`，SSE 解析手写在 adapter 内。
+真实 DeepSeek 连通性不属于离线测试，留到 M9 验收（需环境变量）执行。
 
 ## 6. 数据库集成测试
 
@@ -180,12 +191,16 @@ WireMock 覆盖：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
-M1 实测（2026-10-21）：
+M1/M2 实测（2026-10-21，`mvn -q verify`）：
 
 | 模块 | 行覆盖 | 门槛 |
 |---|---|---|
-| `pi-java-domain` | 89.4% | ≥ 60% |
-| `pi-java-application` | 98.9% | ≥ 60% |
+| `pi-java-domain` | 85.4%（M1 89.4%） | ≥ 60% |
+| `pi-java-application` | 98.3%（M1 98.9%） | ≥ 60% |
+
+覆盖率相对 M1 略有下降是新增模型领域大量不可达的防御分支（provider 协议校验）
+所致，绝对门槛仍远高于 60%；后续里程碑继续要求“不得低于 60%，且新增行为必须有测试”。
+当前共 147 个测试：domain 52、application 18、infrastructure 46、trigger 8、app 23。
 
 application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 app 模块的 H2 集成测试覆盖，
 避免为了覆盖率把基础设施依赖倒灌进应用层。

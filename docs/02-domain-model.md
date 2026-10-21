@@ -235,21 +235,40 @@ interface RunEventPublisher {
 
 ### 4.1 聚合根 `ModelProfile`
 
-字段与 `pi_model_profile` 一致：`ModelId`、展示名、`ProviderType`、`baseUrl`、
-`apiKeyEnv`（只存环境变量名）、`modelName`、`contextWindow`、`maxOutputTokens`、
-`ModelCapabilities`、`enabled`、`version`。
+`ModelProfile(id, displayName, endpoint, enabled, version)`。接入参数集中在值对象
+`ModelEndpoint`，避免聚合与 API、DDL 各自散落十几个字段：
 
-行为：`enable()`、`disable()`、`updateSettings(...)`。禁用不删除，避免破坏历史会话的可解释性。
+| 字段 | 说明 |
+|---|---|
+| `provider` | `OPENAI_COMPATIBLE / ANTHROPIC / FAKE` |
+| `baseUrl` | API 根地址；写入时去掉尾部 `/` |
+| `apiKeyEnv` | 环境变量名，不存真实密钥 |
+| `modelName` | 发给 provider 的模型标识 |
+| `contextWindow` / `maxOutputTokens` | 上下文与输出上限，输出不得超过上下文 |
+| `capabilities` | 流式、工具调用、思考三项能力 |
+
+行为：`create()`、`rename()`、`updateEndpoint()`、`enable()`、`disable()`、
+`withVersion()`。编辑操作保留原 `version`，由仓储用旧版本做 CAS，成功后应用层再
+同步新版本；`withVersion` 禁止版本回退。禁用不删除，避免破坏历史会话的可解释性。
+
+构造约束：
+
+- `FAKE` 允许空 `baseUrl/apiKeyEnv`，其他 provider 必须提供 http(s) 地址与合法环境变量名；
+- `apiKeyEnv` 只匹配 `[A-Z][A-Z0-9_]{0,127}`，从格式上排除“把密钥填进来”；
+- `maxOutputTokens <= contextWindow`，避免 provider 端参数自相矛盾。
 
 ### 4.2 值对象
 
 | 类型 | 说明 |
 |---|---|
-| `ModelId` | 档案逻辑 ID，如 `deepseek-chat` |
+| `ModelId` | 档案逻辑 ID，小写字母/数字/点/下划线/连字符，最长 64 |
 | `ProviderType` | `OPENAI_COMPATIBLE / ANTHROPIC / FAKE` |
 | `ModelRef` | `(provider, modelName)`，真正发给 provider 的标识 |
-| `ModelCapabilities` | 流式、工具调用、思考、上下文窗口、最大输出 |
-| `Usage` | provider 返回的 token/费用；与会话 `TokenUsage` 通过映射器转换 |
+| `ModelCapabilities` | `streaming / toolCalls / thinking` 三项能力 |
+| `Usage` | input / output / cacheRead / cacheWrite / totalTokens |
+
+`Usage` 与会话侧 `TokenUsage` 分开：前者是 provider 账单口径，后者是会话累计口径，
+由应用层显式映射，避免两个上下文共享可变状态。
 
 ### 4.3 端口
 
@@ -257,28 +276,50 @@ interface RunEventPublisher {
 interface ModelProfileRepository {
     Optional<ModelProfile> findById(ModelId id);
     List<ModelProfile> findAll();
-    void save(ModelProfile profile);
+    List<ModelProfile> findEnabled();
+    void insert(ModelProfile profile);
+    void update(ModelProfile profile);   // 以 profile.version 做 CAS
 }
 
 interface LlmGateway {
     LlmStream stream(LlmRequest request, LlmCallContext context);
 }
 
-interface LlmStream extends AutoCloseable {
-    Iterator<LlmDelta> deltas();       // text / thinking / toolCall / done
-    LlmResponse response();            // 流结束后可用
+interface LlmStream extends Iterator<LlmDelta>, AutoCloseable {
+    Optional<LlmResponse> response();    // DoneDelta 之后可用
+    boolean isCancelled();
     void cancel();
+    void close();
 }
 ```
 
-`LlmRequest` 包含 `ModelRef`、消息、工具描述、`thinkingLevel`、`maxOutputTokens`；
-`LlmResponse` 包含完整 assistant 消息、`Usage`、`StopReason`。
-HTTP、SSE 解析、重试全部在 infrastructure，领域层只认端口。
+`LlmRequest(profile, systemPrompt, messages, tools, thinkingLevel)` 复用会话的
+`AgentMessage`，避免维护第二套消息层次；`LlmCallContext` 只携带总超时。
+`LlmDelta` 是 sealed：`TextDelta`、`ThinkingDelta`、`ToolCallDelta`、`DoneDelta`。
+`LlmResponse` 包含最终内容块、`Usage`、`AssistantStopReason` 与错误信息。
+
+调用约定（详见 `LlmStream` Javadoc）：
+
+- `hasNext()` 驱动真实网络读取；连接是惰性的，构造流不发起请求；
+- 正常结束先产出 `DoneDelta`，随后 `response()` 可用；
+- 错误从 `hasNext()/next()` 抛 `LlmGatewayException`，不会伪装成 delta；
+- `cancel()` 与 `close()` 幂等，取消后迭代立即返回 false。
+
+`LlmErrorCode` 区分可重试（`NETWORK/TIMEOUT/RATE_LIMITED/SERVER_ERROR`）与不可重试
+（`AUTHENTICATION/INVALID_REQUEST/CONTEXT_OVERFLOW/MALFORMED_RESPONSE/MISSING_API_KEY/
+UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领域层不重试。
 
 ### 4.4 领域服务
 
-`ModelSelectionPolicy`：按会话指定 ID 选择档案；未指定时选择唯一启用的默认档案；
-能力不满足（例如要求工具但模型不支持）直接给出领域错误，不在运行中静默降级。
+`ModelSelectionPolicy`：
+
+- `requireEnabled(profile)`：停用档案返回 `MODEL_DISABLED`；
+- `requireCompatible(profile, needsTools, thinkingLevel)`：流式、工具、思考能力不足时
+  直接报错，不在运行中静默降级。
+
+“未指定模型时选择唯一默认档案”属于 run 创建用例，M4 接入 Agent Loop 时实现；
+当前应用层只暴露 `listEnabled`，不替用户猜模型。
+
 
 ## 5. 工具上下文 `domain.tool`
 
