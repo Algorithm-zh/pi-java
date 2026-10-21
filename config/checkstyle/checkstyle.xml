@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!--
+  pi-java 主代码静态检查规则。
+
+  设计原则：
+  1. 只检查“可维护性底线”，不追求风格洁癖；
+  2. 单文件 300 行、单方法 50 行、参数 6 个，防止重新长成巨文件；
+  3. public 类型必须有 Javadoc（中文），测试代码不参与检查；
+  4. 允许用 @SuppressWarnings("checkstyle:XXX") 做有理由的局部豁免。
+-->
+<module name="Checker">
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <module name="SuppressWarningsFilter"/>
+    <module name="BeforeExecutionExclusionFileFilter">
+        <property name="fileNamePattern" value="module-info\.java$"/>
+    </module>
+
+    <module name="FileTabCharacter"/>
+    <module name="LineLength">
+        <property name="max" value="140"/>
+        <property name="ignorePattern" value="^package.*|^import.*|https?://|href"/>
+    </module>
+    <module name="FileLength">
+        <property name="max" value="300"/>
+    </module>
+
+    <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
+
+        <module name="OneTopLevelClass"/>
+        <module name="AvoidStarImport"/>
+        <module name="RedundantImport"/>
+        <module name="UnusedImports"/>
+
+        <module name="NeedBraces"/>
+        <module name="LeftCurly"/>
+        <module name="RightCurly"/>
+        <module name="WhitespaceAround">
+            <property name="allowEmptyConstructors" value="true"/>
+            <property name="allowEmptyMethods" value="true"/>
+            <property name="allowEmptyTypes" value="true"/>
+            <property name="allowEmptyLambdas" value="true"/>
+            <property name="allowEmptyCatches" value="true"/>
+        </module>
+        <module name="EmptyBlock">
+            <property name="option" value="text"/>
+        </module>
+
+        <module name="MethodLength">
+            <property name="max" value="50"/>
+            <property name="countEmpty" value="false"/>
+        </module>
+        <module name="ParameterNumber">
+            <property name="max" value="6"/>
+            <property name="ignoreOverriddenMethods" value="true"/>
+        </module>
+
+        <module name="MissingJavadocType">
+            <property name="scope" value="public"/>
+        </module>
+
+        <module name="ModifierOrder"/>
+        <module name="UpperEll"/>
+        <module name="EqualsHashCode"/>
+    </module>
+</module>

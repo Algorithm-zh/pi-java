@@ -1,0 +1,82 @@
+# pi-java 基础配置。
+# 默认使用 demo profile：H2 文件库 + Fake LLM，无需任何外部服务即可启动。
+# 生产/联调通过 --spring.profiles.active=mysql 切换，密钥只允许来自环境变量。
+spring:
+  application:
+    name: pi-java
+  profiles:
+    default: demo
+  main:
+    banner-mode: "off"
+  datasource:
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 2
+      connection-timeout: 10000
+  flyway:
+    enabled: true
+    clean-disabled: true
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  address: "${PI_SERVER_ADDRESS:127.0.0.1}"
+  port: 8080
+  shutdown: graceful
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+
+# 运行时参数。全部有安全默认值，后续里程碑由配置绑定逐步消费。
+pi:
+  agent:
+    max-concurrent-runs: 4
+    tool-parallelism: 4
+    approval-ttl: 30m
+    max-subagent-depth: 2
+    context:
+      reserve-tokens: 16384
+      keep-recent-tokens: 20000
+    skills:
+      - "~/.pi-java/skills"
+
+logging:
+  level:
+    root: INFO
+    com.piagent: INFO
+
+---
+# 本地演示：文件型 H2 落在 ./data，重启后会话仍在；schema 由 Flyway 管理。
+spring:
+  config:
+    activate:
+      on-profile: demo
+  datasource:
+    url: "jdbc:h2:file:./data/pi-java;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;AUTO_SERVER=TRUE"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  flyway:
+    locations: classpath:db/migration/h2
+
+---
+# MySQL 8：连接信息全部通过环境变量注入，仓库与镜像中不出现密码。
+spring:
+  config:
+    activate:
+      on-profile: mysql
+  datasource:
+    url: "${PI_MYSQL_URL:jdbc:mysql://localhost:3306/pi_java?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: "${PI_MYSQL_USER:pi}"
+    password: "${PI_MYSQL_PASSWORD:}"
+  flyway:
+    locations: classpath:db/migration/mysql
