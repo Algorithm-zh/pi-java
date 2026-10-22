@@ -112,7 +112,8 @@ M4 已覆盖（`AgentLoopServiceTest` 15 个用例 + `AgentLoopIntegrationTest` 
 - 悬空 RUNNING 会话在下次启动前自愈为 IDLE；
 - run 结束必写且只写一条 RUN_SUMMARY。
 
-M6 已补充审批等待/超时/取消与 SSE 事件；M7 将继续补充压缩切点与收敛。
+M6 已补充审批等待/超时/取消与 SSE 事件；M7 已补充压缩切点、收敛判定、
+token 口径回归与技能扫描/缓存。
 
 ### 4.4 压缩与 Skills
 
@@ -241,22 +242,27 @@ WireMock 覆盖（10 个端到端用例）：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
-M6 实测（2026-10-22，`mvn -q verify`）：
+M7 实测（2026-10-22，`mvn clean verify`）：
 
 | 模块 | 行覆盖 | 测试数 | 门槛 |
 |---|---|---|---|
-| `pi-java-domain` | 87.3%（1110/1272） | 121 | ≥ 60% |
-| `pi-java-application` | 88.3%（1092/1236） | 73 | ≥ 60% |
-| `pi-java-infrastructure` | 64.7%（1621/2504） | 165（2 跳过） | 无门槛 |
-| `pi-java-trigger` | 44.2%（174/394） | 35 | 无门槛 |
-| `pi-java-app` | 38.1%（8/21） | 47 | 无门槛 |
+| `pi-java-domain` | 89.2%（1588/1780） | 174 | ≥ 60% |
+| `pi-java-application` | 86.1%（1536/1783） | 101 | ≥ 60% |
+| `pi-java-infrastructure` | 64.7%（1718/2655） | 176（2 跳过） | 无门槛 |
+| `pi-java-trigger` | 47.5%（199/419） | 42 | 无门槛 |
+| `pi-java-app` | —（集成测试为主） | 53 | 无门槛 |
 | `pi-java-plugin-api` | 73.1%（49/67） | 3 | 无门槛 |
 | `examples/pi-plugin-example` | 100%（13/13） | 4 | 无门槛 |
 
-当前共 448 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
-domain 覆盖率随审批聚合与脱敏服务增加略有摊薄，application 仍保持在 88% 以上；
-新增审批用例、门面与管线阻塞路径都有行为测试覆盖。trigger 从 35.6% 升到 44.2%，
-因为审批/策略 Controller 的测试分支多于新增端点本身。
+当前共 553 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
+M7 新增约 105 个测试，domain 因为新增的纯函数上下文组件（估算器、规划器、摘要格式化、
+frontmatter 解析）覆盖了大部分新增行，行覆盖反而从 87.3% 升到 89.2%。
+
+M7 特别补充的回归测试：
+
+- `SmallWindowCompactionTest`：锁定“小窗口下预算仍合法且能切出切点”；
+- `CompactionPlannerBoundaryTest`：锁定“保留窗口覆盖全量时不压缩”；
+- `EntryTokenCounterTest`：锁定落库估算与投影汇总同源（对应 M7 修复的 token 口径缺陷）。
 
 infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的关闭/拒绝分支、
 `PluginHost` 的若干异常回滚路径、进程/文件 IO 异常与 Windows 专用分支不易稳定触发；

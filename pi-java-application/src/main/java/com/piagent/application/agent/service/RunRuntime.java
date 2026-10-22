@@ -5,11 +5,15 @@ import com.piagent.domain.agent.RunBudget;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.agent.RunStatus;
 import com.piagent.domain.agent.RunStopReason;
+import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AgentMessage;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
+import com.piagent.domain.session.port.SessionRepository;
+import com.piagent.domain.shared.DomainErrorCode;
+import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.IdGenerator;
 import com.piagent.domain.tool.port.ToolRegistry;
 import java.time.Clock;
@@ -34,27 +38,38 @@ public class RunRuntime {
     private final RunEventHub hub;
     private final SessionEntryAppender appender;
     private final ToolRegistry toolRegistry;
+    private final ContextCompactionState compactionState;
+    private final SessionRepository sessions;
     private final IdGenerator idGenerator;
     private final Clock clock;
 
     /**
      * 创建运行时。
      *
-     * @param registry run 注册表
-     * @param hub 事件中心
-     * @param appender entry 追加器
-     * @param toolRegistry 工具目录
-     * @param idGenerator 标识生成器
-     * @param clock 时钟
+     * @param deps 运行时依赖集合
      */
-    public RunRuntime(ActiveRunRegistry registry, RunEventHub hub, SessionEntryAppender appender,
-            ToolRegistry toolRegistry, IdGenerator idGenerator, Clock clock) {
-        this.registry = registry;
-        this.hub = hub;
-        this.appender = appender;
-        this.toolRegistry = toolRegistry;
-        this.idGenerator = idGenerator;
-        this.clock = clock;
+    public RunRuntime(RunRuntimeDependencies deps) {
+        this.registry = deps.registry();
+        this.hub = deps.hub();
+        this.appender = deps.appender();
+        this.toolRegistry = deps.toolRegistry();
+        this.compactionState = deps.compactionState();
+        this.sessions = deps.sessions();
+        this.idGenerator = deps.idGenerator();
+        this.clock = deps.clock();
+    }
+
+    /**
+     * 读取会话最新快照。
+     *
+     * @param sessionId 会话标识
+     * @return 会话
+     * @throws com.piagent.domain.shared.DomainException 会话不存在时
+     */
+    public ChatSession requireSession(SessionId sessionId) {
+        return sessions.findById(sessionId)
+                .orElseThrow(() -> new DomainException(DomainErrorCode.SESSION_NOT_FOUND,
+                        "会话不存在: " + sessionId));
     }
 
     /**
@@ -233,6 +248,7 @@ public class RunRuntime {
             reserved.events().runCompleted(terminal);
         }
         hub.close(reserved.runId());
+        compactionState.clear(reserved.runId().toString());
         return terminal;
     }
 

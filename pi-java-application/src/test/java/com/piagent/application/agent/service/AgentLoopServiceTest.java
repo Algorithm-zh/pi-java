@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
+import com.piagent.application.testsupport.ScriptedLlmGateway;
 import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEvent;

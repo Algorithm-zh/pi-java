@@ -16,9 +16,9 @@ com.piagent.infrastructure
 ├── llm           Fake / OpenAI-compatible provider，SSE 解析
 ├── tool          read/ls/grep/glob/write/edit/bash、RealPathResolver、ProcessRunner
 ├── plugin        manifest、ClassLoader、注册表、插件运行时
-├── skill         目录扫描、frontmatter 解析
-├── cache         Caffeine 缓存实现
-└── config        Spring 装配
+├── context       skill 目录扫描、frontmatter 缓存、AGENTS.md 读取
+├── config        Spring 装配
+└── ...
 ```
 
 ## 规则
@@ -48,5 +48,8 @@ M3 完成 `tool`（RealPathResolver、read/ls/grep/glob、虚拟线程超时调�
 `RuntimeToolRegistry`、`RuntimeToolInvoker`）与 V4 插件记录仓储，并为 Fake demo
 增加 `/tool <name> <json>`。M6 增加 `write/edit/bash` 三个内置工具、
 `persistence.governance`（V5 审批记录、`ApprovalArgumentsCodec`、MyBatis 仓储），
-并为 Fake demo 增加 `/write <path> <content>`。
-详见 [M6 记录](../docs/milestones/M6.md)。
+并为 Fake demo 增加 `/write <path> <content>`。M7 增加 `context`
+（`FileSystemSkillSource` 多根扫描 + TTL/mtime/正文缓存、`AgentsDocumentSource`）、
+`ContextConfiguration`、`CompactionConfiguration`、`AgentSettings`（`pi.agent.context` /
+`pi.agent.skills`），并为 Fake demo 增加 `/skill:` 响应。M7 **没有新增数据库迁移**。
+详见 [M7 记录](../docs/milestones/M7.md)。

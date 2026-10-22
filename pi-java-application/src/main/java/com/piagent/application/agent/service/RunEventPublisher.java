@@ -1,5 +1,6 @@
 package com.piagent.application.agent.service;
 
+import com.piagent.application.context.CompactionMode;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEventType;
 import com.piagent.domain.agent.RunId;
@@ -94,6 +95,47 @@ final class RunEventPublisher {
 
     void runCompleted(AgentRun run) {
         publish(RunEventType.RUN_COMPLETED, runData(run));
+    }
+
+    /**
+     * 上下文压缩开始。
+     *
+     * @param mode 触发方式
+     * @param tokensBefore 压缩前估算
+     * @param availableTokens 可用输入额度
+     * @param reason 触发原因
+     */
+    void compactionStarted(CompactionMode mode, int tokensBefore, int availableTokens,
+            String reason) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("mode", mode.name());
+        data.put("tokensBefore", tokensBefore);
+        data.put("availableTokens", availableTokens);
+        data.put("reason", reason == null ? "" : reason);
+        publish(RunEventType.COMPACTION_STARTED, data);
+    }
+
+    /**
+     * 上下文压缩完成或跳过。
+     *
+     * @param mode 触发方式
+     * @param tokensBefore 压缩前估算
+     * @param tokensAfter 压缩后估算
+     * @param prunedOnly 是否降级为“只剪枝”（或失败回退）
+     * @param note 跳过原因或失败原因；成功时为 null
+     */
+    void compactionCompleted(CompactionMode mode, int tokensBefore, int tokensAfter,
+            boolean prunedOnly, String note) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("mode", mode.name());
+        data.put("tokensBefore", tokensBefore);
+        data.put("tokensAfter", tokensAfter);
+        data.put("savedTokens", Math.max(0, tokensBefore - tokensAfter));
+        data.put("prunedOnly", prunedOnly);
+        if (note != null && !note.isBlank()) {
+            data.put("note", note);
+        }
+        publish(RunEventType.COMPACTION_COMPLETED, data);
     }
 
     void runFailed(AgentRun run) {

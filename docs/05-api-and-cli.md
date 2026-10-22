@@ -418,9 +418,9 @@ POST /api/v1/plugins/{id}/disable
 停用后插件工具从 `GET /api/v1/tools` 消失；新 run 调用该工具得到
 `工具未注册: <name>` 的 toolResult，run 本身仍正常完成。
 
-## 7. 系统信息、Skills 与健康检查
+## 7. 系统信息、Skills 与压缩
 
-M4 已实现：
+### 7.1 系统信息（M4）
 
 ```http
 GET /api/v1/system/info
@@ -437,15 +437,89 @@ GET /api/v1/system/info
 Web UI 用它获取默认工作目录，避免把开发者机器路径硬编码进静态资源。
 只暴露版本、进程工作目录与操作系统，不含密钥或环境变量。
 
-后续里程碑追加：
+### 7.2 技能目录（M7）
 
 ```http
-GET  /api/v1/skills          # M7
-POST /api/v1/skills/refresh  # M7
-GET  /api/v1/health          # M9
+GET /api/v1/skills?refresh=false
 ```
 
-`/health` 计划返回数据库、Flyway、插件快照与活跃 run 数；M4 尚无该端点。
+```json
+[
+  {
+    "name": "deploy",
+    "description": "打包与发布流程",
+    "path": "C:\\Users\\me\\.pi-java\\skills\\deploy\\SKILL.md",
+    "source": "C:\\Users\\me\\.pi-java\\skills"
+  }
+]
+```
+
+- 只返回 `name / description / path / source`，不返回正文；
+- `refresh=true` 先清空缓存再扫描，用于“刚改了 SKILL.md 想立刻生效”；
+- 没有配置任何技能目录时返回 `[]`（不是 404）。
+
+```http
+GET /api/v1/skills/{name}
+GET /api/v1/skills/{name}/content
+```
+
+`/content` 返回去掉 frontmatter 的正文：
+
+```json
+{ "name": "deploy", "content": "# 发布流程\n第一步：执行 mvn -q package" }
+```
+
+未知技能返回 404 `SKILL_NOT_FOUND`。
+
+### 7.3 手动压缩（M7）
+
+```http
+POST /api/v1/sessions/{id}/compact
+```
+
+```json
+{
+  "applied": true,
+  "entryId": "01J...",
+  "tokensBefore": 48210,
+  "tokensAfter": 9120,
+  "savedTokens": 39090,
+  "prunedOnly": false,
+  "summary": "## 目标\n...",
+  "message": "压缩完成，上下文由 48210 token 降至 9120 token"
+}
+```
+
+不需要压缩时同样返回 200：
+
+```json
+{
+  "applied": false,
+  "tokensBefore": 2380,
+  "tokensAfter": 2380,
+  "savedTokens": 0,
+  "prunedOnly": false,
+  "message": "未执行压缩：上下文仍可完整放入保留窗口（保留 20000 token），压缩不会带来收益"
+}
+```
+
+| 状态码 | 场景 |
+|---|---|
+| 200 | 压缩成功或无需压缩（`applied` 区分） |
+| 404 | 会话不存在 |
+| 409 | 会话正在运行或等待审批 |
+
+跳过原因分两种，措辞不同以便区分“内容太少”与“无需压缩”：
+`没有足够的可摘要内容（至少需要两条参与上下文的消息）`、
+`上下文仍可完整放入保留窗口…`。
+
+### 7.4 健康检查（M9）
+
+```http
+GET /api/v1/health
+```
+
+计划返回数据库、Flyway、插件快照与活跃 run 数；尚未实现。
 
 ## 8. CLI（M9）
 

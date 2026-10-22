@@ -1,22 +1,26 @@
 # 04 运行时与事件
 
 > 状态：M4 已实现 Agent Loop、工具管线、SSE 与重放；M6 已实现审批等待、写工具与
-> 策略 API。压缩在 M7、子代理在 M8 落地。运行时由 application 层编排，domain 只
-> 提供规则与快照；所有外部等待（LLM、工具、审批）都不持有数据库事务。
+> 策略 API；M7 已实现上下文压缩与 Skills。子代理在 M8 落地。运行时由 application 层
+> 编排，domain 只提供规则与快照；所有外部等待（LLM、工具、审批、摘要）都不持有数据库事务。
 
 ## 1. 运行时组件
 
 ```text
-trigger.http（SessionController / RunController）
+trigger.http（SessionController / RunController / CompactionController / SkillController）
         │
         ▼
 AgentLoopService
   ├─ RunDispatcher          全局并发许可；满额立即拒绝
   ├─ ActiveRunRegistry      每会话一个活跃 run + 取消标志
   ├─ RunRuntime             预留 → 追加用户消息 → 收尾 → RUN_SUMMARY
+  ├─ SkillInvocationResolver   /skill:name args → 展开后的用户消息 + 显式技能
+  ├─ RunSteps               守卫（取消/超时/轮数）与工具批次执行
+  ├─ RunCompactionStep      自动压缩 / 溢出压缩 + compaction.* 事件
+  ├─ TurnStreamer           模型调用 + 溢出后压缩重试
   ├─ TurnPipeline
   │    ├─ SessionEntryStore + SessionContextProjector（分支投影）
-  │    ├─ SystemPromptBuilder
+  │    ├─ SystemPromptBuilder ──► PromptSections + SkillSource + WorkspacePromptSource
   │    ├─ TurnExecutor ──► LlmGateway ──► Fake / OpenAI-compatible
   │    └─ ToolCallCoordinator ──► ToolCallPreflight ──► ToolAccessPolicy
   │                              ├─ ApprovalGate ──► ApprovalApplicationService
@@ -33,6 +37,10 @@ AgentLoopService
 | `RunRuntime` / `ActiveRunRegistry` | run 快照、每会话唯一活跃 run、取消标志、事件通道 | 业务终止判定 |
 | `TurnPipeline` | 投影、组装请求、流式调用、工具批次 | 推进状态机 |
 | `TurnExecutor` | 读取 LLM 流、发布增量、取消后返回部分文本 | 持久化 entry |
+| `TurnStreamer` | 一轮模型调用与溢出压缩重试（至多一次） | 状态机推进、工具执行 |
+| `RunSteps` | 守卫判定、工具批次与预算计数 | 模型调用 |
+| `RunCompactionStep` | 触发判定、调用压缩编排、发布 `compaction.*` | 生成摘要（委托 `CompactionSummarizer`） |
+| `SkillInvocationResolver` | 解析 `/skill:` 并展开正文 | 缓存与文件扫描 |
 | `ToolCallCoordinator` | 消费预检计划、审批等待、并行/串行执行、成对回写结果 | 决定模型下一步 |
 | `ToolCallPreflight` | 策略解析、注册校验与预算裁剪，产出执行计划 | 调用工具、等待审批 |
 | `SessionEntryAppender` | 短事务追加 entry 与状态迁移 | 执行工具、调用模型 |
@@ -258,51 +266,116 @@ M8 将继续补齐：子代理父取消级联子 run。
 
 取消只影响当前 run，不归档会话；已进入终态的 run 忽略取消。
 
-## 6. 上下文压缩（M7）
+## 6. 上下文压缩（M7 已实现）
 
 ### 6.1 触发
 
 ```text
-estimatedTokens > contextWindow - reserveTokens   // 默认 reserve = 16384
-或用户手动 /compact
-或 provider 返回 context_length_exceeded（仅重试一次）
+自动：上下文估算 > contextWindow - reserveTokens，且距上次压缩增长 ≥ minGrowthTokens
+强制：provider 返回 CONTEXT_OVERFLOW（仅重试一次）
+手动：POST /api/v1/sessions/{id}/compact（会话必须 IDLE）
 ```
+
+预算推导（`ContextMeasurementFactory`）：
+
+| 条件 | 取值 |
+|---|---|
+| 窗口 | `max(modelEndpoint.contextWindow, 1024)` |
+| 预留 | `min(16384, 窗口 / 2)`，至少 1 |
+| 保留近期 | `min(20000, 可用额度 × 80%)`，且必须小于可用额度 |
+
+这样即使模型窗口只有 32k，也不会出现 `keepRecentTokens ≥ availableTokens` 的非法预算。
 
 ### 6.2 规划
 
-1. 从最新 entry 向前累计，保留 `keepRecentTokens`（默认 20000）；
-2. 切点只允许 user/assistant/custom message，**绝不切 toolResult**；
-3. 若单个 turn 本身就超过预算，产生 split-turn：把 turn 前缀单独摘要；
-4. 已存在压缩 entry 时，将旧摘要作为“前情”参与新摘要；
-5. 生成结构化摘要：Goal / Constraints / Progress / Decisions / Next Steps / Critical Context，
-   并附带 read-files / modified-files；
-6. 追加 `COMPACTION` entry（summary、firstKeptEntryId、tokensBefore、details）。
+1. 定位分支上最后一个 `COMPACTION`，从其 `firstKeptEntryId` 开始取参与上下文的消息；
+2. 从最新向前累计，保留 `keepRecentTokens`；
+3. 切点若落在 toolResult 上则向后跳过；全部落在 toolResult 时退回到最后一个非结果节点；
+4. 若切点落在最后一个 user turn 内，标记 split-turn：摘要该 turn 前缀，保留后半段；
+5. 上下文能整体放进保留窗口时空计划返回，调用方给出“无需压缩”的结论；
+6. 旧摘要作为 `previousSummary` 参与本次摘要。
 
-### 6.3 收敛保证
+### 6.3 摘要
 
-- 摘要请求自身必须小于被遮蔽 token；否则缩小摘要预算；
-- 摘要后重新估算；若不收敛，降级为“只剪枝 + 保留尾部”，
-  仍追加 `COMPACTION` entry（`details.prunedOnly=true`），保证 run 能继续；
-- 一次 run 内自动压缩最多触发一次；手动 `/compact` 可再次触发。
+压缩请求 = 系统提示词（固定六小节格式）+ 一条独立 user 消息（旧摘要 + 历史文本），
+**不传工具、不要求函数调用**，任何文本模型都能完成。
 
-## 7. System Prompt 与 Skills
+历史渲染规则：用户/助手/工具结果都保留，思考块丢弃，单条工具结果截断到 2000 字符，
+历史总长 48k 字符（超出时保留最近部分并加“更早的内容已省略”）。
 
-M4 的 `SystemPromptBuilder` 只注入：身份、工作区路径、当前工具名、思考级别与五条行为
-约束（简洁、以工具结果为准、主动读取、只读限制、失败先读原因）。它不包含时间等易变
-信息，保证测试稳定。
+模型输出按标题解析为 `SummarySection`，支持 `## 目标`、`**目标**`、`目标：`、
+`**目标**: 内容`、`Goal` 等写法；完全无法识别时把全文作为“目标”兜底。
+“关键上下文”中的“读取文件：/ 修改文件：”会被抽取为 `details.readFiles / modifiedFiles`。
 
-M7 将扩展为固定顺序，任何 section 都有长度上限：
+### 6.4 收敛与降级
 
-1. 身份与行为约束（简洁、先读后写、不编造工具结果）；
-2. 环境：cwd、操作系统、当前时间、模型标识；
-3. 工具目录与风险摘要（不含完整 schema，schema 走工具参数）；
-4. Skills 目录：仅 `name + description`；
-5. `AGENTS.md`：v0.1 只读 cwd 根目录，上限 32 KB；
-6. 插件 `PromptSection`（尚未提供契约，v0.2 候选；引入时按注册顺序、总上限 16 KB）；
-7. 压缩/会话提示（如有）。
+```text
+converged = 摘要 token < 被摘要原文 token
+        且 压缩后 ≤ 可用额度
+        且 压缩后 ≤ 压缩前 × 70%
+```
 
-Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，或用户使用
-`/skill:name args` 将正文作为一条用户消息注入。Skill 目录缓存 5 分钟，并校验 mtime。
+不收敛时仍写入 `COMPACTION` entry，但 `details` 标记 `converged=false, prunedOnly=true`，
+SSE `compaction.completed` 的 `prunedOnly` 为 true。配合“每 run 自动压缩一次”的上限，
+保证不会出现“压缩 → 仍超限 → 再压缩”的死循环。
+
+### 6.5 失败处理
+
+| 场景 | 行为 |
+|---|---|
+| 自动压缩时摘要调用失败/为空 | 记录日志，返回未压缩，对话继续 |
+| 溢出后压缩失败或无产出 | run 以 `ERROR` 结束，消息为“上下文超出模型窗口且无法压缩: …” |
+| 溢出后压缩成功但重试仍溢出 | run 以 `ERROR` 结束，消息为“压缩后仍无法调用模型: …” |
+| 手动压缩时内容不足/无需压缩 | HTTP 200，`applied=false` + 原因 |
+| 手动压缩时会话非 IDLE | HTTP 409 `INVALID_STATE_TRANSITION` |
+
+### 6.6 run 级状态（`ContextCompactionState`）
+
+| 字段 | 用途 |
+|---|---|
+| `anchoredInputTokens` | 最近一次 provider 上报的输入 token，用于校准启发式估算 |
+| `lastCompactedTokens` | 上次压缩时的上下文估算，供“最小增长量”判断 |
+| `autoCompactions` | 本 run 已执行的自动压缩次数，上限 1 |
+
+run 收尾（`RunRuntime.finish`）时清理，避免内存随运行次数增长。
+
+## 7. System Prompt 与 Skills（M7 已实现）
+
+### 7.1 小节顺序
+
+| # | 小节 | 来源 | 上限 |
+|---|---|---|---|
+| 1 | 身份与行为约束 | 常量 | — |
+| 2 | 环境：cwd、操作系统、思考级别 | 会话配置 | — |
+| 3 | 工具目录与风险（按名称排序） | run 工具快照 | — |
+| 4 | Skills 目录（仅 name + description） | `SkillSource` | 4000 字符 |
+| 5 | 工作区约定 `AGENTS.md` | `WorkspacePromptSource` | 16k 字符 |
+| 6 | 显式注入的技能正文 | `/skill:name` | 8k 字符 |
+
+总长度上限 24k 字符，超限从尾部裁剪。提示词不含时间戳，保证前缀缓存有效、测试稳定。
+
+### 7.2 技能发现与缓存
+
+```text
+skills/<name>/SKILL.md
+---
+name: deploy            # 可省略，默认取目录名（规范化为小写连字符）
+description: 发布流程    # 可省略，默认取正文第一段
+---
+正文 Markdown
+```
+
+- 多个根目录按配置顺序优先，重名先到先得；
+- 单层扫描，坏文件（过大、无法解析、缺 name）跳过而不中断；
+- 缓存：目录快照 TTL 5 分钟 + 根目录 mtime 失效；正文按 `mtime + size` 缓存；
+- `GET /api/v1/skills?refresh=true` 强制重扫。
+
+### 7.3 `/skill:name args`
+
+1. 以 `/skill:` 开头且第一段精确匹配某个技能名才视为指令；
+2. 命中后把正文与“本次任务：args”拼成一条用户消息，**展开后的文本落库**；
+3. 同一技能正文也会注入本轮 system prompt 第 6 小节；
+4. 技能不存在、正文读取失败时按普通消息处理，不报错。
 
 ## 8. 子代理（M8）
 
@@ -350,10 +423,14 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
 | `tool.completed` | `callId, toolName, isError, content（≤4000 字符）, details` |
 | `run.completed` | `runId, status, stopReason, turns, toolCalls, usage, durationMs` |
 | `run.failed` | 同 `run.completed`，并带 `errorMessage` |
+| `approval.requested` | `approvalId, callId, toolName, riskLevel, arguments（脱敏）, expiresAt` |
+| `approval.resolved` | `approvalId, decision, decidedBy, reason` |
+| `compaction.started` | `mode（AUTO/OVERFLOW）, tokensBefore, availableTokens, reason` |
+| `compaction.completed` | `mode, tokensBefore, tokensAfter, savedTokens, prunedOnly, note` |
 | `replay.gap` | `lastAvailableSeq` |
 | `heartbeat` | `at` |
 
-M6–M8 追加：`approval.requested/resolved`（M6 已实现）、`compaction.*`、`subagent.*`。
+M8 追加：`subagent.*`。
 
 ### 9.3 连接管理
 

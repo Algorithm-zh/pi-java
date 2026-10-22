@@ -26,6 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class TurnExecutor {
 
+    private static final System.Logger LOG = System.getLogger(TurnExecutor.class.getName());
+
     private final LlmGateway gateway;
     private final ActiveRunRegistry registry;
 
@@ -73,7 +75,22 @@ public class TurnExecutor {
             return TurnResult.completed(response, text.toString(), thinking.toString());
         } finally {
             registry.clearStream(runId, stream);
+            closeQuietly(stream);
+        }
+    }
+
+    /**
+     * 关闭流，并吞掉关闭阶段自身的异常。
+     *
+     * <p>为什么需要显式吞掉：{@code finally} 块里抛出的异常会覆盖 try 中正在传播的
+     * 业务异常（例如 {@code LlmGatewayException(CONTEXT_OVERFLOW)}），导致上层无法识别
+     * 溢出去触发压缩。关闭失败本身不影响已经确定的结果，只记录日志。</p>
+     */
+    private void closeQuietly(LlmStream stream) {
+        try {
             stream.close();
+        } catch (RuntimeException error) {
+            LOG.log(System.Logger.Level.DEBUG, "关闭模型流失败（已忽略）", error);
         }
     }
 

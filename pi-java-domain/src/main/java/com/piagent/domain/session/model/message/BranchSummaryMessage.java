@@ -7,6 +7,7 @@ import com.piagent.domain.shared.Guard;
 import java.time.Instant;
 import java.util.Objects;
 
+
 /**
  * 由 BRANCH_SUMMARY entry 投影出的旧分支摘要消息。
  *

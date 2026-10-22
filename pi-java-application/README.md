@@ -49,6 +49,22 @@ M1 完成 `SessionApplicationService`；M2 完成 `ModelProfileApplicationServic
 `TurnPipeline` 与 `ToolCallCoordinator` 只使用该快照。M6 完成
 `application.governance`（`ApprovalApplicationService`、`ApprovalGateService`、
 `ApprovalWaitRegistry`、`ApprovalEventPublisher`、`ToolPolicyApplicationService`），
-并把工具预检拆到 `ToolCallPreflight`；`ToolCallCoordinator` 现在负责审批等待、
-并行/串行执行与结果回写。application 共 73 个测试。
-详见 [M6 记录](../docs/milestones/M6.md)。
+并把工具预检拆到 `ToolCallPreflight`。
+
+M7 完成 `application.context`：
+
+| 类型 | 职责 |
+|---|---|
+| `ContextCompactionService` | 测量→触发→规划→摘要→收敛→回调落库（不直接依赖仓储） |
+| `CompactionSummarizer` | 调用模型生成摘要并解析为结构化小节 |
+| `CompactionComponents` | 领域组件集合，避免超长构造参数 |
+| `ContextMeasurementFactory` | 投影 + 预算推导（大小窗口都合法） |
+| `CompactionApplicationService` | 手动 `/compact`（仅 IDLE） |
+| `SkillApplicationService` | 技能列表/查询/正文/刷新 |
+| `RunCompactionStep` | run 内自动压缩与溢出压缩，发布 `compaction.*` |
+| `ContextCompactionState` | run 级 usage 锚点、上次压缩量、自动压缩次数 |
+| `TurnStreamer` / `RunSteps` / `SkillInvocationResolver` | 从 Agent Loop 拆出的内聚职责 |
+| `PromptSections` / `SkillCommand` | system prompt 小节与 `/skill:` 语法 |
+
+同时修正了 M1 遗留的 token 估算口径（统一为 `EntryTokenCounter`），中文会话才能正确触发压缩。
+application 共 101 个测试。详见 [M7 记录](../docs/milestones/M7.md)。

@@ -4,11 +4,11 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M6 审批 + 写工具已完成**（2026-10-22）。已具备树形会话日志、
-> 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读工具与路径沙箱、
-> Agent Loop、SSE 事件重放、Web UI、零依赖插件契约与 run 级工具快照，以及
-> 审批状态机、参数脱敏/digest、write/edit/bash 工具、策略管理与 Web 审批弹窗。
-> 下一步 M7：上下文压缩 + Skills。每个里程碑都包含实现、测试、文档与 git 提交。
+> 当前状态：**M7 上下文压缩与 Skills 已完成**（2026-10-22）。已具备树形会话日志、
+> 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
+> Agent Loop、SSE 事件重放、Web UI、零依赖插件契约与 run 级工具快照、审批状态机、
+> 以及**结构化上下文压缩**（自动/溢出重试/手动）与**文件系统 Skills**。
+> 下一步 M8：同步子智能体。每个里程碑都包含实现、测试、文档与 git 提交。
 
 ## 快速体验
 
@@ -21,6 +21,29 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 `/write notes.txt 你好`。写工具会弹出审批框，批准后才真正落盘；也可以在弹窗中拒绝。
 默认 demo profile 使用 H2 文件库与 Fake LLM，**不需要任何 API Key**。
 服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
+
+上下文压缩与技能（M7）：
+
+```bash
+# 查看技能目录（默认读取 ~/.pi-java/skills，可用 pi.agent.skills 覆盖）
+curl http://127.0.0.1:8080/api/v1/skills
+
+# 手动压缩空闲会话；内容不足时返回 applied=false 并说明原因
+curl -X POST http://127.0.0.1:8080/api/v1/sessions/<sessionId>/compact
+
+# 在对话中使用技能：正文会被展开后发送并落库
+/skill:deploy 发布 1.2.0
+```
+
+技能目录结构：`skills/<name>/SKILL.md`，可选 frontmatter：
+
+```markdown
+---
+name: deploy
+description: 打包与发布流程
+---
+第一步：执行 mvn -q package
+```
 
 体验插件（另开终端）：
 
@@ -44,6 +67,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 - **安全默认**：只读工具放行；`write/edit` 默认询问并阻塞等待人工审批，批准后才执行；
   `bash` 默认拒绝，需要显式策略放行；路径沙箱对所有文件工具生效。
 - **插件化**：零依赖 `plugin-api`，每个插件独立 ClassLoader，工具带插件前缀。
+- **上下文有界**：接近窗口时结构化压缩（目标/约束/进展/决策/下一步/关键上下文），
+  不收敛时降级为只剪枝，绝不进入无限压缩。
+- **技能按需加载**：只把名称与描述放进 system prompt，正文由模型 `read` 或
+  `/skill:name` 注入，避免每次请求都携带全部知识。
 - **单机强一致**：一个 session 同时只有一个活跃 run；不引入 Redis。
 - **可测试**：Fake LLM、Fake 时钟、H2、WireMock，离线可跑完整链路。
 
@@ -70,8 +97,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M6 已验证通过：448 个测试全绿（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 通过，domain 行覆盖 87.3%、application 行覆盖 88.3%。
+当前 M7 已验证通过：553 个测试全绿（2 个符号链接用例条件跳过），
+Checkstyle/ArchUnit 通过，domain 行覆盖 89.2%、application 行覆盖 86.1%。
 
 ## 文档
 
@@ -93,6 +120,7 @@ Checkstyle/ArchUnit 通过，domain 行覆盖 87.3%、application 行覆盖 88.3
 - [M4 里程碑记录](docs/milestones/M4.md)
 - [M5 里程碑记录](docs/milestones/M5.md)
 - [M6 里程碑记录](docs/milestones/M6.md)
+- [M7 里程碑记录](docs/milestones/M7.md)
 
 架构决策：
 

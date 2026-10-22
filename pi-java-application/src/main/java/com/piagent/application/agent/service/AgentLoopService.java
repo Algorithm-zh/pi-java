@@ -6,11 +6,8 @@ import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.agent.RunStopReason;
 import com.piagent.domain.model.ModelProfile;
-import com.piagent.domain.model.llm.LlmGatewayException;
-import com.piagent.domain.model.llm.LlmRequest;
 import com.piagent.domain.model.llm.LlmResponse;
 import com.piagent.domain.session.model.ChatSession;
-import com.piagent.domain.session.model.ProjectedContext;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.SessionStatus;
@@ -29,9 +26,9 @@ import org.springframework.stereotype.Service;
 /**
  * Agent Loop 用例服务。
  *
- * <p>职责边界：只推进 run 状态机与终止判定；流式读取、工具执行、上下文投影分别
- * 委托给 {@link TurnPipeline} 与 {@link RunRuntime}。LLM 与工具调用期间不持有数据库
- * 事务，每次会话追加都是独立短事务。</p>
+ * <p>职责边界：只推进 run 状态机与终止判定；流式读取、工具执行、上下文投影、上下文压缩
+ * 分别委托给 {@link TurnPipeline}、{@link RunRuntime} 与 {@link RunCompactionStep}。
+ * LLM 与工具调用期间不持有数据库事务，每次会话追加都是独立短事务。</p>
  *
  * <p>终止不变量：</p>
  * <ul>
@@ -39,6 +36,9 @@ import org.springframework.stereotype.Service;
  *   <li>取消、超预算与模型错误都走同一个 {@code finish} 收尾，保证 RUN_SUMMARY 一定写入；</li>
  *   <li>run 结束后会话恢复 IDLE，事件通道保留供 SSE 重放。</li>
  * </ul>
+ *
+ * <p>M7 新增：每次模型请求前尝试一次自动压缩（每个 run 最多一次）；provider 返回上下文
+ * 溢出时强制压缩后重试一次，仍失败则按模型错误结束 run。</p>
  */
 @Service
 public class AgentLoopService {
@@ -51,6 +51,10 @@ public class AgentLoopService {
     private final RunRuntime runtime;
     private final TurnPipeline pipeline;
     private final RunDispatcher dispatcher;
+    private final RunCompactionStep compactionStep;
+    private final TurnStreamer streamer;
+    private final SkillInvocationResolver skills;
+    private final RunSteps steps;
 
     /**
      * 创建 Agent Loop 服务。
@@ -60,14 +64,20 @@ public class AgentLoopService {
      * @param runtime 运行运行时
      * @param pipeline turn 流水线
      * @param dispatcher 调度器
+     * @param compactionStep 上下文压缩步骤
      */
     public AgentLoopService(SessionRepository sessions, ActiveModelResolver models,
-            RunRuntime runtime, TurnPipeline pipeline, RunDispatcher dispatcher) {
+            RunRuntime runtime, TurnPipeline pipeline, RunDispatcher dispatcher,
+            RunCompactionStep compactionStep) {
         this.sessions = sessions;
         this.models = models;
         this.runtime = runtime;
         this.pipeline = pipeline;
         this.dispatcher = dispatcher;
+        this.compactionStep = compactionStep;
+        this.streamer = new TurnStreamer(pipeline, compactionStep, runtime);
+        this.skills = new SkillInvocationResolver(pipeline);
+        this.steps = new RunSteps(runtime, pipeline);
     }
 
     /**
@@ -86,12 +96,14 @@ public class AgentLoopService {
         boolean submitted = false;
         try {
             reserved = runtime.reserve(session.identity().id());
-            runtime.appendUserAndStart(session.identity().id(), command.text());
+            SkillInvocationResolver.Resolved resolved = skills.resolve(command.text());
+            runtime.appendUserAndStart(session.identity().id(), resolved.text());
             ModelProfile profile = models.resolve(session.config().modelProfileId(),
-                    session.config().thinkingLevel(),
-                    !reserved.tools().descriptors().isEmpty());
+                    session.config().thinkingLevel(), !reserved.tools().descriptors().isEmpty());
+            RunContext context = new RunContext(session.identity().id(), profile, reserved,
+                    compactionStep.budgetOf(profile), resolved.skill());
             ReservedRun handle = reserved;
-            dispatcher.dispatch(() -> runSafely(handle, profile));
+            dispatcher.dispatch(() -> runSafely(context));
             submitted = true;
             return new RunHandle(handle.runId(), session.identity().id());
         } catch (RuntimeException error) {
@@ -150,96 +162,67 @@ public class AgentLoopService {
         return runtime.awaitTerminal(runId, timeout);
     }
 
-    private void runSafely(ReservedRun reserved, ModelProfile profile) {
+    private void runSafely(RunContext context) {
         try {
-            AgentRun run = runtime.current(reserved.runId());
-            reserved.events().runStarted(run, profile);
-            loop(reserved, profile, run.sessionId());
+            AgentRun run = runtime.current(context.reserved().runId());
+            context.events().runStarted(run, context.profile());
+            loop(context);
         } catch (RuntimeException error) {
             try {
-                runtime.finish(reserved, RunStopReason.ERROR, message(error));
+                runtime.finish(context.reserved(), RunStopReason.ERROR, message(error));
             } catch (RuntimeException fatal) {
-                LOG.log(System.Logger.Level.ERROR, "结束 run 失败: " + reserved.runId(), fatal);
+                LOG.log(System.Logger.Level.ERROR,
+                        "结束 run 失败: " + context.reserved().runId(), fatal);
             }
         }
     }
 
-    private void loop(ReservedRun reserved, ModelProfile profile, SessionId sessionId) {
-        RunId runId = reserved.runId();
+    private void loop(RunContext context) {
+        RunId runId = context.reserved().runId();
         while (true) {
             AgentRun run = runtime.current(runId);
-            if (stopByGuard(reserved, run)) {
+            if (steps.stopByGuard(context, run)) {
                 return;
             }
-            ChatSession session = requireSession(sessionId);
-            reserved.events().turnStarted(run.turns() + 1);
-            ProjectedContext context = pipeline.project(session);
-            LlmRequest request = pipeline.request(session, profile, context, reserved.tools());
-            TurnResult result;
-            try {
-                result = pipeline.stream(request, runId, reserved.events(),
-                        () -> runtime.isCancelled(runId));
-            } catch (LlmGatewayException error) {
-                runtime.finish(reserved, RunStopReason.ERROR, "模型调用失败: " + message(error));
+            ChatSession session = requireSession(context.sessionId());
+            compactionStep.tryAutoCompact(session, runId, context.profile(), context.budget(),
+                    context.events());
+            TurnResult result = streamTurn(context, session, run.turns() + 1);
+            if (result == null) {
                 return;
             }
-            TokenUsage usage = appendAssistant(sessionId, profile, result, reserved.events());
+            TokenUsage usage = appendAssistant(context.sessionId(), context.profile(), result,
+                    context.events());
             runtime.recordTurn(runId, usage);
             if (result.cancelled()) {
-                runtime.finish(reserved, RunStopReason.CANCELLED, null);
+                runtime.finish(context.reserved(), RunStopReason.CANCELLED, null);
                 return;
             }
             LlmResponse response = result.response();
             if (response.stopReason() == AssistantStopReason.ERROR) {
-                runtime.finish(reserved, RunStopReason.ERROR, response.errorMessage());
+                runtime.finish(context.reserved(), RunStopReason.ERROR, response.errorMessage());
                 return;
             }
             List<ToolCallBlock> calls = toolCalls(response);
             if (calls.isEmpty()) {
                 RunStopReason reason = response.stopReason() == AssistantStopReason.LENGTH
                         ? RunStopReason.LENGTH : RunStopReason.STOP;
-                runtime.finish(reserved, reason, null);
+                runtime.finish(context.reserved(), reason, null);
                 return;
             }
-            if (!executeTools(reserved, session, calls)) {
+            if (!steps.executeTools(context, session, calls)) {
                 return;
             }
         }
     }
 
-    private boolean stopByGuard(ReservedRun reserved, AgentRun run) {
-        if (runtime.isCancelled(run.id())) {
-            runtime.finish(reserved, RunStopReason.CANCELLED, null);
-            return true;
-        }
-        if (run.budget().timedOut(run.startedAt(), runtime.now())) {
-            runtime.finish(reserved, RunStopReason.TIMEOUT, "运行超过最大时长");
-            return true;
-        }
-        if (run.budget().turnsExhausted(run.turns())) {
-            runtime.finish(reserved, RunStopReason.MAX_STEPS, "达到最大模型轮数");
-            return true;
-        }
-        return false;
-    }
-
-    private boolean executeTools(ReservedRun reserved, ChatSession session,
-            List<ToolCallBlock> calls) {
-        RunId runId = reserved.runId();
-        AgentRun run = runtime.current(runId);
-        int remaining = Math.max(0, run.budget().maxToolCalls() - run.toolCalls());
-        ToolBatchResult batch = pipeline.executeTools(new ToolBatchContext(session, runId, calls,
-                reserved.tools(), reserved.events(), () -> runtime.isCancelled(runId), remaining));
-        runtime.recordToolCalls(runId, batch.executed());
-        if (batch.cancelled()) {
-            runtime.finish(reserved, RunStopReason.CANCELLED, null);
-            return false;
-        }
-        if (batch.budgetExhausted()) {
-            runtime.finish(reserved, RunStopReason.MAX_STEPS, "达到最大工具调用次数");
-            return false;
-        }
-        return true;
+    /**
+     * 执行一次流式模型调用；遇到上下文溢出时压缩一次后重试。
+     *
+     * @return 流式结果；无法继续时返回 null（run 已收尾）
+     */
+    private TurnResult streamTurn(RunContext context, ChatSession session, int turn) {
+        return streamer.stream(context, session, turn);
     }
 
     private TokenUsage appendAssistant(SessionId sessionId, ModelProfile profile,

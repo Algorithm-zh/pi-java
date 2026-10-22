@@ -1,19 +1,17 @@
 package com.piagent.application.agent.service;
 
+import com.piagent.domain.context.EntryTokenCounter;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.message.AgentMessage;
-import com.piagent.domain.session.model.message.AssistantMessage;
-import com.piagent.domain.session.model.message.ContentBlock;
 import com.piagent.domain.session.model.message.TextBlock;
-import com.piagent.domain.session.model.message.ThinkingBlock;
-import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
 import com.piagent.domain.session.model.message.UserMessage;
 import com.piagent.domain.session.model.payload.ApprovalPayload;
+import com.piagent.domain.session.model.payload.CompactionPayload;
 import com.piagent.domain.session.model.payload.EntryPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
@@ -41,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class SessionEntryAppender {
+
+    private static final EntryTokenCounter TOKEN_COUNTER = new EntryTokenCounter();
 
     private final SessionRepository repository;
     private final SessionEntryStore entryStore;
@@ -94,6 +94,36 @@ public class SessionEntryAppender {
     public SessionEntry appendMessage(SessionId sessionId, AgentMessage message) {
         Objects.requireNonNull(message, "message 不能为空");
         return appendRunning(sessionId, new MessagePayload(message), estimate(message));
+    }
+
+    /**
+     * 追加压缩摘要 entry。
+     *
+     * <p>自动压缩发生在 run 内，用 {@code advanceLeaf} 推进叶子；手动压缩发生在
+     * IDLE，用 {@code moveLeaf} 把叶子移动到新 entry。等待审批时拒绝压缩，
+     * 避免审批上下文与投影结果错位。</p>
+     *
+     * @param sessionId 会话标识
+     * @param payload 压缩载荷
+     * @return 新 entry
+     */
+    @Transactional
+    public SessionEntry appendCompaction(SessionId sessionId, CompactionPayload payload) {
+        Objects.requireNonNull(payload, "payload 不能为空");
+        ChatSession session = require(sessionId);
+        Guard.require(session.status() != SessionStatus.WAITING_APPROVAL,
+                DomainErrorCode.INVALID_STATE_TRANSITION, "等待审批时不能压缩会话");
+        Instant now = clock.instant();
+        int tokens = Math.max(1, TOKEN_COUNTER.countText(payload.summary()));
+        SessionEntry entry = append(session, payload, tokens, now);
+        ChatSession next = switch (session.status()) {
+            case RUNNING -> session.advanceLeaf(entry.id());
+            case IDLE -> session.moveLeaf(entry.id());
+            default -> throw new DomainException(DomainErrorCode.INVALID_STATE_TRANSITION,
+                    "当前状态不能压缩会话: " + session.status());
+        };
+        repository.update(next);
+        return entry;
     }
 
     /**
@@ -156,8 +186,8 @@ public class SessionEntryAppender {
         ChatSession session = require(sessionId);
         requireRunning(session);
         Instant now = clock.instant();
-        int tokens = Math.max(1, (payload.decision().length()
-                + (payload.reason() == null ? 0 : payload.reason().length()) + 8) / 3);
+        int tokens = estimateText(payload.decision()
+                + (payload.reason() == null ? "" : payload.reason()));
         SessionEntry entry = append(session, payload, tokens, now);
         ChatSession next = session.advanceLeaf(entry.id());
         if (session.status() == SessionStatus.WAITING_APPROVAL) {
@@ -179,8 +209,8 @@ public class SessionEntryAppender {
         ChatSession session = require(sessionId);
         requireRunning(session);
         Instant now = clock.instant();
-        int tokens = Math.max(1, (payload.stopReason().length()
-                + (payload.errorMessage() == null ? 0 : payload.errorMessage().length()) + 16) / 3);
+        int tokens = estimateText(payload.stopReason()
+                + (payload.errorMessage() == null ? "" : payload.errorMessage()));
         SessionEntry entry = append(session, payload, tokens, now);
         ChatSession idle = session.advanceLeaf(entry.id()).markIdle();
         repository.update(idle);
@@ -237,25 +267,18 @@ public class SessionEntryAppender {
         return new EntryId(Ulid.parse(idGenerator.newId()));
     }
 
+    /**
+     * 估算消息 token。
+     *
+     * <p>M7 起统一使用领域的 {@link EntryTokenCounter}：过去这里按“3 字符 1 token”估算，
+     * 而投影与压缩按“CJK 1 字符 1 token”估算，中文会话会被系统性低估约 3 倍，
+     * 导致压缩永远不触发。现在两者同源。</p>
+     */
     private int estimate(AgentMessage message) {
-        int chars = switch (message) {
-            case UserMessage user -> contentChars(user.content());
-            case AssistantMessage assistant -> contentChars(assistant.content());
-            case ToolResultMessage result -> contentChars(result.content());
-            default -> 0;
-        };
-        return Math.max(1, (chars + 2) / 3);
+        return TOKEN_COUNTER.countMessage(message);
     }
 
-    private int contentChars(List<ContentBlock> blocks) {
-        int chars = 0;
-        for (ContentBlock block : blocks) {
-            chars += switch (block) {
-                case TextBlock text -> text.text().length();
-                case ThinkingBlock thinking -> thinking.thinking().length();
-                case ToolCallBlock call -> call.name().length() + String.valueOf(call.arguments()).length();
-            };
-        }
-        return chars;
+    private int estimateText(String text) {
+        return Math.max(1, TOKEN_COUNTER.countText(text));
     }
 }

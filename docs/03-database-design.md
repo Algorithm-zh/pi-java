@@ -359,10 +359,11 @@ COMMIT
 | 审批决策 | `APPROVAL` entry + `pi_approval_request` 投影 | 审计以日志为准，投影只服务待办查询 |
 | 运行摘要 | `RUN_SUMMARY` entry | Run 不是事实源，崩溃后可从 entry 恢复语义 |
 | 子代理 | 复用 `pi_session` 的 parent/root/depth/origin | 子代理就是子会话，不需要单独模型 |
-| Skills | 文件系统 | 用户可直接编辑，不需要数据库生命周期 |
+| Skills | 文件系统 + 进程内缓存 | 用户可直接编辑，不需要数据库生命周期；缓存见 ADR 0002 |
 | 工作区 | session 的 cwd + sandbox 快照 | v0.1 没有工作区生命周期 |
 | token 统计 | assistant payload + session 汇总 | 不做计费系统，避免额外写入放大 |
 | 插件工具 | 内存快照 + `pi_plugin` | 工具是代码产物，不需要每工具一行 |
+| 压缩规划/收敛状态 | 纯计算，不落库 | 只有最终摘要作为 `COMPACTION` entry 持久化 |
 
 ## 8. 迁移规范
 
@@ -372,7 +373,8 @@ COMMIT
 - `clean` 在生产禁用（`spring.flyway.clean-disabled=true`）；
 - 启动时 Flyway 校验 checksum，迁移失败应用拒绝启动；
 - 测试库每次启动执行全部迁移，验证 H2 与 MySQL 的语义一致性；
-- M1 落地 V1，M2 落 V2，M3 落 V3，M5 落 V4（已实现），M6 落 V5。
+- M1 落地 V1，M2 落 V2，M3 落 V3，M5 落 V4（已实现），M6 落 V5；
+- M7（上下文压缩 + Skills）**没有新增表**：摘要复用 `COMPACTION` entry，Skills 走文件系统。
 
 ## 9. 索引与容量
 

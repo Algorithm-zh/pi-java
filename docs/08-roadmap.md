@@ -1,6 +1,6 @@
 # 08 路线图
 
-> 状态：M0–M6 已完成（M6 于 2026-10-22），下一步 M7 上下文压缩 + Skills。
+> 状态：M0–M7 已完成（M7 于 2026-10-22），下一步 M8 子智能体。
 > 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
@@ -224,19 +224,40 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M7 压缩 + Skills
 
-范围：
+状态：已完成（2026-10-22），详见 [M7 记录](milestones/M7.md)。
 
-- TokenEstimator、CompactionPlanner、摘要调用与收敛回退；
-- SkillCatalog/扫描/frontmatter/prompt；
-- system prompt 组装；
-- `/compact`、`/skill:name`。
+范围（实际交付）：
 
-验收：
+- `domain.context`：`TokenEstimator`/`TokenEstimate`、`EntryTokenCounter`（统一 token 口径）、
+  `ContextBudget`、`CompactionTriggerPolicy`/`CompactionDecision`、`CompactionPlanner`/`CompactionPlan`、
+  `SummarySection`/`SummaryDraft`/`CompactionSummaryFormatter`、`CompactionOutcome`、
+  `CompactionPromptBuilder`、`SkillDescriptor`/`SkillCatalog`/`SkillPromptFormatter`、`SkillFrontmatter`；
+  端口 `SkillSource`、`WorkspacePromptSource`；
+- 应用层 `application.context`：`ContextCompactionService`（测量→触发→规划→摘要→收敛→落库）、
+  `CompactionSummarizer`、`ContextMeasurementFactory`、`CompactionApplicationService`（手动压缩）、
+  `SkillApplicationService`；
+- Agent Loop 集成：`RunCompactionStep`、`ContextCompactionState`、`TurnStreamer`（溢出重试）、
+  `RunSteps`、`SkillInvocationResolver`、`PromptSections`；
+- 基础设施：`FileSystemSkillSource`（多根、先到先得、TTL + mtime、正文缓存）、
+  `AgentsDocumentSource`、`ContextConfiguration`/`CompactionConfiguration`/`AgentSettings`；
+- HTTP：`POST /sessions/{id}/compact`、`GET /skills`、`GET /skills/{name}`、`GET /skills/{name}/content`；
+- SSE：`compaction.started` / `compaction.completed`；
+- 无新增表（摘要复用 `COMPACTION` entry）。
 
-- pi 黄金样本投影；
-- 切点不落 toolResult；
-- 摘要不收敛时剪枝并继续；
-- skill 缓存 mtime 失效。
+验收结果：
+
+- 自动压缩在上下文超预算时触发；溢出后强制压缩并重试一次；
+- 切点不落在 toolResult；split-turn 正确拆分；
+- 摘要不收敛时写入 `prunedOnly=true`，不进入循环；
+- 修正 M1 遗留的“3 字符 1 token”估算，中文会话压缩可正常触发；
+- skill 缓存 mtime 失效、`?refresh=true` 生效；
+- `mvn clean verify` 全绿，553 个测试（2 跳过），domain 89.2%、application 86.1%。
+
+未包含（按计划后移）：
+
+- `pi.agent.context.*` 配置项尚未接入预算推导（`ContextMeasurementFactory` 仍用默认比例）；
+- 插件 `PromptSection` 契约（v0.2）；
+- 图片/多模态摘要（v0.1 无多模态）。
 
 ### M8 子智能体
 

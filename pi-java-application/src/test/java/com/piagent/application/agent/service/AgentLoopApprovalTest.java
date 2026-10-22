@@ -2,6 +2,7 @@ package com.piagent.application.agent.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.piagent.application.testsupport.ScriptedLlmGateway;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEvent;
 import com.piagent.domain.agent.RunEventType;

@@ -2,15 +2,29 @@ package com.piagent.application.agent.service;
 
 import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
+import com.piagent.application.context.CompactionComponents;
+import com.piagent.application.context.CompactionSummarizer;
+import com.piagent.application.context.ContextCompactionService;
+import com.piagent.application.context.ContextMeasurementFactory;
 import com.piagent.application.testsupport.DirectExecutorService;
 import com.piagent.application.testsupport.InMemoryModelProfileRepository;
 import com.piagent.application.testsupport.InMemorySessionEntryStore;
 import com.piagent.application.testsupport.InMemorySessionRepository;
+import com.piagent.application.testsupport.InMemorySkillSource;
 import com.piagent.application.testsupport.InMemoryToolPolicyRepository;
+import com.piagent.application.testsupport.ScriptedLlmGateway;
 import com.piagent.application.testsupport.SequentialIdGenerator;
+import com.piagent.application.testsupport.StubWorkspacePromptSource;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEvent;
 import com.piagent.domain.agent.RunId;
+import com.piagent.domain.context.CompactionPlanner;
+import com.piagent.domain.context.CompactionPromptBuilder;
+import com.piagent.domain.context.CompactionSummaryFormatter;
+import com.piagent.domain.context.CompactionTriggerPolicy;
+import com.piagent.domain.context.EntryTokenCounter;
+import com.piagent.domain.context.SkillPromptFormatter;
+import com.piagent.domain.context.TokenEstimator;
 import com.piagent.domain.governance.model.ApprovalContext;
 import com.piagent.domain.governance.model.ApprovalId;
 import com.piagent.domain.governance.model.ApprovalRequest;
@@ -69,6 +83,10 @@ final class AgentLoopFixture {
     final InMemoryModelProfileRepository models = new InMemoryModelProfileRepository();
     final InMemoryToolPolicyRepository policies = new InMemoryToolPolicyRepository();
     final ActiveRunRegistry registry = new ActiveRunRegistry();
+    final ContextCompactionState compactionState;
+    final InMemorySkillSource skillSource;
+    /** 两次压缩之间的最小新增 token；测试里用小值便于触发。 */
+    private static final int MIN_GROWTH_TOKENS = 0;
     final RunEventHub hub = new RunEventHub(Clock.fixed(NOW, ZoneOffset.UTC));
     final ScriptedLlmGateway gateway = new ScriptedLlmGateway();
     final StubToolRegistry tools = new StubToolRegistry();
@@ -88,26 +106,59 @@ final class AgentLoopFixture {
     }
 
     AgentLoopFixture(int maxConcurrentRuns) {
+        this(defaultProfile(), maxConcurrentRuns);
+    }
+
+    /**
+     * 用指定模型档案装配，便于测试自定义上下文窗口。
+     *
+     * @param profile 模型档案
+     */
+    AgentLoopFixture(ModelProfile profile) {
+        this(profile, 2);
+    }
+
+    private static ModelProfile defaultProfile() {
+        return ModelProfile.create(new ModelId(MODEL_ID), "Loop Fake",
+                ModelEndpoint.fake(MODEL_ID));
+    }
+
+    private AgentLoopFixture(ModelProfile profile, int maxConcurrentRuns) {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         DirectExecutorService executor = new DirectExecutorService();
         appender = new SessionEntryAppender(sessions, entries, ids, clock);
-        runtime = new RunRuntime(registry, hub, appender, tools, ids, clock);
-        profile = ModelProfile.create(new ModelId(MODEL_ID), "Loop Fake",
-                ModelEndpoint.fake(MODEL_ID));
+        compactionState = new ContextCompactionState();
+        runtime = new RunRuntime(new RunRuntimeDependencies(registry, hub, appender, tools,
+                compactionState, sessions, ids, clock));
+        this.profile = profile;
         models.insert(profile);
         ToolCallPreflight preflight = new ToolCallPreflight(policies, new ToolAccessPolicy());
         ToolCallCoordinator coordinator = new ToolCallCoordinator(invoker, appender, approvals,
                 preflight, executor);
-        pipeline = new TurnPipeline(entries, new SessionContextProjector(),
-                new SystemPromptBuilder(), new TurnExecutor(gateway, registry), coordinator);
+        skillSource = new InMemorySkillSource();
+        SystemPromptBuilder promptBuilder = new SystemPromptBuilder(skillSource,
+                new StubWorkspacePromptSource(), new SkillPromptFormatter());
+        pipeline = new TurnPipeline(entries, new SessionContextProjector(), promptBuilder,
+                new TurnExecutor(gateway, registry), coordinator, skillSource);
+        TokenEstimator estimator = new TokenEstimator();
+        CompactionComponents components = new CompactionComponents(
+                new EntryTokenCounter(estimator), estimator,
+                new CompactionTriggerPolicy(MIN_GROWTH_TOKENS), new CompactionPlanner(),
+                new CompactionSummarizer(gateway, new CompactionPromptBuilder(), estimator, clock),
+                new CompactionSummaryFormatter());
+        ContextCompactionService compaction = new ContextCompactionService(components,
+                appender::appendCompaction);
+        RunCompactionStep compactionStep = new RunCompactionStep(entries, compaction,
+                compactionState, new ContextMeasurementFactory(new SessionContextProjector(),
+                        compaction));
         dispatcher = new RunDispatcher(executor, maxConcurrentRuns);
         loop = new AgentLoopService(sessions,
                 new ActiveModelResolver(models, new ModelSelectionPolicy()),
-                runtime, pipeline, dispatcher);
+                runtime, pipeline, dispatcher, compactionStep);
     }
 
     ChatSession createSession() {
-        return createSession(MODEL_ID);
+        return createSession(profile.id().value());
     }
 
     ChatSession createSession(String modelId) {

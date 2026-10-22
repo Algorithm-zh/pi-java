@@ -48,5 +48,13 @@ M1 完成 `shared` 与 `session`；M2 完成 `model`（档案聚合、endpoint/�
 增加默认 `snapshot()`，供 run 冻结工具目录。M6 完成 `governance` 的审批聚合
 （`ApprovalRequest`、`ApprovalStatus/Decision`、`ApprovalContext/Arguments`）、
 `ApprovalRepository` 端口与 `ApprovalArgumentsSanitizer`（canonical JSON + SHA-256
-+ 脱敏）。domain 单测 121 个。`context` 从 M7 起加入。
-详见 [领域模型](../docs/02-domain-model.md) 与 [M6 记录](../docs/milestones/M6.md)。
++ 脱敏）。
+
+M7 完成 `context`：`TokenEstimator`/`TokenEstimate`（含 `estimateChars`）、
+`EntryTokenCounter`（统一 token 口径）、`ContextBudget`、`CompactionTriggerPolicy`/
+`CompactionDecision`、`CompactionPlanner`/`CompactionPlan`、`SummarySection`/
+`SummaryDraft`/`CompactionSummaryFormatter`、`CompactionOutcome`、
+`CompactionPromptBuilder`、`SkillDescriptor`/`SkillCatalog`/`SkillPromptFormatter`、
+`SkillFrontmatter`，以及端口 `SkillSource`、`WorkspacePromptSource`。
+domain 单测 174 个，行覆盖 89.2%。
+详见 [领域模型](../docs/02-domain-model.md) 与 [M7 记录](../docs/milestones/M7.md)。

@@ -473,24 +473,52 @@ final class PathSandbox {
 
 ## 7. 上下文与技能 `domain.context`
 
+### 7.1 值对象
+
 | 类型 | 职责 |
 |---|---|
 | `TokenEstimate` | 估算值 + 方法标记（`HEURISTIC / USAGE_ANCHOR`） |
-| `ContextBudget` | 上下文窗口、保留输出 token、保留近期 token |
-| `CompactionPlan` | 待摘要 entry、`firstKeptEntryId`、split-turn 前缀、估算前后 token |
-| `TokenEstimator` | 字符启发式 + 最近一次 usage 校准；CJK 按 1 字符≈1 token，ASCII 按 4 字符≈1 token |
-| `CompactionPlanner` | 从最新向前保留 `keepRecentTokens`，切点只能是 user/assistant/custom，绝不切 toolResult |
+| `ContextBudget` | 上下文窗口、保留输出 token、保留近期 token；提供 `availableTokens()` 与 `exceeds()` |
+| `CompactionPlan` | 待摘要 entry、`firstKeptEntryId`、split-turn 前缀、`previousSummary`、压缩前后 token |
+| `CompactionDecision` | 触发判定：是否压缩、原因、当前 token |
+| `SummaryDraft` | 六小节内容 + `readFiles` + `modifiedFiles` |
+| `CompactionOutcome` | 收敛判定输入：压缩后、压缩前、被摘要原文、摘要自身 token |
 | `SkillDescriptor` | name、description、文件路径、来源 |
-| `SkillCatalog` | 已发现 skill 的不可变目录；按 name 查询 |
-| `SkillPromptFormatter` | 只把 name + description 注入 system prompt，正文按需读取 |
+| `SkillCatalog` | 已发现 skill 的不可变目录；按 name 查询；重名视为配置错误 |
+| `SkillFrontmatter.Parsed` | 解析结果：规范化 name、一行 description、去 frontmatter 的正文 |
 
-压缩失败时必须能结束：
+### 7.2 领域服务（全部纯函数）
 
-- 摘要请求的估算 token 必须小于被遮蔽 token；
-- 若估算不收敛，降级为“只剪枝 + 保留尾部”，不进入无限压缩；
-- 一次 run 内自动压缩最多重试一次。
+| 类型 | 职责 |
+|---|---|
+| `TokenEstimator` | 字符启发式（CJK 1:1，其余 4:1）；`estimateChars` 按已统计字符数换算；`anchor` 用 usage 校准 |
+| `EntryTokenCounter` | **唯一 token 口径**：按 payload 类型决定是否计入上下文；审计 entry 计 0 |
+| `CompactionTriggerPolicy` | 超预算 **且** 距上次压缩增长 ≥ `minGrowthTokens` 才触发 |
+| `CompactionPlanner` | 从最新向前保留 `keepRecentTokens`；切点只能落在参与上下文的消息上，绝不切 toolResult；单轮超预算时标记 split-turn；上下文可整体放入保留窗口时返回空计划 |
+| `CompactionSummaryFormatter` | 渲染固定小节；超限按“进展 → 决策 → 关键上下文 → 约束”逐级裁剪，目标与下一步永不丢弃 |
+| `CompactionPromptBuilder` | 组装压缩请求（系统提示词含六小节标题；用户消息含旧摘要与历史，历史按字符上限截断） |
+| `SkillPromptFormatter` | 只把 `name: description` 注入 system prompt，总长 4000 字符上限 |
 
-`SkillSource` 是端口：扫描目录、读取正文；文件解析与 YAML 处理在 infrastructure。
+### 7.3 压缩不变量
+
+- **INV-05** 切点不得落在 toolResult 上（`CompactionPlanner`）；
+- 上下文能整体放进保留窗口时**不得**压缩（压缩无收益）；
+- 摘要 token ≥ 被摘要原文 token 时判为不收敛，写入 entry 但标记 `prunedOnly=true`；
+- 每个 run 自动压缩最多一次、溢出重试最多一次（应用层 `ContextCompactionState` 执行）；
+- 收敛后上下文应 ≤ 压缩前的 70% 且 ≤ 可用额度（`CompactionOutcome.converged`）。
+
+### 7.4 端口
+
+- `SkillSource`：`discover()`、`readContent(skill)`、`refresh()`；文件扫描、frontmatter 解析与缓存
+  在 infrastructure，领域只看到不可变目录；
+- `WorkspacePromptSource`：`readAgentsDocument(cwd)`；只读工作区根目录 `AGENTS.md`。
+
+### 7.5 与其它上下文的边界
+
+- 压缩结果以 `COMPACTION` entry 写入会话日志（`session` 上下文），不新建聚合；
+- 压缩触发需要模型档案的窗口与摘要调用（`model` 上下文），这些都在应用层编排，
+  领域层不依赖 `LlmGateway`；
+- Skills 只影响 system prompt 组装（应用层 `PromptSections`），不进入会话日志。
 
 ## 8. 扩展上下文 `domain.extension`
 
@@ -538,6 +566,9 @@ ACTIVE            --disable--> DISABLED
 | INV-03 | `leaf_entry_id` 必须属于该会话且不是 toolResult | `SessionBranchPolicy` |
 | INV-04 | 每个 toolResult 都能匹配同分支上的 toolCall | 投影器 + 恢复流程 |
 | INV-05 | 压缩切点不得落在 toolResult 上 | `CompactionPlanner` |
+| INV-13 | 上下文能整体放进保留窗口时不压缩（压缩无收益） | `CompactionPlanner` |
+| INV-14 | token 估算只有一套口径：落库估算与投影汇总均来自 `EntryTokenCounter` | `SessionEntryAppender` + 投影器 |
+| INV-15 | 摘要不收敛时仍写入，但必须标记 `prunedOnly=true`，且每 run 自动压缩至多一次 | `ContextCompactionService` + `ContextCompactionState` |
 | INV-06 | 同一 session 同时最多一个活跃 run | `RunRegistry` 原子注册 |
 | INV-07 | 审批终态不可逆；决策必须写 entry | `ApprovalRequest` + 应用层 |
 | INV-08 | 写路径必须在可写根内，真实路径复核 | `PathSandbox` + `RealPathResolver` |

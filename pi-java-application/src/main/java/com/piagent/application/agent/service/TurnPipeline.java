@@ -1,6 +1,9 @@
 package com.piagent.application.agent.service;
 
 import com.piagent.domain.agent.RunId;
+import com.piagent.domain.context.SkillCatalog;
+import com.piagent.domain.context.SkillDescriptor;
+import com.piagent.domain.context.port.SkillSource;
 import com.piagent.domain.model.ModelProfile;
 import com.piagent.domain.model.llm.LlmRequest;
 import com.piagent.domain.model.llm.LlmTool;
@@ -11,6 +14,7 @@ import com.piagent.domain.session.port.SessionEntryStore;
 import com.piagent.domain.session.service.SessionContextProjector;
 import com.piagent.domain.tool.port.ToolRegistry;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +24,9 @@ import org.springframework.stereotype.Component;
  * <p>把“读日志 → 投影上下文 → 组装请求 → 流式调用 → 执行工具”串起来，
  * 但不做状态推进与终止判定；这些由 {@link AgentLoopService} 负责。流水线本身
  * 无状态，可在多个 run 之间复用。</p>
+ *
+ * <p>M7 起支持可选技能：{@code /skill:name args} 时，技能正文会并入 system prompt，
+ * 同时作为本轮用户消息的补充说明传给模型（见 {@link SkillCommand}）。</p>
  */
 @Component
 public class TurnPipeline {
@@ -29,6 +36,7 @@ public class TurnPipeline {
     private final SystemPromptBuilder promptBuilder;
     private final TurnExecutor turnExecutor;
     private final ToolCallCoordinator toolCoordinator;
+    private final SkillSource skillSource;
 
     /**
      * 创建流水线。
@@ -38,15 +46,17 @@ public class TurnPipeline {
      * @param promptBuilder 提示词组装器
      * @param turnExecutor 流式执行器
      * @param toolCoordinator 工具协调器
+     * @param skillSource skill 源
      */
     public TurnPipeline(SessionEntryStore entryStore, SessionContextProjector projector,
             SystemPromptBuilder promptBuilder, TurnExecutor turnExecutor,
-            ToolCallCoordinator toolCoordinator) {
+            ToolCallCoordinator toolCoordinator, SkillSource skillSource) {
         this.entryStore = entryStore;
         this.projector = projector;
         this.promptBuilder = promptBuilder;
         this.turnExecutor = turnExecutor;
         this.toolCoordinator = toolCoordinator;
+        this.skillSource = skillSource;
     }
 
     /**
@@ -71,12 +81,59 @@ public class TurnPipeline {
      * @param profile 模型档案
      * @param context 投影上下文
      * @param tools 本次 run 的工具快照
+     * @param explicitSkill 本轮显式注入的技能；可为 null
+     * @return 请求
+     */
+    public LlmRequest request(ChatSession session, ModelProfile profile, ProjectedContext context,
+            ToolRegistry tools, SkillDescriptor explicitSkill) {
+        String prompt = explicitSkill == null
+                ? promptBuilder.build(session, tools.descriptors())
+                : promptBuilder.build(session, tools.descriptors(), explicitSkill.name());
+        return new LlmRequest(profile, prompt, context.messages(), llmTools(tools),
+                session.config().thinkingLevel());
+    }
+
+    /**
+     * 组装模型请求（无显式技能）。
+     *
+     * @param session 会话快照
+     * @param profile 模型档案
+     * @param context 投影上下文
+     * @param tools 本次 run 的工具快照
      * @return 请求
      */
     public LlmRequest request(ChatSession session, ModelProfile profile, ProjectedContext context,
             ToolRegistry tools) {
-        return new LlmRequest(profile, promptBuilder.build(session, tools.descriptors()),
-                context.messages(), llmTools(tools), session.config().thinkingLevel());
+        return request(session, profile, context, tools, null);
+    }
+
+    /**
+     * 按名称解析技能。
+     *
+     * @param name 技能名
+     * @return 描述；不存在时为空
+     */
+    public Optional<SkillDescriptor> findSkill(String name) {
+        return promptBuilder.skillCatalog().find(name);
+    }
+
+    /**
+     * 当前技能目录。
+     *
+     * @return 目录
+     */
+    public SkillCatalog skillCatalog() {
+        return promptBuilder.skillCatalog();
+    }
+
+    /**
+     * 读取技能正文。
+     *
+     * @param skill 技能描述
+     * @return 正文
+     */
+    public String readSkillBody(SkillDescriptor skill) {
+        return skillSource.readContent(skill);
     }
 
     /**

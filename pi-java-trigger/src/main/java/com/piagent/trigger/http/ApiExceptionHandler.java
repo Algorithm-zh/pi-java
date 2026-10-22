@@ -44,7 +44,8 @@ public class ApiExceptionHandler {
     private HttpStatus statusOf(DomainErrorCode code) {
         return switch (code) {
             case MODEL_NOT_FOUND, SESSION_NOT_FOUND, ENTRY_NOT_FOUND, RUN_NOT_FOUND,
-                    PLUGIN_NOT_FOUND, TOOL_NOT_FOUND, APPROVAL_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                    PLUGIN_NOT_FOUND, TOOL_NOT_FOUND, APPROVAL_NOT_FOUND,
+                    SKILL_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case MODEL_ALREADY_EXISTS, CONCURRENT_MODIFICATION, MODEL_DISABLED,
                     INVALID_STATE_TRANSITION, SESSION_ARCHIVED, RUN_ALREADY_ACTIVE,
                     PLUGIN_ALREADY_EXISTS, PLUGIN_INVALID_STATE, PLUGIN_TOOL_CONFLICT,

@@ -193,8 +193,9 @@ Web 与 CLI 共享同一个 Spring 容器与用例，不维护两套 agent 逻�
 | 工具策略 | `pi_tool_policy` | Caffeine 2 分钟 |
 | 审批待办 | `pi_approval_request`（投影） + `APPROVAL` entry（审计） | 不缓存 |
 | 插件安装 | `pi_plugin` + 磁盘 jar | 启动时重新加载 ACTIVE；运行时目录在内存 |
-| Skill | 文件系统 | Caffeine 5 分钟 + mtime |
+| Skill | 文件系统 | 本地缓存：目录 TTL 5 分钟 + 根目录 mtime；正文按 `mtime + size`（M7 实现） |
 | Run 状态 | 进程内 `RunRegistry` | 不持久化，结束写 `RUN_SUMMARY` |
+| run 级压缩状态 | 进程内 `ContextCompactionState` | 按 runId 分桶，run 结束清理 |
 
 ## 7. 架构约束与质量门
 

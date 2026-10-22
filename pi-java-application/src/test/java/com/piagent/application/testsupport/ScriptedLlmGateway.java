@@ -1,9 +1,10 @@
-package com.piagent.application.agent.service;
+package com.piagent.application.testsupport;
 
 import com.piagent.domain.model.Usage;
 import com.piagent.domain.model.llm.DoneDelta;
 import com.piagent.domain.model.llm.LlmCallContext;
 import com.piagent.domain.model.llm.LlmDelta;
+import com.piagent.domain.model.llm.LlmErrorCode;
 import com.piagent.domain.model.llm.LlmGateway;
 import com.piagent.domain.model.llm.LlmGatewayException;
 import com.piagent.domain.model.llm.LlmRequest;
@@ -27,16 +28,16 @@ import java.util.Optional;
  * <p>每次 {@code stream} 调用记录请求并弹出一个脚本；脚本耗尽视为测试编排错误，
  * 以网关异常暴露，避免 Loop 静默跑出不确定结果。</p>
  */
-final class ScriptedLlmGateway implements LlmGateway {
+public final class ScriptedLlmGateway implements LlmGateway {
 
     private final Deque<LlmStream> scripted = new ArrayDeque<>();
     private final List<LlmRequest> requests = new ArrayList<>();
 
-    void enqueue(LlmStream stream) {
+    public void enqueue(LlmStream stream) {
         scripted.addLast(stream);
     }
 
-    List<LlmRequest> requests() {
+    public List<LlmRequest> requests() {
         return List.copyOf(requests);
     }
 
@@ -45,8 +46,7 @@ final class ScriptedLlmGateway implements LlmGateway {
         requests.add(request);
         LlmStream next = scripted.pollFirst();
         if (next == null) {
-            throw new LlmGatewayException(
-                    com.piagent.domain.model.llm.LlmErrorCode.SERVER_ERROR, "测试脚本已耗尽");
+            throw new LlmGatewayException(LlmErrorCode.SERVER_ERROR, "测试脚本已耗尽");
         }
         return next;
     }
@@ -57,7 +57,7 @@ final class ScriptedLlmGateway implements LlmGateway {
      * @param text 文本
      * @return 流
      */
-    static LlmStream text(String text) {
+    public static LlmStream text(String text) {
         return text(text, null);
     }
 
@@ -70,7 +70,7 @@ final class ScriptedLlmGateway implements LlmGateway {
      * @param onFirstRead 首个 delta 产出后的回调
      * @return 流
      */
-    static LlmStream text(String text, Runnable onFirstRead) {
+    public static LlmStream text(String text, Runnable onFirstRead) {
         LlmResponse response = new LlmResponse(List.of(new TextBlock(text)), Usage.zero(),
                 AssistantStopReason.STOP, null);
         return new ScriptedStream(List.of(new TextDelta(text)), response, null, onFirstRead);
@@ -82,7 +82,7 @@ final class ScriptedLlmGateway implements LlmGateway {
      * @param calls 工具调用
      * @return 流
      */
-    static LlmStream toolCalls(List<ToolCallBlock> calls) {
+    public static LlmStream toolCalls(List<ToolCallBlock> calls) {
         return toolCalls(calls, null);
     }
 
@@ -95,7 +95,7 @@ final class ScriptedLlmGateway implements LlmGateway {
      * @param afterFirstDelta 首个 delta 产出后的回调
      * @return 流
      */
-    static LlmStream toolCalls(List<ToolCallBlock> calls, Runnable afterFirstDelta) {
+    public static LlmStream toolCalls(List<ToolCallBlock> calls, Runnable afterFirstDelta) {
         List<LlmDelta> deltas = new ArrayList<>();
         for (ToolCallBlock call : calls) {
             deltas.add(new ToolCallDelta(0, call.id(), call.name(), "{}"));
@@ -111,7 +111,7 @@ final class ScriptedLlmGateway implements LlmGateway {
      * @param error 网关异常
      * @return 流
      */
-    static LlmStream failure(LlmGatewayException error) {
+    public static LlmStream failure(LlmGatewayException error) {
         return new ScriptedStream(List.of(), null, error, null);
     }
 
@@ -148,8 +148,8 @@ final class ScriptedLlmGateway implements LlmGateway {
 
         @Override
         public LlmDelta next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException("脚本流已结束");
+            if (cancelled || closed) {
+                throw new NoSuchElementException("脚本流已关闭");
             }
             if (index < deltas.size()) {
                 LlmDelta delta = deltas.get(index++);
@@ -187,3 +187,4 @@ final class ScriptedLlmGateway implements LlmGateway {
         }
     }
 }
+

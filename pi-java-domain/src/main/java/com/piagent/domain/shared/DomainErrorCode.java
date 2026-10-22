@@ -108,5 +108,8 @@ public enum DomainErrorCode {
     APPROVAL_NOT_FOUND,
 
     /** 审批已过期、已决策或状态不允许当前操作。 */
-    APPROVAL_INVALID_STATE
+    APPROVAL_INVALID_STATE,
+
+    /** 技能不存在或未被发现。 */
+    SKILL_NOT_FOUND
 }

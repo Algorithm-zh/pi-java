@@ -79,10 +79,14 @@ final class DemoTurnScript {
         if (tool.matches()) {
             return toolCommand(tool.group(1), tool.group(2));
         }
+        if (input.strip().startsWith("/skill:")) {
+            return text("（Fake 模型 · demo）已载入技能指令。真实模型会按技能说明执行；"
+                    + "Fake 模型不会解析技能正文。用 `/skills` 查看可用技能。");
+        }
         return text("（Fake 模型 · demo）我收到：" + (input.isBlank() ? "（空消息）" : input)
                 + "\n\n试试输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`"
-                + "（写操作会先触发审批），或用 `/tool <工具名> <JSON参数>` "
-                + "调用已启用的插件工具。");
+                + "（写操作会先触发审批）、`/skill:技能名 任务`，或用 "
+                + "`/tool <工具名> <JSON参数>` 调用已启用的插件工具。");
     }
 
     private static FakeTurn toolCommand(String name, String rawArguments) {

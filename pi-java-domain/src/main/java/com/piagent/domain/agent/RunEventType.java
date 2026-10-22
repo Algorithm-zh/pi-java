@@ -35,6 +35,12 @@ public enum RunEventType {
     /** 审批进入终态。 */
     APPROVAL_RESOLVED("approval.resolved"),
 
+    /** 上下文压缩开始（自动或 overflow 重试）。 */
+    COMPACTION_STARTED("compaction.started"),
+
+    /** 上下文压缩完成并已写入摘要 entry。 */
+    COMPACTION_COMPLETED("compaction.completed"),
+
     /** run 正常结束（含取消与超时）。 */
     RUN_COMPLETED("run.completed"),
 
