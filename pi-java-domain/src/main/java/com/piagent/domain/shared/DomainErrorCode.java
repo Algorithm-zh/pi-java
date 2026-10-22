@@ -84,5 +84,23 @@ public enum DomainErrorCode {
     RUN_ALREADY_ACTIVE,
 
     /** 全局并发运行数已达上限。 */
-    AGENT_BUSY
+    AGENT_BUSY,
+
+    /** 插件安装记录不存在。 */
+    PLUGIN_NOT_FOUND,
+
+    /** 同一插件标识已安装。 */
+    PLUGIN_ALREADY_EXISTS,
+
+    /** 插件 API 主版本不受支持。 */
+    PLUGIN_INCOMPATIBLE,
+
+    /** 插件状态不允许当前操作。 */
+    PLUGIN_INVALID_STATE,
+
+    /** 插件 jar 校验、加载或启动失败。 */
+    PLUGIN_LOAD_FAILED,
+
+    /** 插件工具名与内置工具或其他插件冲突。 */
+    PLUGIN_TOOL_CONFLICT
 }

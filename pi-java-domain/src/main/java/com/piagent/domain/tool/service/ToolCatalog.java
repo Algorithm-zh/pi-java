@@ -4,6 +4,7 @@ import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolName;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ public final class ToolCatalog {
                         "工具名重复: " + descriptor.name());
             }
         }
-        this.descriptors = Map.copyOf(index);
+        this.descriptors = Collections.unmodifiableMap(new LinkedHashMap<>(index));
     }
 
     /**

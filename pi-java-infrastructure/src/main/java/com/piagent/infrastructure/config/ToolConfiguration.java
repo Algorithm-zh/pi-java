@@ -3,21 +3,23 @@ package com.piagent.infrastructure.config;
 import com.piagent.domain.governance.service.PathSandbox;
 import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolName;
-import com.piagent.domain.tool.port.ToolRegistry;
+import com.piagent.domain.tool.port.ToolInvoker;
+import com.piagent.infrastructure.plugin.PluginHost;
+import com.piagent.infrastructure.plugin.RuntimeToolInvoker;
+import com.piagent.infrastructure.plugin.RuntimeToolRegistry;
 import com.piagent.infrastructure.tool.BuiltInToolCatalog;
 import com.piagent.infrastructure.tool.BuiltInToolHandler;
 import com.piagent.infrastructure.tool.BuiltInToolInvoker;
-import com.piagent.infrastructure.tool.CatalogToolRegistry;
 import com.piagent.infrastructure.tool.RealPathResolver;
 import com.piagent.infrastructure.tool.handler.GlobToolHandler;
 import com.piagent.infrastructure.tool.handler.GrepToolHandler;
 import com.piagent.infrastructure.tool.handler.LsToolHandler;
 import com.piagent.infrastructure.tool.handler.ReadToolHandler;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * 内置工具装配。
@@ -50,13 +52,13 @@ public class ToolConfiguration {
     }
 
     /**
-     * 内置工具注册表。
+     * 运行时工具注册表：内置工具 + 动态插件工具。
      *
      * @return 注册表
      */
     @Bean
-    public ToolRegistry toolRegistry() {
-        return new CatalogToolRegistry(BuiltInToolCatalog.descriptors());
+    public RuntimeToolRegistry toolRegistry() {
+        return new RuntimeToolRegistry(BuiltInToolCatalog.descriptors());
     }
 
     /**
@@ -67,13 +69,26 @@ public class ToolConfiguration {
      * @return 调用器
      */
     @Bean(destroyMethod = "close")
-    public BuiltInToolInvoker toolInvoker(ToolRegistry registry, RealPathResolver resolver) {
-        List<ToolDescriptor> descriptors = registry.descriptors();
+    public BuiltInToolInvoker builtInToolInvoker(RuntimeToolRegistry registry,
+            RealPathResolver resolver) {
         Map<ToolName, BuiltInToolHandler> handlers = new LinkedHashMap<>();
-        for (ToolDescriptor descriptor : descriptors) {
+        for (ToolDescriptor descriptor : BuiltInToolCatalog.descriptors()) {
             handlers.put(descriptor.name(), handler(descriptor.name().value(), resolver));
         }
         return new BuiltInToolInvoker(registry, handlers);
+    }
+
+    /**
+     * 统一工具调用入口：插件优先，其余走内置实现。
+     *
+     * @param builtIn 内置调用器
+     * @param plugins 插件宿主
+     * @return 调用器
+     */
+    @Bean
+    @Primary
+    public ToolInvoker toolInvoker(BuiltInToolInvoker builtIn, PluginHost plugins) {
+        return new RuntimeToolInvoker(builtIn, plugins);
     }
 
     private BuiltInToolHandler handler(String name, RealPathResolver resolver) {
