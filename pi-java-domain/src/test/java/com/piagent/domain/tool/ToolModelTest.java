@@ -125,6 +125,12 @@ class ToolModelTest {
         assertThat(ToolArgumentGuard.optionalInt(args, "limit", 1, 1, 100)).isEqualTo(10);
         assertThat(ToolArgumentGuard.optionalBoolean(args, "ignoreCase", false)).isTrue();
         assertThat(ToolArgumentGuard.requireString(args, "path", 100)).isEqualTo("a.txt");
+        assertThat(ToolArgumentGuard.requireText(Map.of("content", ""), "content", 100))
+                .isEmpty();
+        assertThatThrownBy(() -> ToolArgumentGuard.requireText(
+                Map.of("content", 1), "content", 100))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("字符串");
     }
 
     private static ToolDescriptor descriptor(String name) {

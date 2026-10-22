@@ -22,6 +22,18 @@ export const dom = {
     sendButton: document.getElementById("send-button"),
     composerModel: document.getElementById("composer-model"),
     workspaceHint: document.getElementById("workspace-hint"),
+    approvalDialog: document.getElementById("approval-dialog"),
+    approvalRisk: document.getElementById("approval-risk"),
+    approvalGlyph: document.getElementById("approval-glyph"),
+    approvalToolName: document.getElementById("approval-tool-name"),
+    approvalToolCall: document.getElementById("approval-tool-call"),
+    approvalArguments: document.getElementById("approval-arguments"),
+    approvalDigest: document.getElementById("approval-digest"),
+    approvalCountdown: document.getElementById("approval-countdown"),
+    approvalReason: document.getElementById("approval-reason"),
+    approvalQueue: document.getElementById("approval-queue"),
+    approvalApprove: document.getElementById("approval-approve"),
+    approvalDeny: document.getElementById("approval-deny"),
     toast: document.getElementById("toast")
 };
 

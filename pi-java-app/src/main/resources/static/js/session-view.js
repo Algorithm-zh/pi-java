@@ -3,6 +3,7 @@
  */
 
 import * as api from "./api.js";
+import * as approval from "./approval.js";
 import { basename, renderEntries, renderSessions, statusLabel } from "./render.js";
 import { dom, modelDisplayName, setRunState, state, toast } from "./store.js";
 import * as usage from "./usage.js";
@@ -49,6 +50,7 @@ export async function openSession(sessionId, updateUrl = true) {
         state.terminalSeen = false;
         state.modelName = session.modelProfileId;
         state.inner = renderEntries(dom.messages, entries);
+        approval.reset();
         renderSessions(dom.sessionList, state.sessions, session.id, openSession);
         updateHeader();
         usage.restore(entries);
@@ -59,6 +61,7 @@ export async function openSession(sessionId, updateUrl = true) {
             history.replaceState(null, "", `?session=${encodeURIComponent(session.id)}`);
         }
         if (session.status === "RUNNING" || session.status === "WAITING_APPROVAL") {
+            approval.showPending(session.id);
             reconnectHandler?.(session.id);
         }
     } catch (error) {

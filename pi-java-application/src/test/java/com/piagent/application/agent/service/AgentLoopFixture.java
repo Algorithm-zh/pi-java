@@ -11,6 +11,10 @@ import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEvent;
 import com.piagent.domain.agent.RunId;
+import com.piagent.domain.governance.model.ApprovalContext;
+import com.piagent.domain.governance.model.ApprovalId;
+import com.piagent.domain.governance.model.ApprovalRequest;
+import com.piagent.domain.governance.model.ApprovalStatus;
 import com.piagent.domain.governance.service.ToolAccessPolicy;
 import com.piagent.domain.model.ModelEndpoint;
 import com.piagent.domain.model.ModelId;
@@ -25,6 +29,7 @@ import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.service.SessionContextProjector;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
+import com.piagent.domain.shared.Ulid;
 import com.piagent.domain.tool.model.ExecutionMode;
 import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolInvocation;
@@ -38,11 +43,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 
 /**
  * Agent Loop 应用层测试的装配夹具。
@@ -65,6 +73,7 @@ final class AgentLoopFixture {
     final ScriptedLlmGateway gateway = new ScriptedLlmGateway();
     final StubToolRegistry tools = new StubToolRegistry();
     final RecordingToolInvoker invoker = new RecordingToolInvoker();
+    final StubApprovalGate approvals = new StubApprovalGate();
     final SessionEntryAppender appender;
     final RunRuntime runtime;
     final TurnPipeline pipeline;
@@ -86,8 +95,9 @@ final class AgentLoopFixture {
         profile = ModelProfile.create(new ModelId(MODEL_ID), "Loop Fake",
                 ModelEndpoint.fake(MODEL_ID));
         models.insert(profile);
-        ToolCallCoordinator coordinator = new ToolCallCoordinator(invoker, policies,
-                new ToolAccessPolicy(), appender, executor);
+        ToolCallPreflight preflight = new ToolCallPreflight(policies, new ToolAccessPolicy());
+        ToolCallCoordinator coordinator = new ToolCallCoordinator(invoker, appender, approvals,
+                preflight, executor);
         pipeline = new TurnPipeline(entries, new SessionContextProjector(),
                 new SystemPromptBuilder(), new TurnExecutor(gateway, registry), coordinator);
         dispatcher = new RunDispatcher(executor, maxConcurrentRuns);
@@ -160,6 +170,40 @@ final class AgentLoopFixture {
         public ToolDescriptor require(ToolName name) {
             return find(name).orElseThrow(() -> new DomainException(
                     DomainErrorCode.TOOL_NOT_FOUND, "工具不存在: " + name));
+        }
+    }
+
+    /**
+     * 按队列返回审批终态的替身，默认拒绝。
+     */
+    static final class StubApprovalGate implements ApprovalGate {
+
+        private final Deque<ApprovalStatus> outcomes = new ArrayDeque<>();
+        private final List<ApprovalContext> contexts = new ArrayList<>();
+
+        StubApprovalGate enqueue(ApprovalStatus status) {
+            outcomes.addLast(status);
+            return this;
+        }
+
+        List<ApprovalContext> contexts() {
+            return List.copyOf(contexts);
+        }
+
+        @Override
+        public ApprovalRequest await(ApprovalContext context, BooleanSupplier cancelled) {
+            contexts.add(context);
+            ApprovalStatus status = outcomes.isEmpty()
+                    ? ApprovalStatus.DENIED : outcomes.removeFirst();
+            ApprovalRequest pending = ApprovalRequest.pending(new ApprovalId(Ulid.generate(NOW)),
+                    context, NOW, Duration.ofMinutes(5));
+            return switch (status) {
+                case APPROVED -> pending.approve("user", "测试批准", NOW.plusSeconds(1));
+                case DENIED -> pending.deny("user", "测试拒绝", NOW.plusSeconds(1));
+                case EXPIRED -> pending.expire(NOW.plusSeconds(1));
+                case CANCELLED -> pending.cancel("测试取消", NOW.plusSeconds(1));
+                default -> throw new IllegalStateException("不支持的测试审批状态: " + status);
+            };
         }
     }
 

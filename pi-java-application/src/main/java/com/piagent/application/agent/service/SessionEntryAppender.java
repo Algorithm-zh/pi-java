@@ -13,6 +13,7 @@ import com.piagent.domain.session.model.message.ThinkingBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
 import com.piagent.domain.session.model.message.UserMessage;
+import com.piagent.domain.session.model.payload.ApprovalPayload;
 import com.piagent.domain.session.model.payload.EntryPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
@@ -123,6 +124,47 @@ public class SessionEntryAppender {
             current = current.advanceLeaf(entry.id());
         }
         repository.update(current);
+    }
+
+    /**
+     * 把运行中的会话切到等待审批。
+     *
+     * <p>重复调用是幂等的：前一个待办已决策、会话仍在等待下一个审批时，
+     * 不再做无意义的状态迁移。</p>
+     *
+     * @param sessionId 会话标识
+     */
+    @Transactional
+    public void markWaitingApproval(SessionId sessionId) {
+        ChatSession session = require(sessionId);
+        if (session.status() == SessionStatus.WAITING_APPROVAL) {
+            return;
+        }
+        repository.update(session.markWaitingApproval());
+    }
+
+    /**
+     * 追加审批决策 entry，并让会话回到运行中。
+     *
+     * @param sessionId 会话标识
+     * @param payload 审批载荷
+     * @return 新 entry
+     */
+    @Transactional
+    public SessionEntry appendApproval(SessionId sessionId, ApprovalPayload payload) {
+        Objects.requireNonNull(payload, "payload 不能为空");
+        ChatSession session = require(sessionId);
+        requireRunning(session);
+        Instant now = clock.instant();
+        int tokens = Math.max(1, (payload.decision().length()
+                + (payload.reason() == null ? 0 : payload.reason().length()) + 8) / 3);
+        SessionEntry entry = append(session, payload, tokens, now);
+        ChatSession next = session.advanceLeaf(entry.id());
+        if (session.status() == SessionStatus.WAITING_APPROVAL) {
+            next = next.markRunning();
+        }
+        repository.update(next);
+        return entry;
     }
 
     /**

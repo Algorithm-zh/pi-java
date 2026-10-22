@@ -71,6 +71,29 @@ class DemoTurnScriptTest {
     }
 
     @Test
+    void writeCommandProducesWriteToolCallWithEscapedNewlines() {
+        FakeTurn turn = DemoTurnScript.next(
+                request(user("/write notes.txt 第一行\\n第二行")));
+
+        assertThat(turn.response().stopReason()).isEqualTo(AssistantStopReason.TOOL_USE);
+        assertThat(toolName(turn)).isEqualTo("write");
+        assertThat(toolArguments(turn))
+                .containsEntry("path", "notes.txt")
+                .containsEntry("content", "第一行\n第二行");
+    }
+
+    @Test
+    void writeCommandSupportsQuotedPathAndEmptyContent() {
+        FakeTurn quoted = DemoTurnScript.next(request(user("写文件 \"docs/note.md\" 你好")));
+        FakeTurn empty = DemoTurnScript.next(request(user("/write empty.txt")));
+
+        assertThat(toolArguments(quoted))
+                .containsEntry("path", "docs/note.md")
+                .containsEntry("content", "你好");
+        assertThat(toolArguments(empty)).containsEntry("content", "");
+    }
+
+    @Test
     void toolCommandProducesArbitraryToolCall() {
         FakeTurn turn = DemoTurnScript.next(
                 request(user("/tool app.test.sample.echo {\"text\":\"你好\"}")));
@@ -132,7 +155,10 @@ class DemoTurnScriptTest {
         FakeTurn turn = DemoTurnScript.next(request(user("你好")));
 
         assertThat(turn.response().stopReason()).isEqualTo(AssistantStopReason.STOP);
-        assertThat(text(turn)).contains("我收到：你好").contains("/read README.md");
+        assertThat(text(turn))
+                .contains("我收到：你好")
+                .contains("/read README.md")
+                .contains("/write notes.txt");
     }
 
     private String text(FakeTurn turn) {

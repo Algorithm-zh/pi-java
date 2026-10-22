@@ -45,6 +45,8 @@ M1 完成 `shared` 与 `session`；M2 完成 `model`（档案聚合、endpoint/�
 （`AgentRun` 不可变快照、`RunBudget`、`RunStopReason`、`RunEvent/Type`）；M5 完成
 `extension`（`PluginId`、`ApiVersion`、`PluginPackage/Artifact/Installation`、
 `PluginRuntime/Repository`、`PluginCompatibilityChecker`）。`ToolRegistry` 在 M5
-增加默认 `snapshot()`，供 run 冻结工具目录。domain 单测 106 个、行覆盖 87.6%。
-`context` 从 M7 起加入。详见 [领域模型](../docs/02-domain-model.md) 与
-[M5 记录](../docs/milestones/M5.md)。
+增加默认 `snapshot()`，供 run 冻结工具目录。M6 完成 `governance` 的审批聚合
+（`ApprovalRequest`、`ApprovalStatus/Decision`、`ApprovalContext/Arguments`）、
+`ApprovalRepository` 端口与 `ApprovalArgumentsSanitizer`（canonical JSON + SHA-256
++ 脱敏）。domain 单测 121 个。`context` 从 M7 起加入。
+详见 [领域模型](../docs/02-domain-model.md) 与 [M6 记录](../docs/milestones/M6.md)。

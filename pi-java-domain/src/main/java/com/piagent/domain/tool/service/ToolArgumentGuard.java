@@ -59,6 +59,25 @@ public final class ToolArgumentGuard {
     }
 
     /**
+     * 读取允许为空的必填字符串。
+     *
+     * <p>{@code write} 的正文、{@code edit} 的替换文本都可以是空串（例如清空文件），
+     * 因此不能复用 {@link #requireString} 的非空校验。</p>
+     *
+     * @param arguments 参数
+     * @param key 参数名
+     * @param maxLength 最大长度
+     * @return 字符串
+     */
+    public static String requireText(Map<String, Object> arguments, String key, int maxLength) {
+        Object value = arguments.get(key);
+        if (!(value instanceof String text)) {
+            throw invalid("参数 " + key + " 必须是字符串");
+        }
+        return maxLength(text, key, maxLength);
+    }
+
+    /**
      * 读取可选字符串。
      *
      * @param arguments 参数

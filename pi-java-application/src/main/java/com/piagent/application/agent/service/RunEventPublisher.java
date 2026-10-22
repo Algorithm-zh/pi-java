@@ -3,6 +3,7 @@ package com.piagent.application.agent.service;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEventType;
 import com.piagent.domain.agent.RunId;
+import com.piagent.domain.governance.service.ApprovalArgumentsSanitizer;
 import com.piagent.domain.model.ModelProfile;
 import com.piagent.domain.model.llm.ToolCallDelta;
 import com.piagent.domain.session.model.SessionEntry;
@@ -77,7 +78,7 @@ final class RunEventPublisher {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("callId", call.id());
         data.put("toolName", call.name());
-        data.put("arguments", call.arguments());
+        data.put("arguments", ApprovalArgumentsSanitizer.redact(call.arguments()));
         publish(RunEventType.TOOL_STARTED, data);
     }
 

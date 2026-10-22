@@ -78,6 +78,41 @@ export function abortSession(sessionId) {
 }
 
 /**
+ * 查询会话下的审批，默认只取待处理项。
+ *
+ * @param {string} sessionId 会话 ID
+ * @param {string} status 状态过滤，空字符串表示全部
+ * @returns {Promise<Array<object>>} 审批列表
+ */
+export function listApprovals(sessionId, status = "PENDING") {
+    const filter = status ? `&status=${encodeURIComponent(status)}` : "";
+    return request(`/api/v1/approvals?sessionId=${encodeURIComponent(sessionId)}${filter}`);
+}
+
+/**
+ * 查询单个审批详情，用于补齐 SSE 事件中省略的参数摘要。
+ *
+ * @param {string} approvalId 审批 ID
+ * @returns {Promise<object>} 审批详情
+ */
+export function getApproval(approvalId) {
+    return request(`/api/v1/approvals/${encodeURIComponent(approvalId)}`);
+}
+
+/**
+ * 提交审批决策。
+ *
+ * @param {string} approvalId 审批 ID
+ * @param {string} decision APPROVE 或 DENY
+ * @param {string} reason 决策意见，可为空
+ * @returns {Promise<object>} 终态审批
+ */
+export function decideApproval(approvalId, decision, reason) {
+    return request(`/api/v1/approvals/${encodeURIComponent(approvalId)}/decision`,
+        jsonInit("POST", { decision, reason: reason || undefined }));
+}
+
+/**
  * 发送消息并读取 POST SSE。
  *
  * @param {string} sessionId 会话 ID

@@ -7,7 +7,6 @@ import com.piagent.domain.model.llm.LlmTool;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.ProjectedContext;
 import com.piagent.domain.session.model.SessionEntry;
-import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.port.SessionEntryStore;
 import com.piagent.domain.session.service.SessionContextProjector;
 import com.piagent.domain.tool.port.ToolRegistry;
@@ -98,18 +97,11 @@ public class TurnPipeline {
     /**
      * 执行一批工具调用。
      *
-     * @param session 会话快照
-     * @param calls 工具调用
-     * @param tools 本次 run 的工具快照
-     * @param events 事件发布器
-     * @param cancelled 取消查询
-     * @param remainingCalls 剩余工具预算
+     * @param context 批次上下文
      * @return 批次摘要
      */
-    public ToolBatchResult executeTools(ChatSession session, List<ToolCallBlock> calls,
-            ToolRegistry tools, RunEventPublisher events, BooleanSupplier cancelled,
-            int remainingCalls) {
-        return toolCoordinator.execute(session, calls, tools, events, cancelled, remainingCalls);
+    public ToolBatchResult executeTools(ToolBatchContext context) {
+        return toolCoordinator.execute(context);
     }
 
     private List<LlmTool> llmTools(ToolRegistry tools) {

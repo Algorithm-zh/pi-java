@@ -24,9 +24,10 @@ import java.util.regex.Pattern;
  * Demo 模式的确定性回合脚本。
  *
  * <p>和 {@link FakeTurn} 的固定脚本不同，这里根据请求的最后一条消息决定产出：
- * 用户输入 {@code /read <path>}、{@code /ls}、{@code /tool <name> <json>}
- * 或中文同义词时触发真实工具调用；工具结果回传后生成一段摘要文本；其余输入
- * 给出使用提示。它不访问网络，只用于零配置的 Web/CLI 演示和端到端测试。</p>
+ * 用户输入 {@code /read <path>}、{@code /ls}、{@code /write <path> <content>}、
+ * {@code /tool <name> <json>} 或中文同义词时触发真实工具调用；工具结果回传后
+ * 生成一段摘要文本；其余输入给出使用提示。它不访问网络，只用于零配置的
+ * Web/CLI 演示和端到端测试。</p>
  */
 final class DemoTurnScript {
 
@@ -37,6 +38,9 @@ final class DemoTurnScript {
             Pattern.CASE_INSENSITIVE);
     private static final Pattern LIST = Pattern.compile(
             "^(?:/ls|ls|列出目录|列目录|目录)\\s*[:：]?\\s*(.*)$",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern WRITE = Pattern.compile(
+            "^(?:/write|write|创建文件|写入文件|写文件|写入)\\s+(\\S+)(?:\\s+([\\s\\S]*))?\\z",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern TOOL = Pattern.compile(
             "^(?:/tool|tool|调用工具)\\s+([a-z][a-z0-9._-]*)\\s*(.*)$",
@@ -66,13 +70,19 @@ final class DemoTurnScript {
         if (list.matches()) {
             return toolCall("ls", Map.of("path", pathOrDefault(list.group(1), ".")));
         }
+        Matcher write = WRITE.matcher(input);
+        if (write.matches()) {
+            return toolCall("write", Map.of("path", stripQuotes(write.group(1)),
+                    "content", contentOf(write.group(2))));
+        }
         Matcher tool = TOOL.matcher(input);
         if (tool.matches()) {
             return toolCommand(tool.group(1), tool.group(2));
         }
         return text("（Fake 模型 · demo）我收到：" + (input.isBlank() ? "（空消息）" : input)
-                + "\n\n试试输入 `/read README.md`、`/ls .`，"
-                + "或用 `/tool <工具名> <JSON参数>` 调用已启用的插件工具。");
+                + "\n\n试试输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`"
+                + "（写操作会先触发审批），或用 `/tool <工具名> <JSON参数>` "
+                + "调用已启用的插件工具。");
     }
 
     private static FakeTurn toolCommand(String name, String rawArguments) {
@@ -123,15 +133,26 @@ final class DemoTurnScript {
     }
 
     private static String pathOrDefault(String raw, String fallback) {
-        String value = raw == null ? "" : raw.trim();
-        if ((value.startsWith("`") && value.endsWith("`"))
-                || (value.startsWith("\"") && value.endsWith("\""))
-                || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.substring(1, value.length() - 1).trim();
-        }
+        String value = stripQuotes(raw);
         if (value.isEmpty()) {
             return fallback;
         }
         return value.lines().findFirst().orElse(fallback).trim();
+    }
+
+    private static String stripQuotes(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.length() >= 2
+                && ((value.startsWith("`") && value.endsWith("`"))
+                || (value.startsWith("\"") && value.endsWith("\""))
+                || (value.startsWith("'") && value.endsWith("'")))) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    private static String contentOf(String raw) {
+        String content = stripQuotes(raw);
+        return content.replace("\\n", "\n").replace("\\t", "\t");
     }
 }

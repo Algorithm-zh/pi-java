@@ -1,8 +1,8 @@
 # 04 运行时与事件
 
-> 状态：M4 已实现 Agent Loop、只读工具管线、SSE 与重放；审批在 M6、压缩在 M7、
-> 子代理在 M8 落地。运行时由 application 层编排，domain 只提供规则与快照；
-> 所有外部等待（LLM、工具、审批）都不持有数据库事务。
+> 状态：M4 已实现 Agent Loop、工具管线、SSE 与重放；M6 已实现审批等待、写工具与
+> 策略 API。压缩在 M7、子代理在 M8 落地。运行时由 application 层编排，domain 只
+> 提供规则与快照；所有外部等待（LLM、工具、审批）都不持有数据库事务。
 
 ## 1. 运行时组件
 
@@ -18,7 +18,9 @@ AgentLoopService
   │    ├─ SessionEntryStore + SessionContextProjector（分支投影）
   │    ├─ SystemPromptBuilder
   │    ├─ TurnExecutor ──► LlmGateway ──► Fake / OpenAI-compatible
-  │    └─ ToolCallCoordinator ──► ToolAccessPolicy / ToolInvoker / SessionEntryAppender
+  │    └─ ToolCallCoordinator ──► ToolCallPreflight ──► ToolAccessPolicy
+  │                              ├─ ApprovalGate ──► ApprovalApplicationService
+  │                              └─ ToolInvoker / SessionEntryAppender
   └─ RunEventPublisher ──► RunEventHub ──► RunSseChannel ──► SSE / CLI
 ```
 
@@ -31,7 +33,8 @@ AgentLoopService
 | `RunRuntime` / `ActiveRunRegistry` | run 快照、每会话唯一活跃 run、取消标志、事件通道 | 业务终止判定 |
 | `TurnPipeline` | 投影、组装请求、流式调用、工具批次 | 推进状态机 |
 | `TurnExecutor` | 读取 LLM 流、发布增量、取消后返回部分文本 | 持久化 entry |
-| `ToolCallCoordinator` | 预检、策略、并行/串行执行、成对回写结果 | 决定模型下一步 |
+| `ToolCallCoordinator` | 消费预检计划、审批等待、并行/串行执行、成对回写结果 | 决定模型下一步 |
+| `ToolCallPreflight` | 策略解析、注册校验与预算裁剪，产出执行计划 | 调用工具、等待审批 |
 | `SessionEntryAppender` | 短事务追加 entry 与状态迁移 | 执行工具、调用模型 |
 | `RunEventPublisher` / `RunEventHub` | 事件数据形状、序号、缓冲、重放 | 业务判断、持久化 |
 
@@ -130,14 +133,14 @@ Run 状态。终态不可迁移；对已结束 run 的取消请求返回 `RUN_NO
 
 ### 4.1 顺序
 
-M4 已实现的完整管线：
+M4 已实现、M6 完成审批接入的完整管线：
 
 ```text
 ToolCallBlock
   -> 预检：ToolRegistry 取 ToolDescriptor（未注册 → isError 结果）
   -> ToolAccessPolicy.resolve（workspace > user > 风险默认）
        ALLOW -> 继续
-       ASK   -> M4 生成“需要审批”的 isError 结果；M6 改为等待决策
+       ASK   -> 创建审批待办并阻塞等待；APPROVED 才执行
        DENY  -> 生成 isError 结果
   -> 预算检查：超出本次 run 剩余工具次数 → isError 结果
   -> 整批判断：全部 PARALLEL 且多于一个 → 并行；否则按模型顺序串行
@@ -150,8 +153,7 @@ M5 已把插件工具接入这条管线，但**没有**插件拦截器或观察�
 只允许 allow/deny 或只读观察，不能改参数：
 
 ```text
-  -> 插件工具与内置工具同样经过策略与沙箱（M5）
-     ASK -> 当前生成“需要审批”的 isError 结果；M6 改为等待决策
+  -> 插件工具与内置工具同样经过策略、审批与沙箱（M5/M6）
   -> [未实现] 插件 ToolInterceptor / ToolResultObserver（M6/M7 评估）
 ```
 
@@ -179,34 +181,42 @@ M3 已实现的只读工具：
 `read/ls/grep/glob` 都跳过二进制文件（前 8KB 含 NUL），遍历不跟随符号链接，并跳过
 隐藏目录与 `target/build/dist/node_modules/vendor/coverage/__pycache__/.venv/venv`。
 
-后续工具的计划上限：
+M6 新增的写工具与 shell 工具：
 
-| 工具 | 默认超时 | 输出限制 |
+| 工具 | 默认超时 | 输出与限制 |
 |---|---|---|
-| `write` / `edit`（M6） | 10s | 结果摘要 8 KB |
-| `bash`（M6） | 120s（可被策略覆盖） | 64 KB；完整输出写临时文件并返回路径 |
+| `write` | 10s | 单文件正文 ≤1M 字符；返回相对路径、字节数、行数、是否新建 |
+| `edit` | 10s | 文件 ≤2 MB；`oldText` 默认必须唯一匹配；返回匹配/替换数与字节数 |
+| `bash` | handler 默认 60s、上限 120s；策略 `timeoutMs` 尚未接入 | 合并 stdout/stderr，保留前 60k 字符并继续排空管道；超时终止整棵进程树 |
 | `subagent`（M8） | 300s | 只返回摘要 + 子会话引用 |
 
 超时视为工具失败：`BuiltInToolInvoker` 取消任务并返回 `isError=true`、
 `details.errorCode=TOOL_TIMEOUT` 的结果，模型可据此调整，不终止整个 run。
 线程中断返回 `CANCELLED`；handler 抛出的领域异常保留原错误码。
 
-### 4.4 审批（M6 实现）
+### 4.4 审批（M6 已实现）
 
 ```text
-create PENDING -> publish approval.required
-    -> 用户 APPROVE -> APPROVED -> 执行
+create PENDING -> publish approval.requested
+    -> 用户 APPROVE -> APPROVED -> 执行工具
     -> 用户 DENY    -> DENIED   -> toolResult(isError=true)
-    -> 30 分钟超时 -> EXPIRED  -> 按 DENY 处理
-    -> run 取消/连接关闭 -> CANCELLED -> 按 DENY 处理
+    -> TTL 到期（默认 30m） -> EXPIRED -> 按 DENY 处理
+    -> run 取消            -> CANCELLED -> 按 DENY 处理
 ```
 
-- 审批请求落库前脱敏：密钥、Authorization、疑似 token、超长文本；
-- `args_digest` 防止 UI 展示参数与实际执行参数漂移；
-- 决策接口只接受 PENDING；重复决策返回冲突，不做静默覆盖；
+- 审批参数在落库前脱敏：键名包含 key/token/secret/password/authorization/credential
+  的值替换为 `***`，null 展示为 `<null>`；digest 基于原始参数的 canonical JSON
+  （键排序、数字规范化）做 SHA-256，防止 UI 展示与实际执行参数漂移；
+- HTTP 详情同时返回 digest 与脱敏参数；SSE 的 `approval.requested` 只含脱敏参数，
+  **不包含 digest**，原始参数与密钥不进入事件通道；
+- 决策接口只接受 PENDING；CAS 失败或重复决策返回 409 `APPROVAL_INVALID_STATE`；
+  已过期时先落 EXPIRED 再返回冲突；
 - 决策更新 `pi_approval_request` 与追加 `APPROVAL` entry 在同一短事务内；
-- `approvalMode=SESSION` 的允许只对当前会话当前 run 的后续相同工具生效（参数仍重新校验），
-  不跨会话、不跨子代理；`ALWAYS` 写入策略表，需显式管理。
+  事务提交后才发布 `approval.resolved` 并唤醒等待线程；
+- 等待线程每 200ms 检查 future、取消标志与过期时间；取消或过期由系统写入终态，
+  决策者固定为 `system`；HTTP 决策者由服务端固定为 `local-user`（v0.1 无认证）；
+- `approvalMode`（ONCE/SESSION/ALWAYS）已持久化，但 M6 执行器尚未实现“记住批准”，
+  当前一律按每次都询问处理。
 
 ### 4.5 路径沙箱（M3 已实现）
 
@@ -238,11 +248,13 @@ M4 已实现：
 - 取消后工具批次中尚未执行/未完成的调用仍会得到 `isError=true` 结果，保证配对；
 - 内置工具超时由 `BuiltInToolInvoker` `Future.cancel(true)` 处理。
 
-M6/M8 将补齐：
+M6 已补齐：
 
-- 审批等待者被唤醒并以 CANCELLED 结束（M6）；
-- `bash` 先 `destroy()`，5 秒后 `destroyForcibly()`，并清理子进程树（M6）；
-- 子代理父取消级联子 run（M8）。
+- 审批等待者被唤醒并以 CANCELLED 结束；取消发生在审批前、等待中或批准后执行前，
+  都会得到一条 `isError=true` 的 toolResult；
+- `bash` 超时或线程中断时先终止整棵进程树，再返回错误结果。
+
+M8 将继续补齐：子代理父取消级联子 run。
 
 取消只影响当前 run，不归档会话；已进入终态的 run 忽略取消。
 
@@ -341,7 +353,7 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
 | `replay.gap` | `lastAvailableSeq` |
 | `heartbeat` | `at` |
 
-M6–M8 追加：`approval.required/resolved`、`compaction.*`、`subagent.*`。
+M6–M8 追加：`approval.requested/resolved`（M6 已实现）、`compaction.*`、`subagent.*`。
 
 ### 9.3 连接管理
 

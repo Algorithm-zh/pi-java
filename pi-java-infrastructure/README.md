@@ -46,5 +46,7 @@ M3 完成 `tool`（RealPathResolver、read/ls/grep/glob、虚拟线程超时调�
 `DemoTurnScript` 与 `DemoDataInitializer` 依赖的 Fake 脚本；M5 完成 `plugin`
 （`PluginJarInspector`、child-first `PluginClassLoader`、`PluginHost`、
 `RuntimeToolRegistry`、`RuntimeToolInvoker`）与 V4 插件记录仓储，并为 Fake demo
-增加 `/tool <name> <json>`。infrastructure 共 135 个测试（2 个符号链接用例在无权限
-环境条件跳过），行覆盖 65.8%。详见 [M5 记录](../docs/milestones/M5.md)。
+增加 `/tool <name> <json>`。M6 增加 `write/edit/bash` 三个内置工具、
+`persistence.governance`（V5 审批记录、`ApprovalArgumentsCodec`、MyBatis 仓储），
+并为 Fake demo 增加 `/write <path> <content>`。
+详见 [M6 记录](../docs/milestones/M6.md)。

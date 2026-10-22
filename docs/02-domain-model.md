@@ -1,6 +1,6 @@
 # 02 领域模型
 
-> 状态：随里程碑更新，当前覆盖至 M5。本文是领域层的实现契约：包名、类型名、不变量一旦落地，变更必须同步更新本文与测试。
+> 状态：随里程碑更新，当前覆盖至 M6。本文是领域层的实现契约：包名、类型名、不变量一旦落地，变更必须同步更新本文与测试。
 >
 > 领域层只依赖 JDK。所有跨上下文的引用只允许“身份引用”（ID）或只读值对象，不允许跨上下文调用聚合行为。
 
@@ -357,7 +357,8 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 |---|---|---|
 | `ToolCatalog` | 不可变目录；校验重名、按名查询；由 `RuntimeToolRegistry` 用“内置 + 已启用插件”构建 | M3 已实现 |
 | `ToolArgumentGuard` | 拒绝未知参数，读取必填字符串、可选字符串/整数/布尔并校验上限；JSON Schema 深度校验由具体 handler 完成 | M3 已实现 |
-| `ToolCallCoordinator`（应用层） | 依据 `ExecutionMode` 分批：整批 `PARALLEL` 才并行，否则整批串行，结果保持模型给出的顺序；设计稿中的 `ToolExecutionPlanner` 已并入此类 | M4 已实现 |
+| `ToolCallCoordinator`（应用层） | 消费预检计划，按 `ExecutionMode` 分批：整批 `PARALLEL` 才并行，否则整批串行，结果保持模型给出的顺序；审批等待与结果回写也在此完成 | M4 已实现；M6 拆出预检 |
+| `ToolCallPreflight`（应用层） | 解析工具策略、校验注册状态并按剩余预算裁剪；只产出执行计划，不调用工具 | M6 已实现 |
 | `ToolRegistry` | 端口：`descriptors()`、`find(ToolName)`、`require(ToolName)`；默认 `snapshot()` 返回冻结目录 | M3 已实现；M5 增加快照 |
 | `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation)`；超时与中断由适配器处理；插件工具由 `RuntimeToolInvoker` 委派给 `PluginHost` | M3 已实现；M4 接入取消；M5 接入插件 |
 
@@ -389,9 +390,12 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 - `MEDIUM / HIGH` → `ASK`；
 - `CRITICAL` → `DENY`。
 
-M3 的四个只读工具均为 `LOW`，因此默认放行。M6 计划让 `write/edit` 为 `HIGH`（默认 ASK）、
-`bash` 为 `CRITICAL`（默认 DENY，需用户显式创建策略才可执行）。工具目录中不存在的名称
+M3 的四个只读工具均为 `LOW`，因此默认放行。M6 已把 `write/edit` 设为 `HIGH`（默认 ASK）、
+`bash` 设为 `CRITICAL`（默认 DENY，需用户显式创建策略才可执行）。工具目录中不存在的名称
 在取 `ToolDescriptor` 时即失败，不进入策略解析。
+
+`approvalMode` 已持久化并可在策略 API 中读写，但 M6 的执行器仍按 `effect` 处理：
+`SESSION/ALWAYS` 的“记住本次批准”语义留待后续里程碑实现，当前不会放宽审批。
 
 优先级：`WORKSPACE` 规则 > `USER` 规则 > 风险默认值；`DENY` 一旦命中即拒绝，不允许被更宽规则覆盖。
 
@@ -406,11 +410,17 @@ PENDING ──approve──► APPROVED
    └────cancel─────► CANCELLED
 ```
 
-终态不可再迁移。字段：`ApprovalId`、`sessionId`、`runId`、`toolCallId`、工具名、
-`argsDigest`、`argsRedactedJson`、风险、状态、原因、决策者（`USER/POLICY/TIMEOUT`）、
-决策时间、过期时间、创建时间。
+终态不可再迁移。聚合字段：
 
-`ApprovalPort` 是“向用户发起询问”的端口；领域层不关心 Web SSE 还是 CLI 提示。
+- `ApprovalId id`；
+- `ApprovalContext context`：`sessionId`、`runId`、`toolCallId`、`toolName`、
+  `ApprovalArguments arguments`（64 位 SHA-256 digest + 脱敏参数）、`riskLevel`；
+- `ApprovalStatus status`：`PENDING / APPROVED / DENIED / EXPIRED / CANCELLED`；
+- `reason`、`decidedBy`、`decidedAt`、`expiresAt`、`createdAt`。
+
+聚合方法：`pending(...)`、`approve/deny/apply(...)`、`expire(...)`、`cancel(...)`、
+`isExpiredAt(...)`。系统写入过期或取消时决策者固定为 `system`；HTTP 决策者由服务端
+固定为 `local-user`，v0.1 不接受客户端伪造决策者。TTL 上限 24 小时，默认 30 分钟。
 
 ### 6.3 路径沙箱（M3 已实现）
 
@@ -444,15 +454,22 @@ final class PathSandbox {
 |---|---|---|
 | `ToolAccessPolicy` | 合并工作区/用户规则与风险默认值，输出 `PolicyEffect` | M3 已实现 |
 | `PathSandbox` | 纯路径判定 | M3 已实现 |
+| `ApprovalArgumentsSanitizer` | canonical JSON + SHA-256 digest，按敏感键名生成脱敏副本 | M6 已实现 |
 | `ToolPolicyRepository` | 按工作区（含全局）查询规则、插入/CAS 更新 | M3 已实现 |
-| `ApprovalExpiryPolicy` | 默认 30 分钟过期，run 取消时立即取消等待 | M6 实现 |
+
+审批的有效期与取消不在领域服务中：应用层 `ApprovalGateService` 创建待办后阻塞等待，
+循环检查取消标志与 `isExpiredAt`，分别调用 `cancel`/`expire`；决策由
+`ApprovalApplicationService` 以 CAS 写入。
 
 ### 6.5 端口
 
 - `ToolPolicyRepository`（M3）：`findByWorkspace(WorkspaceKey)`、`find(scope, key, tool)`、
   `insert`、CAS `update`；
-- `ApprovalRepository`、`ApprovalPort`（M6）：审批决策**双写**，更新待办投影 + 追加
-  `APPROVAL` entry；审计以 entry 为准。
+- `ApprovalRepository`（M6）：`insert`、`findById`、`findBySession`、`findByRun`、
+  `updateIfPending`、`expireAllPending`；
+- `ApprovalGate`（M6，应用层端口）：`await(ApprovalContext, BooleanSupplier)`；
+  把“发起询问并等待终态”与 Web/CLI 展示解耦。审批决策**双写**：更新
+  `pi_approval_request` 投影 + 追加 `APPROVAL` entry，审计以 entry 为准。
 
 ## 7. 上下文与技能 `domain.context`
 

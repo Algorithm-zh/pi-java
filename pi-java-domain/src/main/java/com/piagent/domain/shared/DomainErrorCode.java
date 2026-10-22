@@ -102,5 +102,11 @@ public enum DomainErrorCode {
     PLUGIN_LOAD_FAILED,
 
     /** 插件工具名与内置工具或其他插件冲突。 */
-    PLUGIN_TOOL_CONFLICT
+    PLUGIN_TOOL_CONFLICT,
+
+    /** 审批请求不存在。 */
+    APPROVAL_NOT_FOUND,
+
+    /** 审批已过期、已决策或状态不允许当前操作。 */
+    APPROVAL_INVALID_STATE
 }

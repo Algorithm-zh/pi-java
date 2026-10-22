@@ -138,25 +138,6 @@ class AgentLoopServiceTest {
     }
 
     @Test
-    void askPolicyProducesErrorResultWithoutInvokingTool() {
-        AgentLoopFixture fixture = new AgentLoopFixture();
-        fixture.tools.add("write-file", ToolRisk.MEDIUM, ExecutionMode.SEQUENTIAL);
-        ChatSession session = fixture.createSession();
-        fixture.gateway.enqueue(ScriptedLlmGateway.toolCalls(
-                List.of(call("w1", "write-file"))));
-        fixture.gateway.enqueue(ScriptedLlmGateway.text("没有权限"));
-
-        AgentRun run = fixture.run(session.identity().id(), "写文件");
-
-        assertThat(run.status()).isEqualTo(RunStatus.COMPLETED);
-        assertThat(run.toolCalls()).isZero();
-        assertThat(fixture.invoker.invocations()).isEmpty();
-        ToolResultMessage result = toolResult(fixture.branch(session.identity().id()).get(2));
-        assertThat(result.isError()).isTrue();
-        assertThat(textOf(result.content())).contains("需要用户审批");
-    }
-
-    @Test
     void workspaceRuleCanDenyTool() {
         AgentLoopFixture fixture = new AgentLoopFixture();
         fixture.tools.add("shell", ToolRisk.LOW, ExecutionMode.SEQUENTIAL);

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.piagent.domain.governance.service.PathSandbox;
 import com.piagent.domain.tool.model.ExecutionMode;
 import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolRisk;
@@ -15,16 +16,37 @@ class BuiltInToolCatalogTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void exposesFourReadOnlyTools() {
+    void exposesReadAndWriteToolsInStableOrder() {
         List<ToolDescriptor> descriptors = BuiltInToolCatalog.descriptors();
 
         assertThat(descriptors).extracting(descriptor -> descriptor.name().value())
-                .containsExactly("read", "ls", "grep", "glob");
-        assertThat(descriptors).allSatisfy(descriptor -> {
+                .containsExactly("read", "ls", "grep", "glob", "write", "edit", "bash");
+        assertThat(descriptors).allSatisfy(descriptor -> assertThat(descriptor.timeout())
+                .isPositive());
+    }
+
+    @Test
+    void readOnlyToolsAreLowRiskAndParallel() {
+        assertThat(descriptors("read", "ls", "grep", "glob")).allSatisfy(descriptor -> {
             assertThat(descriptor.risk()).isEqualTo(ToolRisk.LOW);
             assertThat(descriptor.executionMode()).isEqualTo(ExecutionMode.PARALLEL);
-            assertThat(descriptor.timeout()).isPositive();
         });
+    }
+
+    @Test
+    void writeToolsAreHighRiskAndSequential() {
+        assertThat(descriptors("write", "edit")).allSatisfy(descriptor -> {
+            assertThat(descriptor.risk()).isEqualTo(ToolRisk.HIGH);
+            assertThat(descriptor.executionMode()).isEqualTo(ExecutionMode.SEQUENTIAL);
+        });
+    }
+
+    @Test
+    void bashIsCriticalAndSequential() {
+        ToolDescriptor bash = descriptor("bash");
+
+        assertThat(bash.risk()).isEqualTo(ToolRisk.CRITICAL);
+        assertThat(bash.executionMode()).isEqualTo(ExecutionMode.SEQUENTIAL);
     }
 
     @Test
@@ -43,6 +65,25 @@ class BuiltInToolCatalogTest {
         assertThat(required("grep")).containsExactly("pattern");
         assertThat(required("glob")).containsExactly("pattern");
         assertThat(required("ls")).isEmpty();
+        assertThat(required("write")).containsExactly("path", "content");
+        assertThat(required("edit")).containsExactly("path", "oldText", "newText");
+        assertThat(required("bash")).containsExactly("command");
+    }
+
+    @Test
+    void everyDescriptorHasAHandler() {
+        RealPathResolver resolver = new RealPathResolver(new PathSandbox());
+
+        assertThat(BuiltInToolHandlers.create(resolver).keySet())
+                .containsExactlyInAnyOrderElementsOf(BuiltInToolCatalog.descriptors().stream()
+                        .map(ToolDescriptor::name)
+                        .toList());
+    }
+
+    private List<ToolDescriptor> descriptors(String... names) {
+        return BuiltInToolCatalog.descriptors().stream()
+                .filter(descriptor -> List.of(names).contains(descriptor.name().value()))
+                .toList();
     }
 
     private List<String> required(String tool) throws Exception {

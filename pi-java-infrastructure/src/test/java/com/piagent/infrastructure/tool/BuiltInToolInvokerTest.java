@@ -14,15 +14,10 @@ import com.piagent.domain.tool.model.ToolInvocation;
 import com.piagent.domain.tool.model.ToolName;
 import com.piagent.domain.tool.model.ToolResult;
 import com.piagent.domain.tool.model.ToolRisk;
-import com.piagent.infrastructure.tool.handler.GlobToolHandler;
-import com.piagent.infrastructure.tool.handler.GrepToolHandler;
-import com.piagent.infrastructure.tool.handler.LsToolHandler;
-import com.piagent.infrastructure.tool.handler.ReadToolHandler;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -130,17 +125,7 @@ class BuiltInToolInvokerTest {
     private BuiltInToolInvoker builtInInvoker() {
         CatalogToolRegistry registry = new CatalogToolRegistry(BuiltInToolCatalog.descriptors());
         RealPathResolver resolver = new RealPathResolver(new PathSandbox());
-        Map<ToolName, BuiltInToolHandler> handlers = new LinkedHashMap<>();
-        for (ToolDescriptor descriptor : registry.descriptors()) {
-            handlers.put(descriptor.name(), switch (descriptor.name().value()) {
-                case "read" -> new ReadToolHandler(resolver);
-                case "ls" -> new LsToolHandler(resolver);
-                case "grep" -> new GrepToolHandler(resolver);
-                case "glob" -> new GlobToolHandler(resolver);
-                default -> throw new IllegalStateException("unexpected tool");
-            });
-        }
-        return new BuiltInToolInvoker(registry, handlers);
+        return new BuiltInToolInvoker(registry, BuiltInToolHandlers.create(resolver));
     }
 
     private CatalogToolRegistry registry(ToolDescriptor descriptor) {

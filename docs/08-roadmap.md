@@ -1,7 +1,7 @@
 # 08 路线图
 
-> 状态：M0–M5 已完成（M5 于 2026-10-22），下一步 M6 审批 + 写工具。里程碑顺序不可跳跃；
-> 每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
+> 状态：M0–M6 已完成（M6 于 2026-10-22），下一步 M7 上下文压缩 + Skills。
+> 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
 
@@ -181,19 +181,46 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M6 审批 + 写工具
 
-范围：
+状态：已完成（2026-10-22），详见 [M6 记录](milestones/M6.md)。
 
-- ApprovalRequest 状态机、ToolPolicyRule、ApprovalPort；
-- 审批 API/SSE/UI；参数脱敏与 digest；
-- write/edit/bash；ProcessRunner（Windows cmd / Unix bash）；
-- V5。
+范围（实际交付）：
 
-验收：
+- `domain.governance`：`ApprovalRequest` 状态机、`ApprovalStatus/Decision`、
+  `ApprovalContext/Arguments`、`ApprovalRepository`、`ApprovalArgumentsSanitizer`；
+- 应用层：`ApprovalApplicationService`（CAS 决策、APPROVAL entry 双写、afterCommit 发布）、
+  `ApprovalGateService` + `ApprovalWaitRegistry`（阻塞等待、取消、TTL）、
+  `ApprovalEventPublisher`、`ToolPolicyApplicationService`；
+- 工具管线：`ToolCallPreflight` 拆出策略/预算预检；`ToolCallCoordinator` 在 `ASK`
+  时创建审批、阻塞等待终态，批准后执行，拒绝/过期/取消写配对错误结果；
+- 内置工具：`write`、`edit`、`bash`（Windows `cmd.exe` / Unix `/bin/sh`，
+  超时终止进程树，输出截断）；
+- HTTP：`GET /approvals`、`GET /approvals/{id}`、`POST /approvals/{id}/decision`、
+  `GET/PUT /tool-policies`；错误映射新增审批 404/409；
+- SSE：`approval.requested`（脱敏参数，无 digest）与 `approval.resolved`；
+- Web UI：审批弹窗队列、风险徽标、脱敏参数、digest、倒计时、批准/拒绝、
+  刷新后恢复待办；
+- V5 `pi_approval_request`、MyBatis 仓储与 H2/MySQL 迁移；
+- Fake demo 增加 `/write <path> <content>`。
 
-- 允许/拒绝/超时/取消并发测试；
-- 策略优先级；
-- Windows 子进程超时与树清理；
-- 审批决策与 entry 双写一致。
+验收结果：
+
+- 批准：`/write` 触发 HIGH 审批，批准后文件落盘，SSE 顺序为
+  `run.started → approval.requested → approval.resolved → tool.completed → run.completed`；
+- 拒绝：工具返回 `isError=true`“用户拒绝执行工具 write”，文件不存在；
+- 超时/取消：审批迁移为 EXPIRED/CANCELLED，工具得到配对错误结果；
+- 策略优先级 WORKSPACE > USER > 风险默认；`write/edit` 默认 ASK，
+  `bash` 默认 DENY；
+- 脱敏与 digest：HTTP 详情含 64 位 digest，SSE 不含 digest；敏感键值替换为 `***`；
+- H2 + Flyway + MyBatis 集成测试覆盖审批往返、CAS、唯一键与级联；
+- `mvn verify` 全绿，Checkstyle/ArchUnit 通过。
+
+未包含（按计划后移）：
+
+- `approvalMode=SESSION/ALWAYS` 的“记住批准”语义：字段已持久化，执行器暂未消费；
+- 策略 `timeoutMs` 尚未覆盖工具默认超时；
+- 启动时遗留 PENDING 审批的批量 EXPIRED 清理；
+- 审批 UI 暂不渲染历史 `APPROVAL` entry（审计仍在会话日志中）；
+- 插件工具的高风险审批已走同一管线，但插件拦截器仍未实现。
 
 ### M7 压缩 + Skills
 

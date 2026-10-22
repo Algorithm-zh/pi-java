@@ -1,6 +1,7 @@
 # 03 数据库设计
 
-> 状态：M0 冻结。业务表共 6 张；表结构变更必须通过新 Flyway 脚本完成。
+> 状态：M0 冻结，V1–V5 已随 M1–M6 落地。业务表共 6 张；表结构变更必须通过新
+> Flyway 脚本完成。
 >
 > 生产库 MySQL 8，测试/演示库 H2（MySQL 模式）。DDL 按厂商分目录维护，
 > 语义一致、方言不同，禁止用 H2 专有语法污染 MySQL 脚本。
@@ -305,9 +306,13 @@ MySQL 脚本位于 `.../mysql/`；Flyway 按 profile 选择 `locations`，互不
   "toolName": "write",
   "decision": "APPROVED",
   "reason": "允许修改 README",
-  "decidedBy": "USER"
+  "decidedBy": "local-user"
 }
 ```
+
+`decision` 记录终态字符串（`APPROVED/DENIED/EXPIRED/CANCELLED`）；
+HTTP 用户决策写 `local-user`，过期与取消写 `system`。决策同时更新
+`pi_approval_request` 投影并追加本 entry，二者在同一个短事务内完成。
 
 ### 5.4 运行摘要
 

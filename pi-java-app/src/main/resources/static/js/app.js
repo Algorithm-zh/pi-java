@@ -3,6 +3,7 @@
  */
 
 import * as api from "./api.js";
+import * as approval from "./approval.js";
 import * as dialog from "./dialog.js";
 import { start as startRun, reconnectRun, abort as abortRun } from "./run.js";
 import {
@@ -13,6 +14,7 @@ import { dom, setServer, state, toast } from "./store.js";
 async function init() {
     bindReconnect(reconnectRun);
     dialog.init(createSession);
+    approval.init();
     wireEvents();
     try {
         const [system, models] = await Promise.all([api.systemInfo(), api.listModels()]);

@@ -6,6 +6,7 @@
  */
 
 import * as api from "./api.js";
+import * as approval from "./approval.js";
 import {
     beginAssistant, resetForConversation, renderUserBubble, stopReasonLabel, upsertToolCard
 } from "./render.js";
@@ -14,6 +15,7 @@ import { dom, setRunState, state, toast } from "./store.js";
 import * as usage from "./usage.js";
 
 export async function start(text) {
+    approval.reset();
     const inner = resetForConversation(dom.messages);
     renderUserBubble(inner, text);
     state.inner = inner;
@@ -134,6 +136,14 @@ function handleEvent({ name, payload }) {
             });
             scrollToBottom();
             break;
+        case "approval.requested":
+            approval.requested(data);
+            setRunState("等待审批");
+            break;
+        case "approval.resolved":
+            approval.resolved(data);
+            setRunState("生成中");
+            break;
         case "run.completed":
         case "run.failed":
             finishRun(data, type === "run.failed");
@@ -157,6 +167,12 @@ function handleReconnectEvent({ name, payload }) {
     const data = payload.data || {};
     if (type === "turn.started") {
         setRunState(`第 ${data.turn} 轮`);
+    } else if (type === "approval.requested") {
+        approval.requested(data);
+        setRunState("等待审批");
+    } else if (type === "approval.resolved") {
+        approval.resolved(data);
+        setRunState("生成中");
     } else if (type === "run.completed" || type === "run.failed") {
         finishRun(data, type === "run.failed");
     } else if (type === "replay.gap") {
@@ -166,6 +182,7 @@ function handleReconnectEvent({ name, payload }) {
 
 function finishRun(data, failed) {
     state.terminalSeen = true;
+    approval.reset();
     state.controller?.finish();
     dom.abortButton.classList.add("hidden");
     usage.show(data);

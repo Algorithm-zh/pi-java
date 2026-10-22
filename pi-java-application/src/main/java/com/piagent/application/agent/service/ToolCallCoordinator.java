@@ -1,24 +1,20 @@
 package com.piagent.application.agent.service;
 
-import com.piagent.domain.governance.model.PolicyEffect;
+import com.piagent.domain.agent.RunId;
+import com.piagent.domain.governance.model.ApprovalContext;
+import com.piagent.domain.governance.model.ApprovalRequest;
+import com.piagent.domain.governance.model.ApprovalStatus;
 import com.piagent.domain.governance.model.SandboxPolicy;
-import com.piagent.domain.governance.model.ToolPolicyRule;
-import com.piagent.domain.governance.model.WorkspaceKey;
-import com.piagent.domain.governance.port.ToolPolicyRepository;
-import com.piagent.domain.governance.service.ToolAccessPolicy;
+import com.piagent.domain.governance.service.ApprovalArgumentsSanitizer;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.message.ToolCallBlock;
-import com.piagent.domain.tool.model.ExecutionMode;
 import com.piagent.domain.tool.model.ToolCallId;
-import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolInvocation;
 import com.piagent.domain.tool.model.ToolName;
 import com.piagent.domain.tool.model.ToolResult;
 import com.piagent.domain.tool.port.ToolInvoker;
-import com.piagent.domain.tool.port.ToolRegistry;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -28,124 +24,86 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
- * 工具调用协调器：预检、分批、执行与结果回写。
+ * 工具调用协调器：执行预检计划、处理审批并回写结果。
  *
  * <p>关键约束：</p>
  * <ul>
- *   <li>每个 toolCall 必须得到一条 toolResult，即使策略拒绝、预算不足或运行取消；</li>
- *   <li>只有整批调用都可并行时才并行；混入任一串行工具则整批按模型给出的顺序执行；</li>
+ *   <li>每个 toolCall 必须得到一条 toolResult，即使策略拒绝、预算不足、运行取消或审批未通过；</li>
+ *   <li>只有整批调用都无需审批且都可并行时才并行；混入任一串行工具或审批调用则整批按模型给出的顺序执行；</li>
  *   <li>请求与结果按调用顺序落库，并行执行不改变会话日志顺序；</li>
- *   <li>M4 尚未实现审批，{@code ASK} 一律转为错误结果；M6 会在这里接入审批等待。</li>
+ *   <li>{@code ASK} 调用创建审批待办并阻塞等待终态，批准后才真正执行工具。</li>
  * </ul>
+ *
+ * <p>策略解析与预算裁剪由 {@link ToolCallPreflight} 完成，本类只消费其产出的
+ * 执行计划，因此不直接依赖策略仓储。</p>
  */
 @Component
 public class ToolCallCoordinator {
 
     private final ToolInvoker invoker;
-    private final ToolPolicyRepository policyRepository;
-    private final ToolAccessPolicy accessPolicy;
     private final SessionEntryAppender appender;
+    private final ApprovalGate approvalGate;
+    private final ToolCallPreflight preflight;
     private final ExecutorService executor;
 
     /**
      * 创建协调器。
      *
      * @param invoker 工具执行器
-     * @param policyRepository 策略仓储
-     * @param accessPolicy 策略解析器
      * @param appender entry 追加器
+     * @param approvalGate 审批门面
+     * @param preflight 工具调用预检器
      * @param executor 工具并行执行器
      */
-    public ToolCallCoordinator(ToolInvoker invoker,
-            ToolPolicyRepository policyRepository, ToolAccessPolicy accessPolicy,
-            SessionEntryAppender appender,
+    public ToolCallCoordinator(ToolInvoker invoker, SessionEntryAppender appender,
+            ApprovalGate approvalGate, ToolCallPreflight preflight,
             @Qualifier("toolExecutor") ExecutorService executor) {
         this.invoker = invoker;
-        this.policyRepository = policyRepository;
-        this.accessPolicy = accessPolicy;
         this.appender = appender;
+        this.approvalGate = approvalGate;
+        this.preflight = preflight;
         this.executor = executor;
     }
 
     /**
      * 执行一批工具调用并写入会话日志。
      *
-     * @param session 当前会话
-     * @param calls 模型返回的工具调用
-     * @param registry 本次 run 的工具快照
-     * @param events 事件发布器
-     * @param cancelled 取消查询
-     * @param remainingCalls 剩余可执行工具次数
+     * @param context 批次上下文
      * @return 批次摘要
      */
-    public ToolBatchResult execute(ChatSession session, List<ToolCallBlock> calls,
-            ToolRegistry registry, RunEventPublisher events, BooleanSupplier cancelled,
-            int remainingCalls) {
-        List<ToolPolicyRule> rules = policyRepository.findByWorkspace(
-                WorkspaceKey.of(session.config().cwd()));
-        SandboxPolicy sandbox = sandboxOf(session);
-        List<PreparedCall> prepared = prepare(calls, registry, rules, remainingCalls);
-        BatchExecution execution = supportsParallel(prepared)
-                ? executeParallel(prepared, sandbox, events, cancelled)
-                : executeSequential(prepared, sandbox, events, cancelled);
-        writeResults(session, execution.results());
+    public ToolBatchResult execute(ToolBatchContext context) {
+        List<PreparedCall> prepared = preflight.prepare(context.session(), context.calls(),
+                context.registry(), context.remainingCalls());
+        SandboxPolicy sandbox = sandboxOf(context.session());
+        BatchExecution execution = preflight.supportsParallel(prepared)
+                ? executeParallel(prepared, sandbox, context.events(), context.cancelled())
+                : executeSequential(context.session(), context.runId(), prepared, sandbox,
+                        context.events(), context.cancelled());
+        writeResults(context.session(), execution.results());
         boolean budgetExhausted = prepared.stream().anyMatch(PreparedCall::budgetBlocked);
-        return new ToolBatchResult(execution.executed(), cancelled.getAsBoolean(), budgetExhausted);
+        return new ToolBatchResult(execution.executed(), context.cancelled().getAsBoolean(),
+                budgetExhausted);
     }
 
-    private List<PreparedCall> prepare(List<ToolCallBlock> calls, ToolRegistry registry,
-            List<ToolPolicyRule> rules, int remainingCalls) {
-        List<PreparedCall> prepared = new ArrayList<>(calls.size());
-        int granted = 0;
-        for (ToolCallBlock call : calls) {
-            PreparedCall preflight = preflight(call, registry, rules);
-            if (preflight.executable() && granted >= remainingCalls) {
-                preflight = preflight.withRejection(ToolResult.error(callIdOf(call), toolNameOf(call),
-                        "已达到本次运行的工具调用上限，该调用未执行"), true);
-            } else if (preflight.executable()) {
-                granted++;
-            }
-            prepared.add(preflight);
-        }
-        return prepared;
-    }
-
-    private PreparedCall preflight(ToolCallBlock call, ToolRegistry registry,
-            List<ToolPolicyRule> rules) {
-        ToolName name = toolNameOf(call);
-        Optional<ToolDescriptor> found = registry.find(name);
-        if (found.isEmpty()) {
-            return new PreparedCall(call, null, ToolResult.error(callIdOf(call), name,
-                    "工具未注册: " + call.name()), false);
-        }
-        ToolDescriptor descriptor = found.get();
-        PolicyEffect effect = accessPolicy.resolve(descriptor, rules);
-        return switch (effect) {
-            case ALLOW -> new PreparedCall(call, descriptor, null, false);
-            case ASK -> new PreparedCall(call, descriptor, ToolResult.error(callIdOf(call), name,
-                    "工具 " + name + " 需要用户审批；审批功能将在 M6 提供，本次调用未执行"), false);
-            case DENY -> new PreparedCall(call, descriptor, ToolResult.error(callIdOf(call), name,
-                    "工具策略拒绝执行: " + name), false);
-        };
-    }
-
-    private boolean supportsParallel(List<PreparedCall> prepared) {
-        List<PreparedCall> executable = prepared.stream().filter(PreparedCall::executable).toList();
-        return executable.size() > 1 && executable.stream()
-                .allMatch(call -> call.descriptor().executionMode() == ExecutionMode.PARALLEL);
-    }
-
-    private BatchExecution executeSequential(List<PreparedCall> prepared, SandboxPolicy sandbox,
-            RunEventPublisher events, BooleanSupplier cancelled) {
+    private BatchExecution executeSequential(ChatSession session, RunId runId,
+            List<PreparedCall> prepared, SandboxPolicy sandbox, RunEventPublisher events,
+            BooleanSupplier cancelled) {
         List<ToolResult> results = new ArrayList<>(prepared.size());
         int executed = 0;
         for (PreparedCall call : prepared) {
             events.toolStarted(call.call());
             ToolResult result;
-            if (!call.executable()) {
+            if (!call.requiresExecution()) {
                 result = call.rejection();
             } else if (cancelled.getAsBoolean()) {
                 result = cancelled(call.call());
+            } else if (call.approvalRequired()) {
+                ApprovalExecution approval = executeWithApproval(session, runId, call, sandbox,
+                        cancelled);
+                result = approval.result();
+                if (approval.invoked()) {
+                    executed++;
+                }
             } else {
                 result = invoke(call, sandbox);
                 executed++;
@@ -154,6 +112,40 @@ public class ToolCallCoordinator {
             events.toolCompleted(result);
         }
         return new BatchExecution(results, executed);
+    }
+
+    private ApprovalExecution executeWithApproval(ChatSession session, RunId runId,
+            PreparedCall call, SandboxPolicy sandbox, BooleanSupplier cancelled) {
+        ApprovalContext context = new ApprovalContext(session.identity().id(), runId,
+                callIdOf(call.call()), call.descriptor().name(),
+                ApprovalArgumentsSanitizer.sanitize(call.call().arguments()),
+                call.descriptor().risk());
+        ApprovalRequest approval;
+        try {
+            approval = approvalGate.await(context, cancelled);
+        } catch (RuntimeException error) {
+            return new ApprovalExecution(ToolResult.error(callIdOf(call.call()),
+                    call.descriptor().name(), "等待审批失败: " + message(error)), false);
+        }
+        if (approval.status() != ApprovalStatus.APPROVED) {
+            return new ApprovalExecution(approvalRejection(call, approval), false);
+        }
+        if (cancelled.getAsBoolean()) {
+            return new ApprovalExecution(cancelled(call.call()), false);
+        }
+        return new ApprovalExecution(invoke(call, sandbox), true);
+    }
+
+    private ToolResult approvalRejection(PreparedCall call, ApprovalRequest approval) {
+        String name = call.descriptor().name().toString();
+        String message = switch (approval.status()) {
+            case DENIED -> "用户拒绝执行工具 " + name
+                    + (approval.reason() == null ? "" : ": " + approval.reason());
+            case EXPIRED -> "工具 " + name + " 的审批已过期，未执行";
+            case CANCELLED -> "运行已取消，工具 " + name + " 未执行";
+            default -> "工具 " + name + " 的审批未通过";
+        };
+        return ToolResult.error(callIdOf(call.call()), call.descriptor().name(), message);
     }
 
     private BatchExecution executeParallel(List<PreparedCall> prepared, SandboxPolicy sandbox,
@@ -225,6 +217,10 @@ public class ToolCallCoordinator {
         return new ToolName(call.name());
     }
 
+    private String message(Throwable error) {
+        return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    }
+
     /**
      * 一批工具的执行结果与真实执行数。
      *
@@ -235,22 +231,11 @@ public class ToolCallCoordinator {
     }
 
     /**
-     * 预检后的单个调用。
+     * 审批之后的执行结果。
      *
-     * @param call 原始调用
-     * @param descriptor 工具定义；未知工具为 null
-     * @param rejection 预检拒绝结果；可执行时为 null
-     * @param budgetBlocked 是否因预算被拒
+     * @param result 返回给模型的结果
+     * @param invoked 是否真正调用了工具（审批拒绝、过期或取消时为 false）
      */
-    private record PreparedCall(ToolCallBlock call, ToolDescriptor descriptor,
-            ToolResult rejection, boolean budgetBlocked) {
-
-        private boolean executable() {
-            return rejection == null;
-        }
-
-        private PreparedCall withRejection(ToolResult newRejection, boolean newBudgetBlocked) {
-            return new PreparedCall(call, descriptor, newRejection, newBudgetBlocked);
-        }
+    private record ApprovalExecution(ToolResult result, boolean invoked) {
     }
 }

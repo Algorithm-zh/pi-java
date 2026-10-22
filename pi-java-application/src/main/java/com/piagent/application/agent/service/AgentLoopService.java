@@ -228,8 +228,8 @@ public class AgentLoopService {
         RunId runId = reserved.runId();
         AgentRun run = runtime.current(runId);
         int remaining = Math.max(0, run.budget().maxToolCalls() - run.toolCalls());
-        ToolBatchResult batch = pipeline.executeTools(session, calls, reserved.tools(),
-                reserved.events(), () -> runtime.isCancelled(runId), remaining);
+        ToolBatchResult batch = pipeline.executeTools(new ToolBatchContext(session, runId, calls,
+                reserved.tools(), reserved.events(), () -> runtime.isCancelled(runId), remaining));
         runtime.recordToolCalls(runId, batch.executed());
         if (batch.cancelled()) {
             runtime.finish(reserved, RunStopReason.CANCELLED, null);

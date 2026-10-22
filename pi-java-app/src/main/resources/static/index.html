@@ -53,7 +53,7 @@
             <div class="welcome">
                 <div class="welcome-mark">π</div>
                 <h2>让代码开始流动</h2>
-                <p>Fake 模型离线运行，不需要任何 API Key。新建会话后试试下面的指令，<br>它们会真实调用工作区中的只读工具。</p>
+                <p>Fake 模型离线运行，不需要任何 API Key。新建会话后试试下面的指令，<br>它们会真实调用工作区工具；写操作会先弹出审批。</p>
                 <div class="welcome-actions">
                     <button class="prompt-chip" type="button" data-prompt="/read README.md">
                         <code>/read README.md</code><span>读取项目说明</span>
@@ -124,6 +124,50 @@
             <button id="dialog-submit" class="primary-button" type="submit">创建并开始</button>
         </footer>
     </form>
+</dialog>
+
+<dialog id="approval-dialog" class="session-dialog approval-dialog">
+    <div class="approval-body">
+        <header>
+            <div>
+                <span class="eyebrow">APPROVAL REQUIRED</span>
+                <h2>工具调用需要确认</h2>
+            </div>
+            <span id="approval-risk" class="risk-badge risk-high">HIGH</span>
+        </header>
+        <div class="approval-tool">
+            <span id="approval-glyph" class="approval-glyph">WR</span>
+            <div class="approval-tool-copy">
+                <strong id="approval-tool-name">write</strong>
+                <small id="approval-tool-call"></small>
+            </div>
+            <span id="approval-countdown" class="approval-countdown"></span>
+        </div>
+        <div class="approval-section">
+            <span class="approval-label">参数（已脱敏）</span>
+            <pre id="approval-arguments" class="approval-arguments"></pre>
+        </div>
+        <div class="approval-section">
+            <span class="approval-label">参数摘要 <em>原始参数的 SHA-256</em></span>
+            <code id="approval-digest" class="approval-digest"></code>
+        </div>
+        <label class="field approval-reason">
+            <span>意见 <em>可选，拒绝时建议说明原因</em></span>
+            <textarea id="approval-reason" rows="2" maxlength="1024"
+                      placeholder="例如：这个命令会修改工作区之外的文件"></textarea>
+        </label>
+        <footer>
+            <span id="approval-queue" class="approval-queue"></span>
+            <div class="approval-actions">
+                <button id="approval-deny" class="ghost-button danger-button" type="button">
+                    拒绝
+                </button>
+                <button id="approval-approve" class="primary-button" type="button">
+                    批准执行
+                </button>
+            </div>
+        </footer>
+    </div>
 </dialog>
 
 <div id="toast" class="toast hidden" role="status"></div>

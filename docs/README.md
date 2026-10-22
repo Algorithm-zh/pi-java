@@ -29,7 +29,8 @@
 - [M3：只读工具与路径沙箱](milestones/M3.md)
 - [M4：Agent Loop 与只读 Web demo](milestones/M4.md)
 - [M5：插件 SDK](milestones/M5.md)
-- M6–M9：随里程碑完成补齐
+- [M6：审批与写工具](milestones/M6.md)
+- M7–M9：随里程碑完成补齐
 
 ## 模块文档
 

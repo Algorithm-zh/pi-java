@@ -1,11 +1,13 @@
 package com.piagent.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.piagent.infrastructure.persistence.codec.ApprovalArgumentsCodec;
 import com.piagent.infrastructure.persistence.codec.EntryPayloadCodec;
 import com.piagent.infrastructure.persistence.codec.ModelCapabilitiesCodec;
 import com.piagent.infrastructure.persistence.codec.SandboxJsonCodec;
 import com.piagent.infrastructure.persistence.codec.ToolPolicyConfigCodec;
 import com.piagent.infrastructure.persistence.extension.PluginPoConverter;
+import com.piagent.infrastructure.persistence.governance.ApprovalPoConverter;
 import com.piagent.infrastructure.persistence.model.ModelProfilePoConverter;
 import com.piagent.infrastructure.persistence.model.ToolPolicyPoConverter;
 import com.piagent.infrastructure.persistence.session.SessionEntryPoConverter;
@@ -121,5 +123,27 @@ public class PersistenceConfiguration {
     @Bean
     public PluginPoConverter pluginPoConverter() {
         return new PluginPoConverter();
+    }
+
+    /**
+     * 审批参数编解码。
+     *
+     * @param mapper Jackson 映射器
+     * @return 编解码器
+     */
+    @Bean
+    public ApprovalArgumentsCodec approvalArgumentsCodec(ObjectMapper mapper) {
+        return new ApprovalArgumentsCodec(mapper);
+    }
+
+    /**
+     * 审批记录行转换器。
+     *
+     * @param argumentsCodec 参数编解码
+     * @return 转换器
+     */
+    @Bean
+    public ApprovalPoConverter approvalPoConverter(ApprovalArgumentsCodec argumentsCodec) {
+        return new ApprovalPoConverter(argumentsCodec);
     }
 }

@@ -29,6 +29,12 @@ public enum RunEventType {
     /** 工具执行完成。 */
     TOOL_COMPLETED("tool.completed"),
 
+    /** 工具调用进入待审批。 */
+    APPROVAL_REQUESTED("approval.requested"),
+
+    /** 审批进入终态。 */
+    APPROVAL_RESOLVED("approval.resolved"),
+
     /** run 正常结束（含取消与超时）。 */
     RUN_COMPLETED("run.completed"),
 

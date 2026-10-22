@@ -8,16 +8,18 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * 内置只读工具目录。
+ * 内置工具目录。
  *
- * <p>M3 只注册读工具：{@code read}、{@code ls}、{@code grep}、{@code glob}。
- * 它们全部为低风险、可并行执行；默认策略对低风险工具直接放行，因此无需审批。
- * 参数 schema 使用 camelCase，与主流 OpenAI-compatible 模型的生成习惯一致。</p>
+ * <p>只读工具 {@code read}/{@code ls}/{@code grep}/{@code glob} 为低风险、
+ * 可并行；写工具 {@code write}/{@code edit} 为高风险，{@code bash} 为最高风险，
+ * 三者都必须顺序执行。风险级别只决定默认策略，最终效果仍由策略表解析。</p>
  */
 public final class BuiltInToolCatalog {
 
     private static final int READ_TIMEOUT_SECONDS = 10;
     private static final int SCAN_TIMEOUT_SECONDS = 20;
+    private static final int WRITE_TIMEOUT_SECONDS = 20;
+    private static final int BASH_TIMEOUT_SECONDS = 120;
 
     private BuiltInToolCatalog() {
     }
@@ -28,7 +30,7 @@ public final class BuiltInToolCatalog {
      * @return 工具定义
      */
     public static List<ToolDescriptor> descriptors() {
-        return List.of(read(), ls(), grep(), glob());
+        return List.of(read(), ls(), grep(), glob(), write(), edit(), bash());
     }
 
     private static ToolDescriptor read() {
@@ -106,9 +108,71 @@ public final class BuiltInToolCatalog {
                 SCAN_TIMEOUT_SECONDS);
     }
 
+    private static ToolDescriptor write() {
+        String schema = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {"type": "string", "description": "File path, relative to the workspace."},
+                    "content": {"type": "string", "description": "Full UTF-8 file content."}
+                  },
+                  "required": ["path", "content"],
+                  "additionalProperties": false
+                }
+                """;
+        return descriptor("write", "Create or overwrite a UTF-8 text file. "
+                + "Parent directories are created automatically.", schema, ToolRisk.HIGH,
+                ExecutionMode.SEQUENTIAL, WRITE_TIMEOUT_SECONDS);
+    }
+
+    private static ToolDescriptor edit() {
+        String schema = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {"type": "string", "description": "File path, relative to the workspace."},
+                    "oldText": {"type": "string", "description": "Exact text to replace."},
+                    "newText": {"type": "string", "description": "Replacement text."},
+                    "replaceAll": {"type": "boolean",
+                                   "description": "Replace every occurrence, defaults to false."}
+                  },
+                  "required": ["path", "oldText", "newText"],
+                  "additionalProperties": false
+                }
+                """;
+        return descriptor("edit", "Replace exact text in an existing UTF-8 file. "
+                + "By default oldText must match exactly once.", schema, ToolRisk.HIGH,
+                ExecutionMode.SEQUENTIAL, WRITE_TIMEOUT_SECONDS);
+    }
+
+    private static ToolDescriptor bash() {
+        String schema = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "command": {"type": "string", "description": "Shell command to run."},
+                    "cwd": {"type": "string", "description": "Working directory inside the workspace."},
+                    "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 120,
+                                       "description": "Timeout in seconds, defaults to 60."}
+                  },
+                  "required": ["command"],
+                  "additionalProperties": false
+                }
+                """;
+        return descriptor("bash", "Run a shell command inside the workspace. "
+                + "stdout and stderr are merged; the process tree is killed on timeout.",
+                schema, ToolRisk.CRITICAL, ExecutionMode.SEQUENTIAL, BASH_TIMEOUT_SECONDS);
+    }
+
     private static ToolDescriptor descriptor(String name, String description, String schema,
             int timeoutSeconds) {
-        return new ToolDescriptor(new ToolName(name), description, schema, ToolRisk.LOW,
-                ExecutionMode.PARALLEL, Duration.ofSeconds(timeoutSeconds));
+        return descriptor(name, description, schema, ToolRisk.LOW, ExecutionMode.PARALLEL,
+                timeoutSeconds);
+    }
+
+    private static ToolDescriptor descriptor(String name, String description, String schema,
+            ToolRisk risk, ExecutionMode mode, int timeoutSeconds) {
+        return new ToolDescriptor(new ToolName(name), description, schema, risk, mode,
+                Duration.ofSeconds(timeoutSeconds));
     }
 }

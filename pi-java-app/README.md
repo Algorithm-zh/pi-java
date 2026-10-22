@@ -33,7 +33,10 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 - `AgentLoopIntegrationTest`：Fake 模型 + 真实工具 + H2 的完整 run；
 - `RunSseIntegrationTest`：真实 Spring MVC 异步链路的 SSE 事件顺序与 `Last-Event-ID` 回放；
 - `PluginHttpIntegrationTest`：动态生成插件 jar，验证安装/启用/停用与 404/409/422；
-- `PluginEndToEndIntegrationTest`：插件工具经 Fake 模型 `/tool` 调用的完整 SSE 链路。
+- `PluginEndToEndIntegrationTest`：插件工具经 Fake 模型 `/tool` 调用的完整 SSE 链路；
+- `ApprovalPersistenceIntegrationTest`：V5 审批往返、按会话/状态查询、pending CAS、级联；
+- `ApprovalEndToEndIntegrationTest`：`/write` → SSE `approval.requested` → HTTP 决策 →
+  `approval.resolved` → 工具执行/拒绝的完整链路（H2 + 真实 Spring MVC）。
 
 测试 profile 位于 `src/test/resources/application-test.yml`，使用内存 H2 与
 `db/migration/h2`；测试之间直接清理业务表，保证可重复执行。
@@ -44,5 +47,6 @@ M1 完成启动类、demo/mysql/test 配置、ArchUnit、Flyway V1 与会话集�
 M2 增加 V2 迁移与模型档案 H2 往返/CAS 集成测试；M3 增加 V3 策略表与
 工具策略往返/工作区查询/CAS 集成测试；M4 增加 Agent Loop 集成测试、SSE 集成测试
 与只读 Web UI（`src/main/resources/static/`）；M5 增加 V4、`PluginStartupRunner`
-启动恢复、插件 HTTP 与端到端集成测试，以及动态插件 jar 测试夹具。共 39 个测试。
-详见 [M5 记录](../docs/milestones/M5.md)。
+启动恢复、插件 HTTP 与端到端集成测试，以及动态插件 jar 测试夹具；M6 增加 V5、
+审批持久化/SSE 端到端测试，以及 Web 审批弹窗（队列、倒计时、刷新恢复、批准/拒绝）。
+详见 [M6 记录](../docs/milestones/M6.md)。

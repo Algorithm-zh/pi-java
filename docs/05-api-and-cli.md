@@ -1,7 +1,8 @@
 # 05 API 与 CLI
 
-> 状态：M5 已实现会话/运行 REST、SSE、模型与工具查询、插件管理；分支/fork/compact、
-> 审批、Skills 与 CLI 是后续里程碑。HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
+> 状态：M6 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理；
+> 分支/fork/compact、Skills 与 CLI 是后续里程碑。
+> HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
 ## 1. 通用约定
@@ -216,35 +217,41 @@ POST /api/v1/sessions/{sessionId}/abort
 ## 3. 审批 API（M6）
 
 ```http
-GET /api/v1/approvals?status=PENDING&sessionId=01J...
+GET  /api/v1/approvals?sessionId=01J...&status=PENDING
+GET  /api/v1/approvals/{approvalId}
 POST /api/v1/approvals/{approvalId}/decision
 Content-Type: application/json
 
-{"decision": "APPROVED", "reason": "允许修改 README"}
+{"decision": "APPROVE", "reason": "允许修改 README"}
 ```
 
-审批 DTO：
+`sessionId` 必填，`status` 可选（缺省返回全部状态）。审批 DTO：
 
 ```json
 {
-  "id": "01J...",
+  "approvalId": "01J...",
   "sessionId": "01J...",
   "runId": "01J...",
   "toolCallId": "call_2",
   "toolName": "write",
   "riskLevel": "HIGH",
-  "argsDigest": "sha256...",
-  "argsRedacted": {"path": "README.md", "content": "..."},
+  "argumentsDigest": "64 位小写十六进制",
+  "arguments": {"path": "README.md", "content": "..."},
   "status": "PENDING",
-  "expiresAt": "2026-10-21T06:30:00.000Z",
-  "createdAt": "2026-10-21T06:00:00.000Z"
+  "expiresAt": "2026-10-21T06:30:00Z",
+  "createdAt": "2026-10-21T06:00:00Z"
 }
 ```
 
-- `decision` 只能是 `APPROVED` / `DENIED`；
-- 非 PENDING 返回 409 `APPROVAL_ALREADY_DECIDED`；
-- 过期返回 409 `APPROVAL_EXPIRED`，并已由清理任务置为 EXPIRED；
-- 决策成功后追加 `APPROVAL` entry，并通过 SSE 推送 `approval.resolved`。
+- `arguments` 是脱敏副本（敏感键值替换为 `***`）；`argumentsDigest` 基于原始参数，
+  只出现在 HTTP 详情中，SSE 事件不包含它；
+- `decision` 只能是 `APPROVE` / `DENY`（大小写不敏感）；决策者由服务端固定为
+  `local-user`，请求体不能指定 `decidedBy`；
+- 决策成功返回终态 DTO，增加 `decidedBy`、`decidedAt` 与可选 `reason`；
+- 非 PENDING 或并发 CAS 失败返回 409 `APPROVAL_INVALID_STATE`；
+  审批已过期时先迁移为 EXPIRED，再返回 409；
+- 决策成功后追加 `APPROVAL` entry，并在事务提交后推送 `approval.resolved`；
+- `approval.requested` / `approval.resolved` 是运行 SSE 事件，不单独提供订阅端点。
 
 ## 4. 模型 API
 
@@ -301,7 +308,9 @@ POST /api/v1/models/{id}/disable
 
 ## 5. 工具与策略 API
 
-当前只实现工具目录查询；启用插件后，插件工具与内置工具出现在同一列表中：
+### 5.1 工具目录
+
+启用插件后，插件工具与内置工具出现在同一列表中：
 
 ```http
 GET /api/v1/tools?cwd=D:/code/demo
@@ -329,9 +338,35 @@ GET /api/v1/tools?cwd=D:/code/demo
 - 返回完整 `inputSchema`，供前端展示参数与后续 LLM 请求复用；不是只返回摘要；
 - `effect` 是当前工作区解析后的结果（`ALLOW / ASK / DENY`），写入磁盘前会重新解析，
   不信任客户端回传；
-- `cwd` 非法（如含 NUL）返回 400 `INVALID_ARGUMENT`；
-- 策略管理 `GET/PUT /api/v1/tool-policies` 推迟到 M6，与审批和写工具一起实现；
-  届时未知工具不能创建 ALLOW 规则，防止插件卸载后残留放行。
+- `cwd` 非法（如含 NUL）返回 400 `INVALID_ARGUMENT`。
+
+### 5.2 策略管理（M6）
+
+```http
+GET /api/v1/tool-policies?cwd=D:/code/demo
+PUT /api/v1/tool-policies
+Content-Type: application/json
+
+{
+  "scope": "WORKSPACE",
+  "cwd": "D:/code/demo",
+  "toolName": "write",
+  "effect": "ASK",
+  "approvalMode": "ONCE",
+  "riskLevel": "HIGH",
+  "timeoutMs": 30000,
+  "config": {}
+}
+```
+
+- `GET` 返回工作区规则与 USER 全局规则（`workspaceKey` 为 64 个 `0`），字段包含
+  `id/scope/workspaceKey/toolName/effect/approvalMode/riskLevel/timeoutMs/config/version`；
+- `PUT` 是 upsert：同一 `(scope, workspace_key, tool_name)` 已存在时更新并递增 `version`；
+  `riskLevel` 可省略（沿用工具默认风险），`config` 可为空但顶层值不能为 null；
+- 策略解析优先级 `WORKSPACE > USER > 风险默认`；`DENY` 命中后不会被更宽规则覆盖；
+- 未知 scope/effect/approvalMode/riskLevel、空 `toolName`、非法 `cwd` 返回 400
+  `INVALID_ARGUMENT`；工具不存在返回 404 `TOOL_NOT_FOUND`；
+- `approvalMode` 当前只做持久化，执行器仍按 `effect` 每次询问。
 
 ## 6. 插件 API（M5）
 
@@ -497,15 +532,20 @@ M4 的静态资源位于 `pi-java-app/src/main/resources/static/`，原生 HTML/
 └───────────────┴─────────────────────────────────────────┘
 ```
 
-M4 已覆盖的交互：
+M4 已覆盖基础交互，M6 增加审批弹窗：
 
 1. 新建会话（标题、工作目录、模型档案）→ 发送消息 → 流式增量 → 完成；
-2. 工具卡片展示 `read` 等只读工具的参数与输出；
+2. 工具卡片展示工具的参数与输出；
 3. 停止运行，显示 ABORTED，保留已输出内容；
 4. 会话切换与刷新后通过 `GET /sessions/{id}/run` 重连 SSE；
-5. 输入 `/read README.md`、`/ls .` 或普通问候即可在 Fake 模型下体验。
+5. 输入 `/read README.md`、`/ls .`、`/write notes.txt 你好` 或普通问候即可在
+   Fake 模型下体验；
+6. 写工具触发 `approval.requested` 后弹出审批框：展示风险级别、工具名、脱敏参数、
+   参数摘要与倒计时；批准/拒绝通过 `POST /approvals/{id}/decision` 提交；
+   多个待办按到达顺序串行展示，刷新后通过 `GET /approvals?status=PENDING` 恢复；
+7. `approval.resolved` 到达或决策提交成功后关闭弹窗，运行继续流式输出。
 
-审批弹窗、会话树与设置页分别在 M6–M8 接入。M5 的插件管理只有 REST API，
+会话树与设置页分别在 M7–M8 接入。M5 的插件管理只有 REST API，
 用 curl 或 App 内测试夹具操作，尚无 Web UI。
 
 ## 10. 版本与兼容

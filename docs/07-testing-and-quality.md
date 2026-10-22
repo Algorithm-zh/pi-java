@@ -75,11 +75,25 @@ M3 已覆盖：
 - 超时生成 `TOOL_TIMEOUT`、中断生成 `CANCELLED`、handler 异常包装为 `isError=true`；
 - V3 仓储：往返、工作区+全局查询、CAS 冲突、唯一键冲突。
 
-M6 补充：
+M6 已覆盖：
 
-- 写工具默认 `ASK`、`bash` 默认 `CRITICAL`（默认 DENY）；
-- 审批：PENDING→APPROVED/DENIED/EXPIRED/CANCELLED，终态不可逆；
-- 参数：`args_digest` 对键排序稳定，脱敏后不含密钥。
+- 写工具默认 `ASK`、`edit` 默认 `ASK`、`bash` 默认 `CRITICAL`（默认 DENY）；
+- 审批状态机：PENDING→APPROVED/DENIED/EXPIRED/CANCELLED，终态不可逆；
+- `ApprovalArgumentsSanitizer`：canonical JSON 对键顺序稳定、数字规范化、
+  敏感键脱敏、null 展示、SHA-256 形状；
+- 写工具：新建/覆盖、父目录创建、目录目标拒绝、越界路径拒绝、参数守卫；
+- 编辑工具：唯一匹配、多匹配拒绝、`replaceAll`、二进制/大文件拒绝、未找到文本；
+- shell 工具：stdout/stderr 合并、输出截断、超时与中断终止整棵进程树、工作区 cwd；
+- 审批门面：批准唤醒、拒绝唤醒、取消、TTL 过期；
+- 工具管线：ASK 阻塞后批准执行、拒绝不执行、审批失败得到配对错误结果；
+- HTTP：审批列表/详情/决策、非法 decision/status、409/404 映射、策略 GET/PUT。
+
+已实现测试（M6）：`ApprovalRequestTest` 10、`ApprovalArgumentsSanitizerTest` 5、
+`WriteToolHandlerTest` 7、`EditToolHandlerTest` 9、`BashToolHandlerTest` 8、
+`AgentLoopApprovalTest` 4、`ApprovalGateServiceTest` 4、
+`ToolPolicyApplicationServiceTest` 6、`ApprovalControllerTest` 7、
+`ToolPolicyControllerTest` 7、`ApprovalPersistenceIntegrationTest` 6、
+`ApprovalEndToEndIntegrationTest` 2。
 
 ### 4.3 运行时
 
@@ -98,7 +112,7 @@ M4 已覆盖（`AgentLoopServiceTest` 15 个用例 + `AgentLoopIntegrationTest` 
 - 悬空 RUNNING 会话在下次启动前自愈为 IDLE；
 - run 结束必写且只写一条 RUN_SUMMARY。
 
-M6/M7 补充：审批等待/超时/取消、压缩切点与收敛。
+M6 已补充审批等待/超时/取消与 SSE 事件；M7 将继续补充压缩切点与收敛。
 
 ### 4.4 压缩与 Skills
 
@@ -187,7 +201,8 @@ WireMock 覆盖（10 个端到端用例）：
   - parent_session `SET NULL`；
   - 工具策略 `(scope, workspace_key, tool_name)` 唯一键、工作区+全局查询、CAS；
   - 插件记录往返、状态更新、重复 id 冲突（M5）；
-  - 审批唯一键 `(run_id, tool_call_id)`（M6）；
+  - 审批唯一键 `(run_id, tool_call_id)`、参数 JSON 往返、按会话/状态查询、
+    pending CAS、`expireAllPending`、级联删除（M6）；
   - 时间精度毫秒、UTF-8 中文往返；
 - MySQL 方言不靠 H2 完全替代：M9 增加本机 MySQL smoke（建库 → Flyway → 启动 → 一条会话）。
 
@@ -226,27 +241,26 @@ WireMock 覆盖（10 个端到端用例）：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
-M5 实测（2026-10-22，`mvn -q verify`）：
+M6 实测（2026-10-22，`mvn -q verify`）：
 
 | 模块 | 行覆盖 | 测试数 | 门槛 |
 |---|---|---|---|
-| `pi-java-domain` | 87.6%（942/1075） | 106 | ≥ 60% |
-| `pi-java-application` | 89.7%（885/987） | 60 | ≥ 60% |
-| `pi-java-infrastructure` | 65.8%（1418/2156） | 135（2 跳过） | 无门槛 |
-| `pi-java-trigger` | 35.6%（120/337） | 21 | 无门槛 |
-| `pi-java-app` | 38.1%（8/21） | 39 | 无门槛 |
+| `pi-java-domain` | 87.3%（1110/1272） | 121 | ≥ 60% |
+| `pi-java-application` | 88.3%（1092/1236） | 73 | ≥ 60% |
+| `pi-java-infrastructure` | 64.7%（1621/2504） | 165（2 跳过） | 无门槛 |
+| `pi-java-trigger` | 44.2%（174/394） | 35 | 无门槛 |
+| `pi-java-app` | 38.1%（8/21） | 47 | 无门槛 |
 | `pi-java-plugin-api` | 73.1%（49/67） | 3 | 无门槛 |
 | `examples/pi-plugin-example` | 100%（13/13） | 4 | 无门槛 |
 
-当前共 368 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
-application 覆盖率从 M4 的 88.9% 升到 89.7%，新增的插件用例服务与 run 快照
-接入都有覆盖；仍高于 60% 门槛。
-trigger 从 38.3% 降到 35.6%，是因为新增插件端点的分支多于测试数；
-插件 Controller 的 3 个 MockMvc 用例已覆盖安装/启用/停用主路径与 404/409/422。
+当前共 448 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
+domain 覆盖率随审批聚合与脱敏服务增加略有摊薄，application 仍保持在 88% 以上；
+新增审批用例、门面与管线阻塞路径都有行为测试覆盖。trigger 从 35.6% 升到 44.2%，
+因为审批/策略 Controller 的测试分支多于新增端点本身。
 
 infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的关闭/拒绝分支、
-`PluginHost` 的若干异常回滚路径与部分 IO 异常不易稳定触发；这些路径由
-行为测试和手工 smoke 兜底，不以排除代码的方式抬高数字。
+`PluginHost` 的若干异常回滚路径、进程/文件 IO 异常与 Windows 专用分支不易稳定触发；
+这些路径由行为测试和手工 smoke 兜底，不以排除代码的方式抬高数字。
 
 application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 app 模块的 H2 集成测试覆盖，
 避免为了覆盖率把基础设施依赖倒灌进应用层。
@@ -285,8 +299,15 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 3. 停止一次运行，确认界面显示 ABORTED 且保留部分输出；
 4. 刷新页面，确认会话列表与历史 entry 可恢复。
 
-插件安装/启停在 M5 通过 curl 走查（无 Web UI）；审批写文件、会话树/分支查看
-在 M6–M8 加入走查清单。
+插件安装/启停在 M5 通过 curl 走查（无 Web UI）；M6 增加审批写文件走查：
+
+1. 新建会话 → 发送 `/write approval-demo.txt 你好`；
+2. 确认弹窗展示 `write / HIGH`、脱敏参数、digest 与倒计时；
+3. 批准 → 确认文件写入与工具卡片成功态；
+4. 再次发送并拒绝 → 确认文件不存在、工具卡片错误态；
+5. 待审批时刷新页面 → 确认弹窗恢复且倒计时继续。
+
+会话树/分支查看在 M7–M8 加入走查清单。
 
 ### 8.2 黄金样本（M7）
 

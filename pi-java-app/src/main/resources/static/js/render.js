@@ -358,7 +358,7 @@ function timeOf(entry) {
     return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
-function glyphOf(toolName) {
+export function glyphOf(toolName) {
     const name = String(toolName || "");
     const known = { read: "RD", ls: "LS", grep: "GR", glob: "GL", bash: "SH", write: "WR" };
     if (known[name]) {

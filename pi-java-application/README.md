@@ -46,5 +46,9 @@ M1 完成 `SessionApplicationService`；M2 完成 `ModelProfileApplicationServic
 `application.agent`：Agent Loop、run 运行时与事件中心、turn 流水线、工具协调器、
 短事务 entry 追加器；M5 完成 `PluginApplicationService`（安装、启停、查询、
 启动恢复）与 run 级工具快照接入：`RunRuntime.reserve` 冻结工具目录，
-`TurnPipeline` 与 `ToolCallCoordinator` 只使用该快照。application 共 60 个测试，
-行覆盖 89.7%。详见 [M5 记录](../docs/milestones/M5.md)。
+`TurnPipeline` 与 `ToolCallCoordinator` 只使用该快照。M6 完成
+`application.governance`（`ApprovalApplicationService`、`ApprovalGateService`、
+`ApprovalWaitRegistry`、`ApprovalEventPublisher`、`ToolPolicyApplicationService`），
+并把工具预检拆到 `ToolCallPreflight`；`ToolCallCoordinator` 现在负责审批等待、
+并行/串行执行与结果回写。application 共 73 个测试。
+详见 [M6 记录](../docs/milestones/M6.md)。
