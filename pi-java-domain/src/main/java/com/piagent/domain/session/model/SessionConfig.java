@@ -38,12 +38,15 @@ public record SessionConfig(Path cwd, String modelProfileId, ThinkingLevel think
     /**
      * 以工作目录为唯一可写根的默认配置。
      *
+     * <p>v0.1 默认关闭思考：provider 协议尚未翻译思考参数，
+     * 且多数聊天模型不声明 thinking 能力；需要时在创建命令中显式指定。</p>
+     *
      * @param cwd 工作目录
      * @param modelProfileId 模型档案
      * @return 默认配置
      */
     public static SessionConfig forWorkspace(Path cwd, String modelProfileId) {
-        return new SessionConfig(cwd, modelProfileId, ThinkingLevel.MEDIUM, SandboxSnapshot.forWorkspace(cwd));
+        return new SessionConfig(cwd, modelProfileId, ThinkingLevel.OFF, SandboxSnapshot.forWorkspace(cwd));
     }
 
     /**

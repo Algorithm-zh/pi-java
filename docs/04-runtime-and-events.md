@@ -1,104 +1,100 @@
 # 04 运行时与事件
 
-> 状态：M0 冻结；M3 已完成只读工具与路径沙箱，Agent Loop、SSE、审批分别在 M4/M6 落地。
-> 运行时由 application 层编排，domain 只提供状态机与规则；
+> 状态：M4 已实现 Agent Loop、只读工具管线、SSE 与重放；审批在 M6、压缩在 M7、
+> 子代理在 M8 落地。运行时由 application 层编排，domain 只提供规则与快照；
 > 所有外部等待（LLM、工具、审批）都不持有数据库事务。
 
 ## 1. 运行时组件
 
 ```text
-trigger.web / trigger.cli
+trigger.http（SessionController / RunController）
         │
         ▼
-SendMessageUseCase ──► RunLifecycle ──► RunRegistry（单 session 单 run）
-        │                  │
-        │                  ├──► ContextAssemblyService ──► SessionContextProjector
-        │                  │                              ├──► CompactionPlanner
-        │                  │                              └──► SkillPromptFormatter
-        │                  ├──► TurnExecutor ──► LlmGateway ──► provider adapter
-        │                  └──► ToolCallCoordinator
-        │                         ├──► ToolAccessPolicy / ApprovalPort
-        │                         ├──► PathSandbox / RealPathResolver
-        │                         ├──► ToolInvoker（内置/插件）
-        │                         └──► SessionEntryStore（短事务追加）
-        ▼
-RunEventPublisher ──► SSE hub / CLI renderer
+AgentLoopService
+  ├─ RunDispatcher          全局并发许可；满额立即拒绝
+  ├─ ActiveRunRegistry      每会话一个活跃 run + 取消标志
+  ├─ RunRuntime             预留 → 追加用户消息 → 收尾 → RUN_SUMMARY
+  ├─ TurnPipeline
+  │    ├─ SessionEntryStore + SessionContextProjector（分支投影）
+  │    ├─ SystemPromptBuilder
+  │    ├─ TurnExecutor ──► LlmGateway ──► Fake / OpenAI-compatible
+  │    └─ ToolCallCoordinator ──► ToolAccessPolicy / ToolInvoker / SessionEntryAppender
+  └─ RunEventPublisher ──► RunEventHub ──► RunSseChannel ──► SSE / CLI
 ```
 
 职责边界：
 
 | 组件 | 只做什么 | 不做什么 |
 |---|---|---|
-| `RunLifecycle` | 创建/结束 run、状态迁移、锁与清理 | 调用 LLM、执行工具 |
-| `TurnExecutor` | 一次 LLM 请求、流式增量、结束判定 | 审批、路径校验 |
-| `ToolCallCoordinator` | 工具预检、审批、执行、结果回写 | 决定模型下一步 |
-| `ContextAssemblyService` | 投影、压缩、system prompt | 持久化 entry 细节 |
-| `RunEventPublisher` | 事件序列号、缓冲、广播 | 业务判断 |
+| `AgentLoopService` | 推进 turn、判定终止、统一收尾 | 直接读写 SQL、解析 SSE |
+| `RunDispatcher` | 全局并发许可，拒绝而非排队 | 会话级互斥 |
+| `RunRuntime` / `ActiveRunRegistry` | run 快照、每会话唯一活跃 run、取消标志、事件通道 | 业务终止判定 |
+| `TurnPipeline` | 投影、组装请求、流式调用、工具批次 | 推进状态机 |
+| `TurnExecutor` | 读取 LLM 流、发布增量、取消后返回部分文本 | 持久化 entry |
+| `ToolCallCoordinator` | 预检、策略、并行/串行执行、成对回写结果 | 决定模型下一步 |
+| `SessionEntryAppender` | 短事务追加 entry 与状态迁移 | 执行工具、调用模型 |
+| `RunEventPublisher` / `RunEventHub` | 事件数据形状、序号、缓冲、重放 | 业务判断、持久化 |
 
 ## 2. 一次 Run 的生命周期
 
 ### 2.1 启动
 
 ```text
-1. 校验会话存在、未归档、无活跃 run（RunRegistry.createIfAbsent）
-2. 获取会话短锁，追加用户 MESSAGE entry，更新 leaf/version
-3. 创建 AgentRun(status=RUNNING)，发布 run.started
-4. 读取分支 entry，投影上下文；超预算则先压缩
-5. 组装 system prompt（身份、环境、工具、Skills、AGENTS.md、插件 section）
-6. 进入 turn 循环
+1. 读取会话；若数据库为 RUNNING/WAITING_APPROVAL 但进程内无活跃 run，
+   先自愈为 IDLE（单实例前提）
+2. RunDispatcher.tryAcquire：全局许可满额立即返回 AGENT_BUSY（HTTP 429）
+3. ActiveRunRegistry 预留 runId + 取消标志
+4. 短事务：追加用户 MESSAGE entry，会话 RUNNING，移动 leaf
+5. 解析模型档案（档案缺失/停用则回滚预留并恢复 IDLE）
+6. 建立事件通道，发布 run.started（含模型、预算、开始时间）
+7. 虚拟线程执行 run，进入 turn 循环；HTTP 请求立即返回 runId
 ```
 
-会话锁只在“追加 entry / 移动 leaf / 状态变更”时短暂持有，**不覆盖整个 run**；
-单 session 单 run 由 `RunRegistry` 保证，entry 顺序由锁 + `(session_id, seq)` 唯一键保证。
+会话写锁只在“追加 entry / 移动 leaf / 状态变更”时短暂持有，**不覆盖整个 run**；
+单 session 单 run 由进程内注册表保证，entry 顺序由锁 + `(session_id, seq)` 唯一键保证。
 
 ### 2.2 Turn 循环
 
 ```text
-turnIndex = 0
 while true:
-    ensure not cancelled and budget not exhausted
+    检查取消、运行时长、最大轮数（超限写 RUN_SUMMARY 后结束）
     publish turn.started
+    读取当前分支 → 投影上下文 → 组装 system prompt 与工具目录
     stream = LlmGateway.stream(request)
-    for delta in stream:
-        publish message.delta / toolCall delta
-    assistant = stream.response()
-    append assistant MESSAGE entry
-    publish message.completed
+    逐 delta publish message.delta（text / thinking / toolCall）
+    组装 assistant 消息并短事务追加 entry
+    publish message.completed（entryId、stopReason、usage）
+    recordTurn(usage)
 
-    if assistant.stopReason == ERROR/ABORTED:
-        finish(ERROR or ABORTED); break
-    if assistant has no toolCall:
-        finish(STOP or LENGTH); break
-    if turnIndex + 1 >= maxTurns:
-        finish(MAX_STEPS); break
-
-    results = ToolCallCoordinator.executeAll(assistant.toolCalls)
-    append toolResult entries（与 toolCall 同分支、顺序稳定）
-    publish tool.completed
-    turnIndex++
+    若本次被取消：finish(CANCELLED)，保留已流出的部分文本
+    若 assistant.stopReason == ERROR：finish(ERROR)
+    若没有 toolCall：finish(STOP 或 LENGTH)
+    执行整批工具 → 记录执行数 → 若批内预算耗尽则 finish(MAX_STEPS)
+    进入下一轮
 ```
 
 关键点：
 
 - assistant 消息与 toolResult 分别追加，不合并成一条“大消息”；
-- toolResult 必须紧跟对应 toolCall 所在分支，不允许先切分支再写结果；
-- 模型返回 `TOOL_USE` 但没有 toolCall，按 `ERROR` 收尾并记录原因；
-- 模型返回普通文本但要求 follow-up（插件注入）时，由 `TurnPolicy` 决定是否继续，v0.1 最多一轮 follow-up。
+- toolResult 与 toolCall 成对：未注册、策略拒绝、审批不可用、预算不足、取消都写 `isError=true` 结果；
+- 模型返回 `TOOL_USE` 但没有可解析 toolCall 时，由 adapter 报 `MALFORMED_RESPONSE`，run 以 ERROR 收尾；
+- M4 不实现插件 follow-up；assistant 无 toolCall 即结束本轮 run。
 
 ### 2.3 收尾
 
-无论成功、失败、取消，统一走 `finish`：
+无论成功、失败、取消，统一走 `RunRuntime.finish`：
 
 ```text
-1. 若还有未完成的 toolCall，补写 isError=true 的 toolResult
-2. 追加 RUN_SUMMARY entry（stopReason、usage、turns、toolCalls、duration）
-3. 更新 session.status=IDLE
-4. 从 RunRegistry 移除，释放审批等待者
-5. 发布 run.completed 或 run.failed
-6. 关闭 SSE emitter，清理重放缓冲（延迟到断开或过期）
+1. AgentRun.finish 计算终态：CANCELLED/TIMEOUT → ABORTED，ERROR → FAILED，其余 → COMPLETED
+2. 短事务追加 RUN_SUMMARY entry（runId、stopReason、usage、turns、toolCalls、duration）
+3. 会话置回 IDLE
+4. 从 ActiveRunRegistry 移除并发布终态事件
+5. 发布 run.completed 或 run.failed；关闭事件通道（缓冲保留供重放）
+6. SSE 通道收到终态后完成 emitter
 ```
 
-持久化失败是唯一例外：直接终止进程内 run，记录高优先级日志，session 在下次启动时由恢复流程修复。
+若 RUN_SUMMARY 持久化失败：强制会话回到 IDLE、run 标记 FAILED、记录高优先级日志；
+会话在下次发消息时由惰性自愈修复，不阻塞后续使用。
 
 ## 3. 状态机
 
@@ -116,59 +112,57 @@ IDLE ──start──► RUNNING ──need approval──► WAITING_APPROVAL
 
 ### 3.2 Run 状态
 
+M4 的 `RunStatus` 只有四个值，不由审批或压缩派生中间状态：
+
 ```text
-RUNNING ──need approval──► WAITING_APPROVAL ──resolved──► RUNNING
+RUNNING ──STOP/LENGTH/MAX_STEPS──► COMPLETED
    │
-   ├──need compaction──► COMPACTING ──done──► RUNNING
-   │
-   ├──STOP/LENGTH/MAX_STEPS──► COMPLETED
-   ├──ERROR──────────────────► FAILED
-   └──ABORT/TIMEOUT──────────► ABORTED
+   ├──ERROR──────────────────────► FAILED
+   └──CANCELLED/TIMEOUT──────────► ABORTED
 ```
 
-`COMPACTING` 是 Run 状态，不是会话状态；压缩期间会话仍为 `RUNNING`。
-终态不可迁移；重复的取消/完成请求按幂等处理并返回当前状态。
+`WAITING_APPROVAL` 是**会话**状态：M6 审批等待期间 run 仍为 `RUNNING`，会话进入
+`WAITING_APPROVAL`，决策后回到 `RUNNING`。压缩在 M7 是 run 内部的同步步骤，不新增
+Run 状态。终态不可迁移；对已结束 run 的取消请求返回 `RUN_NOT_FOUND`（注册表只保留
+终态快照，不保留可再次取消的活跃身份）。
 
 ## 4. 工具管线
 
 ### 4.1 顺序
 
-M3 已实现的部分（工具可直接通过 `ToolInvoker` 调用，尚未接入 Agent Loop）：
-
-```text
-ToolInvocation(callId, tool, arguments, sandbox)
-  -> ToolRegistry.require 取 ToolDescriptor（未注册抛 TOOL_NOT_FOUND）
-  -> ToolAccessPolicy.resolve（workspace > user > 风险默认；只读查询，不弹审批）
-  -> 具体 handler：ToolArgumentGuard 拒绝未知参数并校验必填/上限
-  -> RealPathResolver：PathSandbox 词法判定 + toRealPath 物理复核
-  -> BuiltInToolInvoker：虚拟线程执行、按 descriptor 超时、异常包装
-  -> ToolResult（失败为 isError=true，不向调用方抛业务异常）
-```
-
-M4/M5/M6 将补齐的完整管线：
+M4 已实现的完整管线：
 
 ```text
 ToolCallBlock
-  -> run 开始时的 ToolCatalog 快照取 ToolDescriptor
-  -> 插件 ToolInterceptor（只允许 allow/deny，不允许改参数；M5）
-  -> ToolAccessPolicy
+  -> 预检：ToolRegistry 取 ToolDescriptor（未注册 → isError 结果）
+  -> ToolAccessPolicy.resolve（workspace > user > 风险默认）
        ALLOW -> 继续
-       ASK   -> 创建 ApprovalRequest，等待决策（M6）
-       DENY  -> 生成 isError 结果，不写 APPROVAL（没有人工决策）
-  -> PathSandbox + RealPathResolver（文件类工具）
-  -> ToolInvoker（超时、取消、输出截断）
+       ASK   -> M4 生成“需要审批”的 isError 结果；M6 改为等待决策
+       DENY  -> 生成 isError 结果
+  -> 预算检查：超出本次 run 剩余工具次数 → isError 结果
+  -> 整批判断：全部 PARALLEL 且多于一个 → 并行；否则按模型顺序串行
+  -> ToolInvoker：虚拟线程执行、按 descriptor 超时、异常包装
+  -> 按原 toolCall 顺序追加 toolResult entry
+  -> 发布 tool.started / tool.completed
+```
+
+M5/M6 将插入插件拦截器与审批等待：
+
+```text
+  -> 插件 ToolInterceptor（只允许 allow/deny，不允许改参数；M5）
+     ASK -> 创建 ApprovalRequest，等待决策（M6）
   -> 插件 ToolResultObserver（只读观察；M5）
-  -> 追加 toolResult entry，发布事件（M4）
 ```
 
 ### 4.2 并行策略
 
-- `ExecutionMode` 已区分 `PARALLEL / SEQUENTIAL`；`ToolExecutionPlanner` 与分批执行在 M4
-  随 Agent Loop 实现；
-- 当前 `BuiltInToolInvoker` 的每次调用在独立虚拟线程上执行并等待超时，单个调用不阻塞平台线程；
-- 计划：默认工具并行度 4；需要人工审批的调用按模型给出顺序逐个询问；
-- 计划：批内任一调用被取消，取消信号广播到该批所有工具；
-- 计划：工具结果按原 toolCall 顺序写 entry，即使完成顺序不同。
+- 一批调用**全部**为 `PARALLEL` 且数量大于 1 时并行执行，否则整批串行；
+  混入任一串行工具就退化，避免隐式破坏工具之间的顺序假设；
+- 并行使用注入的 `toolExecutor`（虚拟线程），逐个 `CompletableFuture` 等待；
+- 取消检查发生在每次调用开始前；已开始的工具依赖 `ToolInvoker` 超时/关闭，
+  取消后仍会把这一批的结果逐条写成 `isError` 结果，保证配对；
+- 结果按模型给出的 toolCall 顺序写 entry，与完成顺序无关；
+- 工具数上限默认 100，超出部分不再执行但仍写“已达上限”的错误结果。
 
 ### 4.3 超时与输出
 
@@ -234,23 +228,24 @@ create PENDING -> publish approval.required
 
 ## 5. 取消
 
-当前已实现：
+M4 已实现：
 
-- LLM 流：`LlmStream.cancel()/close()` 关闭 HTTP body，迭代立即结束；
-- 内置工具：`BuiltInToolInvoker` 超时后 `Future.cancel(true)`；等待线程被中断时
-  返回 `CANCELLED` 结果并恢复中断标记。
+- `POST /sessions/{id}/abort` 设置 run 的取消标志；无活跃 run 返回 404 `RUN_NOT_FOUND`；
+- 每轮开始前、每次流读取增量时、每个工具调用开始前检查取消标志；
+- LLM 流收到取消后 `LlmStream.cancel()` 关闭 HTTP body，`TurnExecutor` 返回已累积的
+  部分文本；assistant 消息以 `ABORTED` 落库，再写 `RUN_SUMMARY(CANCELLED)`；
+- 取消后工具批次中尚未执行/未完成的调用仍会得到 `isError=true` 结果，保证配对；
+- 内置工具超时由 `BuiltInToolInvoker` `Future.cancel(true)` 处理。
 
-M4/M6/M8 将补齐贯穿式取消：
+M6/M8 将补齐：
 
-- Agent Loop 的 `CancellationToken` 广播到当前 turn 的 LLM、工具与审批（M4/M6）；
+- 审批等待者被唤醒并以 CANCELLED 结束（M6）；
 - `bash` 先 `destroy()`，5 秒后 `destroyForcibly()`，并清理子进程树（M6）；
-- 审批：唤醒等待者并以 CANCELLED 结束（M6）；
-- 子代理：父取消级联子 run（M8）；
-- 收尾：补写中断结果与 `RUN_SUMMARY(stopReason=ABORTED)`（M4）。
+- 子代理父取消级联子 run（M8）。
 
-取消是幂等的；已进入终态的 run 忽略取消请求。
+取消只影响当前 run，不归档会话；已进入终态的 run 忽略取消。
 
-## 6. 上下文压缩
+## 6. 上下文压缩（M7）
 
 ### 6.1 触发
 
@@ -279,7 +274,11 @@ estimatedTokens > contextWindow - reserveTokens   // 默认 reserve = 16384
 
 ## 7. System Prompt 与 Skills
 
-system prompt 按固定顺序组装，任何 section 都有长度上限：
+M4 的 `SystemPromptBuilder` 只注入：身份、工作区路径、当前工具名、思考级别与五条行为
+约束（简洁、以工具结果为准、主动读取、只读限制、失败先读原因）。它不包含时间等易变
+信息，保证测试稳定。
+
+M7 将扩展为固定顺序，任何 section 都有长度上限：
 
 1. 身份与行为约束（简洁、先读后写、不编造工具结果）；
 2. 环境：cwd、操作系统、当前时间、模型标识；
@@ -292,7 +291,7 @@ system prompt 按固定顺序组装，任何 section 都有长度上限：
 Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，或用户使用
 `/skill:name args` 将正文作为一条用户消息注入。Skill 目录缓存 5 分钟，并校验 mtime。
 
-## 8. 子代理
+## 8. 子代理（M8）
 
 - 工具形态 `subagent`，同步执行，参数：`mode=SPAWN|FORK`、`task`、`persona`、`tools`、`timeout`；
 - `SPAWN`：新子会话，零父上下文；`FORK`：把父投影按预算裁剪后复制为子会话初始 entry；
@@ -314,45 +313,44 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
   "sessionId": "01J...",
   "type": "message.delta",
   "at": "2026-10-21T06:00:00.123Z",
-  "data": {"delta": "正在读取"}
+  "data": {"kind": "text", "text": "正在读取"}
 }
 ```
 
-- `seq` 在每个 run 内单调递增；心跳使用 `seq=0`，不进入重放缓冲；
-- 每个 run 内存保留最近 500 条非心跳事件；
-- `Last-Event-ID = runId:seq`：命中则回放 `seq+1` 起的事件；未命中或超出缓冲，
-  发送 `replay.gap`，前端重新拉取会话 entry。
+- SSE 的 `id` 字段为 `runId:seq`；`seq` 在每个 run 内从 1 单调递增；
+- 每个 run 内存保留最近 500 条事件；通道在 run 结束后保留 30 分钟，超过 300 个通道时
+  优先淘汰最旧的已关闭通道（保留到 200 个）；
+- 心跳事件不带 id、不进入重放缓冲；
+- `Last-Event-ID = runId:seq`：命中则回放 `seq+1` 起的事件；起点已被淘汰时先发送
+  `replay.gap`，前端重新拉取会话 entry。
 
-### 9.2 事件目录
+### 9.2 事件目录（M4 实际字段）
 
 | type | data 关键字段 |
 |---|---|
-| `run.started` | `runId, sessionId, model` |
-| `turn.started` | `turnIndex` |
-| `message.started` | `messageId, role` |
-| `message.delta` | `messageId, delta`（文本或 thinking） |
-| `message.completed` | `messageId, usage, stopReason` |
-| `tool.started` | `toolCallId, toolName, argumentsSummary` |
-| `tool.updated` | `toolCallId, partialOutput` |
-| `tool.completed` | `toolCallId, isError, durationMs, outputSummary` |
-| `approval.required` | `approvalId, toolCallId, toolName, risk, argsRedacted, expiresAt` |
-| `approval.resolved` | `approvalId, decision, decidedBy` |
-| `compaction.started` | `tokensBefore` |
-| `compaction.completed` | `tokensAfter, firstKeptEntryId` |
-| `subagent.started` | `childSessionId, mode` |
-| `subagent.completed` | `childSessionId, stopReason, usage` |
-| `run.completed` | `stopReason, usage, turns, durationMs` |
-| `run.failed` | `errorCode, message` |
+| `run.started` | `runId, modelProfileId, modelName, maxTurns, startedAt` |
+| `turn.started` | `turn` |
+| `message.started` | `role`（固定 assistant） |
+| `message.delta` | `kind=text` + `text`；`kind=thinking` + `thinking`；`kind=toolCall` + `index, toolCallId, toolName, fragment` |
+| `message.completed` | `entryId, stopReason, usage` |
+| `tool.started` | `callId, toolName, arguments` |
+| `tool.completed` | `callId, toolName, isError, content（≤4000 字符）, details` |
+| `run.completed` | `runId, status, stopReason, turns, toolCalls, usage, durationMs` |
+| `run.failed` | 同 `run.completed`，并带 `errorMessage` |
 | `replay.gap` | `lastAvailableSeq` |
 | `heartbeat` | `at` |
+
+M6–M8 追加：`approval.required/resolved`、`compaction.*`、`subagent.*`。
 
 ### 9.3 连接管理
 
 - `POST /sessions/{id}/messages/stream` 返回 `text/event-stream`；`SseEmitter(timeout=0)`；
-- 每 15 秒发心跳；写失败立即移除 emitter，不反向影响 run；
-- 完成/失败后发送终态事件并关闭连接；
-- 慢消费者：发送队列超过 1000 条时断开并让前端走重连/重拉，避免拖垮进程；
-- 断线不等于取消 run，用户可调用 abort 或等待结束。
+- 订阅在控制器线程同步完成：先重放缓冲，再注册监听器，避免重放与实时之间丢事件；
+- 每 15 秒发心跳；写失败只关闭该连接，不反向影响 run；
+- 完成/失败事件发送后异步完成 emitter；
+- 当前 `SseEmitter.send` 在订阅线程同步执行，没有独立发送队列；慢客户端会阻塞该 run
+  的事件广播，v0.2 再评估有界队列与超限断开；
+- 断线不等于取消 run，用户可调用 abort 或通过 `GET /runs/{runId}/events` 重连。
 
 ## 10. 失败与重试
 
@@ -360,9 +358,9 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
 |---|---|
 | LLM 429/5xx/408/网络或连接超时，且尚未输出任何 delta | adapter 内最多重试 2 次（共 3 次请求），短退避 150ms × 第几次重试 |
 | 已输出部分 delta 后失败 | 不重试，结束为 FAILED，已输出内容保留 |
-| context_length_exceeded | 压缩一次后重试；仍失败则 FAILED |
+| context_length_exceeded | M7 压缩一次后重试；仍失败则 FAILED |
 | 工具超时/失败 | 生成 `isError=true` 结果，继续循环 |
-| 审批超时 | 按 DENY 处理，继续循环 |
+| 审批超时（M6） | 按 DENY 处理，继续循环 |
 | 持久化失败 | 立即终止 run，标记 FAILED，记录高优先级日志 |
 | 插件工具抛异常 | 转为 `isError=true` 结果；插件计数失败，不重试 |
 | 子代理失败/超时 | 返回结构化结果；父 run 继续 |
@@ -389,35 +387,38 @@ Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，
 
 ## 11. 启动恢复
 
-应用启动时扫描：
+M4 采用**惰性自愈**，不做启动时全表扫描：
 
-1. `status=RUNNING/WAITING_APPROVAL` 但没有活跃 run 的会话：
-   - 为悬空 toolCall 补写 `isError=true` 的 toolResult；
-   - 追加 `RUN_SUMMARY(stopReason=ERROR, errorMessage="进程重启恢复")`；
-   - 会话置为 `IDLE`；
-2. `PENDING` 且已过期的审批请求：置 `EXPIRED`，追加 `APPROVAL` entry；
-3. 插件状态为 `ACTIVE` 但 jar 缺失/校验失败：置 `FAILED`，记录 `last_error`；
-4. 清理临时输出文件与残留子进程（尽力而为，记录失败）。
+1. 用户向会话发消息时，若数据库状态为 `RUNNING/WAITING_APPROVAL` 而进程内注册表
+   没有活跃 run，说明上一次进程已崩溃：直接把会话置回 `IDLE`，再开始新 run；
+2. 悬空 toolCall 由新的 run 正常投影为历史消息，不再补写结果——M4 没有审批状态，
+   悬空结果不会阻塞会话；
+3. 事件缓冲只存在内存，进程重启后重连返回 404 `RUN_NOT_FOUND`，前端以 entry 为准。
 
-恢复流程必须幂等：重复启动不会产生重复的 run summary。
+M6 加入审批、M8 加入子代理后，再补充“补写 RUN_SUMMARY / 过期审批”等恢复步骤；
+多实例部署需要持久化 run 租约，v0.1 不支持。
 
 ## 12. 并发与资源
 
-| 资源 | 默认值 | 控制方式 |
+| 资源 | 当前值 | 控制方式 |
 |---|---|---|
-| 活跃 run | 4 | 全局信号量；超出返回 429/忙碌错误 |
-| 工具并行 | 4 | 每批信号量 |
+| 活跃 run | 默认 4（`pi.agent.max-concurrent-runs`） | 全局 `Semaphore`；满额返回 429 `AGENT_BUSY` |
+| 每会话活跃 run | 1 | `ActiveRunRegistry` 原子预留 |
+| 工具调用 | 每 run 默认 100 | `RunBudget.maxToolCalls` |
 | LLM 连接 | 每 run 1 条 | run 内串行 |
-| SSE 重放缓冲 | 500 条/run | 环形队列 |
-| 事件队列 | 1000 条/连接 | 超限断开 |
-| 线程 | 虚拟线程 | LLM/工具/SSE 写任务 |
+| SSE 重放缓冲 | 500 条/run | `ArrayDeque` 环形淘汰 |
+| 事件通道保留 | 30 分钟 / 最多 300 个 | 定期 prune，淘汰已关闭通道 |
+| 线程 | 虚拟线程 | Agent Loop、LLM、工具、SSE 任务 |
+
+`max-turns` 默认 20、`max-duration` 默认 15 分钟，均冻结在 run 的 `RunBudget` 中，
+运行中修改配置不影响已开始的 run。
 
 ## 13. 可观测性
 
-- 结构化日志固定字段：`sessionId/runId/turn/toolCallId/toolName/durationMs/outcome`；
-- 参数只记录摘要与 digest，不记录密钥、Authorization、完整文件内容；
-- `/health` 返回数据库、Flyway、插件快照状态；
-- v0.1 不引入 Prometheus/OpenTelemetry，避免范围膨胀；日志与事件已包含排障所需链路。
+- M4 记录 run 收尾失败、恢复失败等关键日志（`System.Logger`），正常链路不刷日志；
+- 事件流本身包含排查所需的 turn、toolCall、usage 与终止原因，这是当前主要观测面；
+- 密钥、Authorization、完整文件内容不进入事件与日志；
+- 结构化字段日志、`/health` 与指标在 M9 打磨阶段补充；v0.1 不引入 Prometheus/OpenTelemetry。
 
 ## 14. 相关文档
 

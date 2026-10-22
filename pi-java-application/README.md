@@ -12,8 +12,8 @@
 ## 职责
 
 - 一个用例一个类，输入使用自己的 `Command` / `Query` record，输出使用 `ReadModel`；
-- `AgentLoopService` 拆分为 `RunLifecycle`、`TurnExecutor`、`ToolCallCoordinator`、
-  `ContextAssemblyService`，避免巨型 Service；
+- `AgentLoopService` 只推进 run 状态机与终止判定，流式读取、工具执行、上下文投影分别
+  委托给 `TurnPipeline` / `TurnExecutor` / `ToolCallCoordinator`，避免巨型 Service；
 - 事务只包住单次 entry 追加或状态更新；LLM、工具、审批等待期间不持有事务；
 - 通过 domain 端口访问仓储与外部能力；不直接依赖具体实现。
 
@@ -42,5 +42,7 @@ com.piagent.application
 
 M1 完成 `SessionApplicationService`；M2 完成 `ModelProfileApplicationService`
 （创建、更新、启停、查询、启用校验）与对应 Command；M3 完成
-`ToolCatalogApplicationService`（工具目录 + 当前工作区策略效果）。24 个内存端口单测，
-行覆盖 98.0%。M4 实现 Agent Loop。详见 [M3 记录](../docs/milestones/M3.md)。
+`ToolCatalogApplicationService`（工具目录 + 当前工作区策略效果）；M4 完成
+`application.agent`：Agent Loop、run 运行时与事件中心、turn 流水线、工具协调器、
+短事务 entry 追加器。application 共 48 个测试，行覆盖 88.9%。
+详见 [M4 记录](../docs/milestones/M4.md)。

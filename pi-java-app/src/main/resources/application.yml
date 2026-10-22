@@ -39,6 +39,10 @@ mybatis:
 
 # 运行时参数。全部有安全默认值，后续里程碑由配置绑定逐步消费。
 pi:
+  version: "0.1.0-SNAPSHOT"
+  fake:
+    # 默认回声；demo profile 下开启确定性指令脚本（/read、/ls）。
+    demo-mode: false
   agent:
     max-concurrent-runs: 4
     tool-parallelism: 4
@@ -68,6 +72,10 @@ spring:
     password: ""
   flyway:
     locations: classpath:db/migration/h2
+
+pi:
+  fake:
+    demo-mode: true
 
 ---
 # MySQL 8：连接信息全部通过环境变量注入，仓库与镜像中不出现密码。

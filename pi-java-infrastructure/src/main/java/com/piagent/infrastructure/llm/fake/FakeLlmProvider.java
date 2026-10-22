@@ -24,19 +24,34 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public final class FakeLlmProvider implements LlmModelProvider {
 
     private final Queue<FakeTurn> scriptedTurns = new ConcurrentLinkedQueue<>();
+    private final boolean demoMode;
 
     /**
      * 创建回声 provider。
      */
     public FakeLlmProvider() {
+        this(false);
+    }
+
+    /**
+     * 创建指定模式的 provider。
+     *
+     * @param demoMode 是否启用确定性 demo 脚本（识别 /read、/ls 等指令）
+     */
+    public FakeLlmProvider(boolean demoMode) {
+        this.demoMode = demoMode;
     }
 
     /**
      * 创建带脚本回合的 provider。
      *
+     * <p>脚本模式优先于 demo 模式：队列有剩余回合时永远消费脚本，
+     * 保证测试输出完全可控。</p>
+     *
      * @param turns 脚本回合，按调用顺序消费
      */
     public FakeLlmProvider(FakeTurn... turns) {
+        this.demoMode = false;
         for (FakeTurn turn : turns) {
             scriptedTurns.add(turn);
         }
@@ -50,7 +65,10 @@ public final class FakeLlmProvider implements LlmModelProvider {
     @Override
     public LlmStream stream(LlmRequest request, LlmCallContext context) {
         FakeTurn scripted = scriptedTurns.poll();
-        return new FakeLlmStream(scripted == null ? FakeTurn.echo(request) : scripted);
+        if (scripted != null) {
+            return new FakeLlmStream(scripted);
+        }
+        return new FakeLlmStream(demoMode ? DemoTurnScript.next(request) : FakeTurn.echo(request));
     }
 
     /**

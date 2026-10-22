@@ -76,4 +76,13 @@ public interface SessionMapper {
      */
     @Select("SELECT * FROM pi_session WHERE parent_session_id = #{parentId} ORDER BY created_at ASC")
     List<SessionPO> findChildren(@Param("parentId") String parentId);
+
+    /**
+     * 查询最近更新的会话。
+     *
+     * @param limit 最大条数
+     * @return 会话列表
+     */
+    @Select("SELECT * FROM pi_session ORDER BY updated_at DESC LIMIT #{limit}")
+    List<SessionPO> findRecent(@Param("limit") int limit);
 }

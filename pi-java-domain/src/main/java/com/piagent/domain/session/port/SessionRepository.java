@@ -53,4 +53,12 @@ public interface SessionRepository {
      * @return 子会话列表
      */
     List<ChatSession> findChildren(SessionId parentId);
+
+    /**
+     * 查询最近更新的会话，供会话侧栏使用。
+     *
+     * @param limit 最大条数
+     * @return 会话列表，按更新时间倒序
+     */
+    List<ChatSession> findRecent(int limit);
 }

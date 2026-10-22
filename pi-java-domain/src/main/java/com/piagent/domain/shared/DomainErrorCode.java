@@ -75,5 +75,14 @@ public enum DomainErrorCode {
     PATH_INVALID,
 
     /** 路径不存在。 */
-    PATH_NOT_FOUND
+    PATH_NOT_FOUND,
+
+    /** 运行不存在或已被清理。 */
+    RUN_NOT_FOUND,
+
+    /** 同一会话已有活跃 run。 */
+    RUN_ALREADY_ACTIVE,
+
+    /** 全局并发运行数已达上限。 */
+    AGENT_BUSY
 }

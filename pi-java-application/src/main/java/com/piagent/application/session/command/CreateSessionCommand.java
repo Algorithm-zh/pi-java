@@ -12,7 +12,7 @@ import java.util.Objects;
  * @param title 会话标题
  * @param cwd 工作目录，必须是绝对路径
  * @param modelProfileId 模型档案标识
- * @param thinkingLevel 思考级别；为 null 时使用 MEDIUM
+ * @param thinkingLevel 思考级别；为 null 时使用 OFF
  */
 public record CreateSessionCommand(String title, Path cwd, String modelProfileId, ThinkingLevel thinkingLevel) {
 
@@ -30,6 +30,6 @@ public record CreateSessionCommand(String title, Path cwd, String modelProfileId
         Guard.require(cwd.isAbsolute(), DomainErrorCode.INVALID_ARGUMENT, "cwd 必须是绝对路径");
         cwd = cwd.normalize();
         modelProfileId = Guard.notBlank(modelProfileId, DomainErrorCode.INVALID_ARGUMENT, "modelProfileId 不能为空");
-        thinkingLevel = thinkingLevel == null ? ThinkingLevel.MEDIUM : thinkingLevel;
+        thinkingLevel = thinkingLevel == null ? ThinkingLevel.OFF : thinkingLevel;
     }
 }

@@ -150,6 +150,26 @@ public record ChatSession(
     }
 
     /**
+     * 推进运行期叶子。
+     *
+     * <p>与 {@link #moveLeaf} 的区别：这里不是“用户切换分支”，而是 run 追加
+     * 新 entry 后把叶子前移，因此允许会话处于 RUNNING / WAITING_APPROVAL。
+     * 目标必须由调用方在同一事务内刚追加，不能用于跳转到历史节点。</p>
+     *
+     * @param target 新追加的 entry
+     * @return 新会话实例
+     */
+    public ChatSession advanceLeaf(EntryId target) {
+        Objects.requireNonNull(target, "target 不能为空");
+        Guard.require(status == SessionStatus.RUNNING || status == SessionStatus.WAITING_APPROVAL,
+                DomainErrorCode.INVALID_STATE_TRANSITION,
+                "只有运行中的会话可以推进叶子，当前状态: " + status);
+        Guard.require(!target.equals(leafEntryId), DomainErrorCode.INVALID_BRANCH,
+                "目标已经是当前叶子");
+        return new ChatSession(identity, title, config, status, target, version);
+    }
+
+    /**
      * 标记会话开始运行。
      *
      * @return 新会话实例

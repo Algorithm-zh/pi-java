@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>pi-java · coding agent</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314161a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e5654a' font-family='Georgia'%3E%CF%80%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/css/app.css">
+    <link rel="stylesheet" href="/css/messages.css">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">π</span>
+            <div class="brand-copy">
+                <strong>pi-java</strong>
+                <span>minimal coding agent</span>
+            </div>
+        </div>
+
+        <button id="new-session" class="new-session" type="button">
+            <span class="plus">+</span> 新建会话
+        </button>
+
+        <div class="sidebar-label">
+            <span>会话</span>
+            <button id="refresh-sessions" class="icon-button" type="button" title="刷新会话">↻</button>
+        </div>
+        <nav id="session-list" class="session-list" aria-label="会话列表"></nav>
+
+        <div class="sidebar-footer">
+            <span id="server-dot" class="dot dot-waiting"></span>
+            <span id="server-label">连接中…</span>
+            <span id="server-version" class="server-version"></span>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div class="session-heading">
+                <span class="eyebrow">AGENT SESSION</span>
+                <h1 id="session-title">选择或新建一个会话</h1>
+                <div id="session-meta" class="session-meta"></div>
+            </div>
+            <div class="topbar-actions">
+                <span id="run-state" class="run-state hidden"></span>
+                <button id="abort-button" class="stop-button hidden" type="button">停止生成</button>
+            </div>
+        </header>
+
+        <section id="messages" class="messages" aria-live="polite">
+            <div class="welcome">
+                <div class="welcome-mark">π</div>
+                <h2>让代码开始流动</h2>
+                <p>Fake 模型离线运行，不需要任何 API Key。新建会话后试试下面的指令，<br>它们会真实调用工作区中的只读工具。</p>
+                <div class="welcome-actions">
+                    <button class="prompt-chip" type="button" data-prompt="/read README.md">
+                        <code>/read README.md</code><span>读取项目说明</span>
+                    </button>
+                    <button class="prompt-chip" type="button" data-prompt="/ls .">
+                        <code>/ls .</code><span>列出工作区</span>
+                    </button>
+                    <button class="prompt-chip" type="button" data-prompt="你好，简单介绍一下你自己">
+                        <code>你好</code><span>纯文本回复</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <footer class="composer">
+            <div id="usage" class="usage hidden">
+                <span class="usage-item"><b id="usage-turns">0</b> 轮</span>
+                <span class="usage-item"><b id="usage-tools">0</b> 工具</span>
+                <span class="usage-item">输入 <b id="usage-input">0</b></span>
+                <span class="usage-item">输出 <b id="usage-output">0</b></span>
+                <span class="usage-item">总计 <b id="usage-total">0</b> tokens</span>
+                <span id="usage-duration" class="usage-item"></span>
+            </div>
+            <form id="composer-form" class="composer-box">
+                <textarea id="composer-input" rows="1" maxlength="100000"
+                          placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
+                <div class="composer-side">
+                    <span id="composer-model" class="composer-model"></span>
+                    <button id="send-button" class="send-button" type="submit" title="发送">
+                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                            <path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="currentColor"></path>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+            <div class="composer-hint">
+                <span><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span>
+                <span>Demo · 运行在 <code id="workspace-hint">…</code></span>
+            </div>
+        </footer>
+    </main>
+</div>
+
+<dialog id="session-dialog" class="session-dialog">
+    <form id="session-form">
+        <header>
+            <div>
+                <span class="eyebrow">NEW SESSION</span>
+                <h2>新建会话</h2>
+            </div>
+            <button id="dialog-close" class="icon-button" type="button" aria-label="关闭">×</button>
+        </header>
+        <label class="field">
+            <span>标题</span>
+            <input id="field-title" type="text" maxlength="255" value="新会话" required>
+        </label>
+        <label class="field">
+            <span>工作目录 <em>同时作为工具沙箱根</em></span>
+            <input id="field-cwd" type="text" required>
+        </label>
+        <label class="field">
+            <span>模型档案</span>
+            <select id="field-model"></select>
+        </label>
+        <p id="dialog-error" class="dialog-error hidden"></p>
+        <footer>
+            <button id="dialog-cancel" class="ghost-button" type="button">取消</button>
+            <button id="dialog-submit" class="primary-button" type="submit">创建并开始</button>
+        </footer>
+    </form>
+</dialog>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<template id="empty-template">
+    <div class="welcome welcome-compact">
+        <div class="welcome-mark">π</div>
+        <h2>会话已就绪</h2>
+        <p>输入消息，或点击一个示例指令开始。</p>
+        <div class="welcome-actions">
+            <button class="prompt-chip" type="button" data-prompt="/read README.md">
+                <code>/read README.md</code><span>读取项目说明</span>
+            </button>
+            <button class="prompt-chip" type="button" data-prompt="/ls .">
+                <code>/ls .</code><span>列出工作区</span>
+            </button>
+        </div>
+    </div>
+</template>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

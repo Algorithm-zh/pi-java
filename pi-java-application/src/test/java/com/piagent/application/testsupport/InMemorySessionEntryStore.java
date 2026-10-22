@@ -1,4 +1,4 @@
-package com.piagent.application.session.service;
+package com.piagent.application.testsupport;
 
 import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.SessionEntry;
@@ -18,7 +18,7 @@ import java.util.Set;
 /**
  * 应用层单元测试用的内存 entry 存储。
  */
-final class InMemorySessionEntryStore implements SessionEntryStore {
+public final class InMemorySessionEntryStore implements SessionEntryStore {
 
     private final List<SessionEntry> entries = new ArrayList<>();
 

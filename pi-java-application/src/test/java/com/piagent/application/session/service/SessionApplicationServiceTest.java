@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.piagent.application.session.command.AppendUserMessageCommand;
+import com.piagent.application.testsupport.InMemorySessionEntryStore;
+import com.piagent.application.testsupport.InMemorySessionRepository;
+import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.command.ForkSessionCommand;
 import com.piagent.application.session.command.MoveBranchCommand;
@@ -63,7 +66,7 @@ class SessionApplicationServiceTest {
         assertThat(session.identity().parentSessionId()).isNull();
         assertThat(session.config().cwd()).isEqualTo(WORKSPACE);
         assertThat(session.config().modelProfileId()).isEqualTo("fake-model");
-        assertThat(session.config().thinkingLevel()).isEqualTo(ThinkingLevel.MEDIUM);
+        assertThat(session.config().thinkingLevel()).isEqualTo(ThinkingLevel.OFF);
         assertThat(session.config().sandbox().writableRoots()).containsExactly(WORKSPACE);
         assertThat(session.version()).isEqualTo(ChatSession.INITIAL_VERSION);
         assertThat(session.isEmpty()).isTrue();

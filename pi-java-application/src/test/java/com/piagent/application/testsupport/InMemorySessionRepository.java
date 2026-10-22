@@ -1,4 +1,4 @@
-package com.piagent.application.session.service;
+package com.piagent.application.testsupport;
 
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionId;
@@ -14,7 +14,7 @@ import java.util.Optional;
 /**
  * 应用层单元测试用的内存会话仓储，模拟 version 乐观锁语义。
  */
-final class InMemorySessionRepository implements SessionRepository {
+public final class InMemorySessionRepository implements SessionRepository {
 
     private final Map<SessionId, ChatSession> sessions = new LinkedHashMap<>();
 
@@ -54,6 +54,13 @@ final class InMemorySessionRepository implements SessionRepository {
     public List<ChatSession> findChildren(SessionId parentId) {
         return sessions.values().stream()
                 .filter(session -> parentId.equals(session.identity().parentSessionId()))
+                .toList();
+    }
+
+    @Override
+    public List<ChatSession> findRecent(int limit) {
+        return sessions.values().stream()
+                .limit(limit)
                 .toList();
     }
 }

@@ -13,9 +13,24 @@
 
 ## 端点
 
-前缀 `/api/v1`：sessions、entries、fork、branch、messages/stream、abort、compact、
-approvals、models、tools、tool-policies、plugins、skills、health。
+前缀 `/api/v1`，M4 已实现：
 
+```text
+POST /sessions                         创建会话
+GET  /sessions                         列表
+GET  /sessions/{id}                    详情
+GET  /sessions/{id}/entries            分支 entry
+GET  /sessions/{id}/run                活跃 run（204 表示空闲）
+POST /sessions/{id}/messages/stream    发起 run + SSE
+POST /sessions/{id}/abort              取消 run（202）
+GET  /runs/{runId}                     run 快照
+GET  /runs/{runId}/events              SSE 重放（Last-Event-ID）
+GET  /models ...                       模型查询与管理
+GET  /tools                            工具目录与策略效果
+GET  /system/info                      版本与默认工作目录
+```
+
+fork/branch/compact、审批、插件、Skills 与 `/health` 随后续里程碑加入。
 详见 [API 与 CLI](../docs/05-api-and-cli.md)。
 
 ## CLI
@@ -24,11 +39,12 @@ approvals、models、tools、tool-policies、plugins、skills、health。
 pi chat / pi run / pi sessions / pi plugins / pi models / pi tools / pi serve
 ```
 
-CLI 与 Web 共享同一个应用层用例与数据库。
+CLI 在 M9 实现，与 Web 共享同一个应用层用例与数据库。
 
 ## 当前状态
 
 M0 建立模块；M2 完成 `/api/v1/models`（列表、详情、创建、更新、启停）与统一错误映射；
-M3 完成 `GET /api/v1/tools`（可选 `cwd`，返回 schema 与策略效果）。共 11 个
-standalone MockMvc 测试。M4 实现会话 SSE 与只读 Web demo，M6 增加策略管理 API，
-M9 实现完整 CLI。
+M3 完成 `GET /api/v1/tools`（可选 `cwd`，返回 schema 与策略效果）；M4 完成会话/运行
+REST、SSE 流与重放、`/api/v1/system/info`。共 21 个测试（含 10 个新增控制器 MockMvc
+测试），行覆盖 38.3%。M6 增加策略管理 API，M9 实现完整 CLI。
+详见 [M4 记录](../docs/milestones/M4.md)。

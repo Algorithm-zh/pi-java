@@ -7,6 +7,7 @@ import com.piagent.infrastructure.llm.RoutingLlmGateway;
 import com.piagent.infrastructure.llm.fake.FakeLlmProvider;
 import com.piagent.infrastructure.llm.openai.OpenAiCompatibleProvider;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,13 +21,16 @@ import org.springframework.context.annotation.Configuration;
 public class LlmConfiguration {
 
     /**
-     * Fake provider。
+     * Fake provider。demo 模式下识别 {@code /read}、{@code /ls} 指令，
+     * 让零配置演示也能触发真实工具调用。
      *
+     * @param demoMode 是否启用 demo 脚本
      * @return Fake provider
      */
     @Bean
-    public FakeLlmProvider fakeLlmProvider() {
-        return new FakeLlmProvider();
+    public FakeLlmProvider fakeLlmProvider(
+            @Value("${pi.fake.demo-mode:false}") boolean demoMode) {
+        return new FakeLlmProvider(demoMode);
     }
 
     /**

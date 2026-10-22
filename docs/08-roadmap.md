@@ -1,6 +1,7 @@
 # 08 路线图
 
-> 状态：M1、M2、M3 已完成（2026-10-21），下一步 M4。里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
+> 状态：M0–M4 已完成（M4 于 2026-10-22），下一步 M5 插件 SDK。里程碑顺序不可跳跃；
+> 每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
 
@@ -98,7 +99,7 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 未包含（按计划后移）：
 
-- `ToolExecutionPlanner` 与并行分批：M4 随 Agent Loop 实现；
+- `ToolExecutionPlanner` 与并行分批：M4 已实现，并入应用层 `ToolCallCoordinator`；
 - 插件 hook 与工具拦截器：M5；
 - 审批、策略管理 API、write/edit/bash：M6。
 
@@ -111,20 +112,35 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M4 Agent Loop + 首个 Web demo
 
-范围：
+状态：已完成（2026-10-22），详见 [M4 记录](milestones/M4.md)。
 
-- `application.agent`：RunLifecycle、TurnExecutor、ToolCallCoordinator、ContextAssembly；
-- RunRegistry、SSE Hub、事件缓冲与回放；
-- 原生 Web UI：新建会话、流式消息、工具卡片、取消；
-- RUN_SUMMARY entry；
-- demo profile 可启动。
+范围（实际交付）：
 
-验收：
+- `domain.agent`：`AgentRun` 不可变快照、`RunBudget`、`RunStopReason`、`RunEvent/Type`；
+- `application.agent`：`AgentLoopService`、`RunRuntime`、`ActiveRunRegistry`、
+  `RunDispatcher`、`TurnPipeline`、`TurnExecutor`、`ToolCallCoordinator`、
+  `SessionEntryAppender`、`RunEventHub`、`RunEventPublisher`；
+- 工具管线：预检、策略、并行/串行、成对结果、预算与取消；
+- 会话/运行 API 与 SSE：创建、列表、详情、分支 entry、活跃 run、消息流、abort、
+  run 快照、事件重放；
+- 原生 Web UI：新建会话、流式消息、工具卡片、停止、usage；
+- `RUN_SUMMARY` entry 与惰性会话自愈；
+- demo profile 无 API Key 可运行。
 
-- 状态机与取消测试；
-- SSE 事件顺序、Last-Event-ID 回放；
-- Fake LLM 浏览器完整走查；
-- 无 API Key 可演示。
+验收结果：
+
+- `mvn -q verify` 通过；共 295 个测试（2 跳过），domain 86.7%、application 88.9%；
+- 应用层 15 个 Agent Loop 单测覆盖文本/工具/并行/审批占位/取消/预算/自愈/启动清理；
+- `RunSseIntegrationTest` 走真实 Spring MVC 异步链路，验证事件顺序与 `Last-Event-ID` 回放；
+- 触发层 10 个新增 MockMvc 测试覆盖会话与运行控制器、状态码、错误映射；
+- 浏览器手工走查 demo（新建 → `/read README.md` → 工具卡片 → 停止）。
+
+未包含（按计划后移）：
+
+- 审批等待与写工具：M6；
+- 上下文压缩与 Skills：M7；
+- 子代理：M8；
+- CLI：M9。
 
 ### M5 插件 SDK
 

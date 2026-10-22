@@ -41,6 +41,7 @@ com.piagent.domain
 
 M1 完成 `shared` 与 `session`；M2 完成 `model`（档案聚合、endpoint/能力/usage 值对象、
 选择策略、`LlmGateway` 流式端口与错误码）；M3 完成 `tool`（描述/目录/调用/结果/参数守卫）
-与 `governance`（策略规则、工作区键、路径沙箱、访问策略）。domain 单测 76 个、
-行覆盖 86.7%。`agent/context/extension` 从 M4 起按里程碑加入。详见
-[领域模型](../docs/02-domain-model.md) 与 [M3 记录](../docs/milestones/M3.md)。
+与 `governance`（策略规则、工作区键、路径沙箱、访问策略）；M4 完成 `agent`
+（`AgentRun` 不可变快照、`RunBudget`、`RunStopReason`、`RunEvent/Type`）。
+domain 单测 88 个、行覆盖 86.7%。`context/extension` 从 M7/M5 起加入。详见
+[领域模型](../docs/02-domain-model.md) 与 [M4 记录](../docs/milestones/M4.md)。

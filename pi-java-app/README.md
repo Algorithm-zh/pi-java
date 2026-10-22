@@ -30,7 +30,8 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 - `ModuleBoundaryTest`：模块依赖方向；
 - `SessionPersistenceIntegrationTest`：H2 上的仓储、唯一键、CAS、级联；
 - `SessionApplicationIntegrationTest`：创建 → 追加 → 投影 → fork 的端到端路径；
-- M4 起加入 MockMvc/SSE 集成测试与 demo E2E。
+- `AgentLoopIntegrationTest`：Fake 模型 + 真实工具 + H2 的完整 run；
+- `RunSseIntegrationTest`：真实 Spring MVC 异步链路的 SSE 事件顺序与 `Last-Event-ID` 回放。
 
 测试 profile 位于 `src/test/resources/application-test.yml`，使用内存 H2 与
 `db/migration/h2`；测试之间直接清理业务表，保证可重复执行。
@@ -39,5 +40,6 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 
 M1 完成启动类、demo/mysql/test 配置、ArchUnit、Flyway V1 与会话集成测试；
 M2 增加 V2 迁移与模型档案 H2 往返/CAS 集成测试；M3 增加 V3 策略表与
-工具策略往返/工作区查询/CAS 集成测试，共 27 个测试。
-Web UI 从 M4 开始。详见 [M3 记录](../docs/milestones/M3.md)。
+工具策略往返/工作区查询/CAS 集成测试；M4 增加 Agent Loop 集成测试、SSE 集成测试
+与只读 Web UI（`src/main/resources/static/`）。共 30 个测试。
+详见 [M4 记录](../docs/milestones/M4.md)。

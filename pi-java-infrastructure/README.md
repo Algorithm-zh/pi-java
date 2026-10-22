@@ -42,6 +42,7 @@ M1 完成 `persistence.session`（PO/Mapper/仓储、payload 与消息 JSON 编�
 M2 完成 `persistence.model`（V2、CAS 更新、capabilities codec）与 `llm`
 （Fake 脚本 provider、provider 路由、OpenAI-compatible 的请求映射/SSE 解析/重试/取消）；
 M3 完成 `tool`（RealPathResolver、read/ls/grep/glob、虚拟线程超时调用器）与
-`persistence.model` 下的 V3 工具策略仓储。infrastructure 共 101 个测试
-（2 个符号链接用例在无权限环境条件跳过），行覆盖 64.1%。详见
-[M3 记录](../docs/milestones/M3.md)。
+`persistence.model` 下的 V3 工具策略仓储；M4 增加 demo 模式的
+`DemoTurnScript` 与 `DemoDataInitializer` 依赖的 Fake 脚本。infrastructure 共 108 个测试
+（2 个符号链接用例在无权限环境条件跳过），行覆盖 64.8%。详见
+[M4 记录](../docs/milestones/M4.md)。

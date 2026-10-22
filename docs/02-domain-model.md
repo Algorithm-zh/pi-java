@@ -181,55 +181,69 @@ interface SessionEntryStore {
 
 ### 3.1 聚合根 `AgentRun`（仅内存）
 
+M4 的实现是**不可变状态快照**，每次变更返回新 record，而不是可变聚合：
+
 | 字段 | 说明 |
 |---|---|
-| `runId` | ULID |
+| `id` | ULID `RunId` |
 | `sessionId` | 所属会话 |
-| `status` | `RUNNING / WAITING_APPROVAL / COMPACTING / COMPLETED / FAILED / ABORTED` |
-| `budget` | 最大 turn、工具调用数、时长、子代理深度 |
-| `turns` | `List<AgentTurn>` |
-| `stopReason` | 终止原因 |
-| `startedAt / endedAt` | 时间 |
-| `errorMessage` | 失败原因（脱敏） |
+| `status` | `RUNNING / COMPLETED / FAILED / ABORTED` |
+| `budget` | `RunBudget(maxTurns, maxToolCalls, maxDuration)` |
+| `turns` | 已完成的模型请求数（int） |
+| `toolCalls` | 已执行的工具调用数（int） |
+| `usage` | 累计 `TokenUsage` |
+| `startedAt / finishedAt` | 开始/结束时间；运行中 `finishedAt=null` |
+| `stopReason` | `RunStopReason`；运行中为 null |
+| `errorMessage` | 失败原因（≤4000 字符，仅 ERROR 必填） |
 
-`AgentRun` 不持久化。run 结束后仅追加 `RUN_SUMMARY` entry；进程崩溃时由启动恢复流程补写。
+行为：`start`、`recordTurn(usage)`、`recordToolCalls(n)`、`finish(reason, error, at)`、
+`isTerminal()`、`durationMillis(now)`。所有变更先校验 `RUNNING`，终态不可再迁移。
+
+`AgentRun` 不持久化。run 结束后仅追加 `RUN_SUMMARY` entry；进程崩溃后不补写 run，
+而是由应用层在下次发消息时把悬空会话自愈为 `IDLE`（见 [04 运行时与事件](04-runtime-and-events.md) §11）。
 
 ### 3.2 实体与值对象
 
-- `AgentTurn`：一次 LLM 调用及其工具阶段；包含 `turnIndex`、`AssistantMessage`、`List<AgentStep>`。
-- `AgentStep`：一次工具调用步骤；包含 `ToolCallId`、工具名、审批结果、执行结果。
-- `RunId`、`RunStatus`、`RunBudget(maxTurns, maxToolCalls, maxDuration, maxSubagentDepth)`。
-- `StopReason`：`STOP / LENGTH / TOOL_USE / ERROR / ABORTED / MAX_STEPS / APPROVAL_DENIED / TIMEOUT`。
-- `ThinkingLevel`：`OFF / LOW / MEDIUM / HIGH`。
-- `RunEvent`：`seq, runId, sessionId, type, at, data`，事件类型见 [04 运行时与事件](04-runtime-and-events.md)。
-- `SubagentSpec(mode, task, persona, toolWhitelist, timeout)`，`SubagentMode = SPAWN | FORK`。
-- `SubagentResult(childSessionId, stopReason, usage, summary)`。
+- `RunId`：ULID 包装类型。
+- `RunStatus`：四态，`isTerminal()` 判断是否结束。
+- `RunStopReason`：`STOP / LENGTH / MAX_STEPS / CANCELLED / TIMEOUT / ERROR`。
+- `RunBudget`：默认 20 轮、100 次工具调用、15 分钟；时长为正且不超过 1 小时；
+  提供 `turnsExhausted`、`toolCallsExceeded`、`timedOut` 无副作用判定。
+- `RunEvent(seq, runId, sessionId, type, at, data)`：`seq` 从 1 开始，`data` 冻结为
+  不可变 Map，只放 JSON 友好的 JDK 值。
+- `RunEventType`：`run.started`、`turn.started`、`message.started/delta/completed`、
+  `tool.started/completed`、`run.completed/failed`、`heartbeat`、`replay.gap`。
+- `ThinkingLevel`：`OFF / LOW / MEDIUM / HIGH`，属于会话配置，不属于 run 快照。
+- `SubagentSpec` / `SubagentMode` / `SubagentResult`：M8 引入，当前仅保留规划。
 
 ### 3.3 领域服务
 
-| 服务 | 职责 |
-|---|---|
-| `TurnPolicy` | 判断是否继续下一 turn：有 toolCall 且未超预算；无 toolCall 且未要求 follow-up 则结束 |
-| `StopReasonResolver` | 把模型 stopReason、预算、审批、异常映射为 Run 终止原因与 RunStatus |
-| `SubagentPolicy` | 校验深度、工具子集、沙箱交集、审批不得放宽；超限时移除 `subagent` 工具 |
+M4 **没有**独立的 TurnPolicy / StopReasonResolver：终止判定集中在应用层
+`AgentLoopService`，因为它同时依赖预算、取消标志与流式结果，放在领域会引入运行态依赖。
+领域只保留可独立测试的规则（预算判定、状态迁移、事件校验）。
 
-### 3.4 端口
+M8 将引入 `SubagentPolicy`：校验深度、工具子集、沙箱交集、审批不得放宽；超限时移除
+`subagent` 工具。
+
+### 3.4 端口与注册表
+
+M4 的活跃 run 注册表位于应用层（`ActiveRunRegistry`），因为它是进程内运行态，
+不是领域事实：
 
 ```java
-interface RunRegistry {                 // 进程内
-    AgentRun create(SessionId sessionId, RunBudget budget);
+// application.agent.service
+final class ActiveRunRegistry {
+    void register(AgentRun run);               // 每会话原子占位，重复抛 RUN_ALREADY_ACTIVE
     Optional<AgentRun> find(RunId runId);
     Optional<AgentRun> findActiveBySession(SessionId sessionId);
-    void remove(RunId runId);
-}
-
-interface RunEventPublisher {
-    void publish(RunEvent event);
+    AgentRun update(RunId runId, UnaryOperator<AgentRun> change);
+    boolean cancel(RunId runId);
+    AgentRun awaitTerminal(RunId runId, Duration timeout);
 }
 ```
 
-`RunRegistry` 的“同一 session 只能有一个活跃 run”是应用层不变量；
-注册表提供原子 `createIfAbsent(sessionId, ...)` 语义，避免并发双击。
+“同一 session 只能有一个活跃 run”由 `register` 的 `putIfAbsent` 语义保证；领域层不感知锁。
+事件端口由 `RunEventHub`（应用层）实现，domain 只定义 `RunEvent` 与类型。
 
 ## 4. 模型上下文 `domain.model`
 
@@ -343,9 +357,9 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 |---|---|---|
 | `ToolCatalog` | 不可变目录；合并内置与插件工具、拒绝重名、按名查询；插件工具合并与白名单过滤在 M5 扩展 | M3 已实现 |
 | `ToolArgumentGuard` | 拒绝未知参数，读取必填字符串、可选字符串/整数/布尔并校验上限；JSON Schema 深度校验由具体 handler 完成 | M3 已实现 |
-| `ToolExecutionPlanner` | 依据 `ExecutionMode` 将 toolCall 分批：可并行批 + 串行批，保持模型给出的顺序 | M4 实现 |
+| `ToolCallCoordinator`（应用层） | 依据 `ExecutionMode` 分批：整批 `PARALLEL` 才并行，否则整批串行，结果保持模型给出的顺序；设计稿中的 `ToolExecutionPlanner` 已并入此类 | M4 已实现 |
 | `ToolRegistry` | 端口：`descriptors()`、`find(ToolName)`、`require(ToolName)` | M3 已实现 |
-| `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation)`；超时与中断由适配器处理 | M3 已实现；显式取消令牌在 M4 接入 |
+| `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation)`；超时与中断由适配器处理，M4 起每个工具执行前检查 run 取消标志 | M3 已实现；M4 已接入取消 |
 
 `ToolCatalog` 在每次 run 开始时取快照，run 期间插件卸载不影响本次执行。
 

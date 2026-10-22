@@ -1,38 +1,41 @@
 # 05 API 与 CLI
 
-> 状态：M0 冻结。HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
+> 状态：M4 已实现会话/运行 REST、SSE、模型与工具查询；分支/fork/compact、审批、
+> 插件、Skills 与 CLI 是后续里程碑。HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
 ## 1. 通用约定
 
 - 请求/响应：`application/json; charset=UTF-8`；SSE：`text/event-stream`；
-- 时间：ISO-8601 UTC，毫秒精度，例如 `2026-10-21T06:00:00.123Z`；
+- 时间：ISO-8601 UTC 字符串（`Instant.toString()`），不做本地时区转换；
 - ID：ULID 字符串，26 位；不暴露自增主键（策略表除外）；
 - 字段命名：camelCase；未知字段忽略；DTO 不含领域对象；
-- 分页：`?limit=50&cursor=<opaque>`，v0.1 只对会话列表与 entry 列表提供；
+- 分页：M4 只有 `limit`，没有 cursor；会话列表默认 50 条；
 - 鉴权：v0.1 **无鉴权**，默认只监听 `127.0.0.1`，禁止直接暴露公网；
-- 幂等：`POST /sessions/{id}/abort`、审批决策、compact 对终态重复调用返回当前状态，不重复写 entry；
-- 响应头 `X-Request-Id` 用于日志关联。
+- 幂等：`POST /sessions/{id}/abort` 对没有活跃 run 的会话返回 404，不重复写 entry；
+- 请求 ID 与日志关联字段尚未实现，M9 打磨阶段补充。
 
 ### 1.1 错误格式
 
+M4 的错误响应只有稳定错误码与可读消息：
+
 ```json
 {
-  "code": "SESSION_BUSY",
-  "message": "该会话已有运行中的任务",
-  "details": {"sessionId": "01J..."},
-  "requestId": "req_01J..."
+  "code": "AGENT_BUSY",
+  "message": "并发运行数已达上限，请稍后重试"
 }
 ```
 
-| HTTP | 典型 code | 场景 |
+| HTTP | 实际 code | 场景 |
 |---|---|---|
-| 400 | `INVALID_ARGUMENT` | 参数缺失、格式错误 |
-| 403 | `TOOL_DENIED` / `PATH_OUTSIDE_SANDBOX` | 策略拒绝、路径越界 |
-| 404 | `SESSION_NOT_FOUND` / `APPROVAL_NOT_FOUND` | 资源不存在 |
-| 409 | `SESSION_BUSY` / `INVALID_STATE` / `APPROVAL_ALREADY_DECIDED` | 状态冲突 |
-| 429 | `RUN_CAPACITY_EXCEEDED` | 全局并发已满 |
-| 500 | `INTERNAL_ERROR` / `PERSISTENCE_FAILED` | 未预期错误、落库失败 |
+| 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON |
+| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` | 资源不存在 |
+| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` | 状态或并发冲突 |
+| 429 | `AGENT_BUSY` | 全局并发 run 已满 |
+| 500 | 框架默认错误体 | 未映射异常；不伪装成领域错误 |
+
+工具被策略拒绝、工具执行失败不产生 HTTP 错误，而是 `isError=true` 的 toolResult
+与 `tool.completed` 事件，由模型自行处理。
 
 ## 2. 会话 API
 
@@ -43,81 +46,83 @@ POST /api/v1/sessions
 Content-Type: application/json
 
 {
-  "cwd": "D:/code/demo",
   "title": "重构登录模块",
-  "modelProfileId": "deepseek-chat",
-  "thinkingLevel": "MEDIUM",
-  "origin": "USER"
+  "cwd": "D:/code/demo",
+  "modelProfileId": "fake-demo",
+  "thinkingLevel": "OFF"
 }
 ```
 
-响应 `201`：
+- `thinkingLevel` 可省略，默认 `OFF`；取值 `OFF / LOW / MEDIUM / HIGH`；
+- `cwd` 必须存在且为目录，服务端规范化后作为沙箱根；
+- 根会话的 `parentSessionId` 为 null、`rootSessionId` 等于自身、`depth=0`、`origin=USER`。
+
+响应 `201`（字段即 `SessionResponse`）：
 
 ```json
 {
   "id": "01J...",
-  "rootSessionId": "01J...",
   "parentSessionId": null,
-  "origin": "USER",
+  "rootSessionId": "01J...",
   "title": "重构登录模块",
-  "cwd": "D:/code/demo",
-  "modelProfileId": "deepseek-chat",
-  "thinkingLevel": "MEDIUM",
+  "cwd": "D:\\code\\demo",
+  "modelProfileId": "fake-demo",
+  "thinkingLevel": "OFF",
   "status": "IDLE",
   "leafEntryId": null,
-  "version": 0,
-  "createdAt": "2026-10-21T06:00:00.000Z",
-  "updatedAt": "2026-10-21T06:00:00.000Z"
+  "depth": 0,
+  "origin": "USER",
+  "version": 0
 }
 ```
-
-约束：`cwd` 必须存在且为目录；服务端规范化后作为沙箱根；`title` 为空时自动生成
-（取首条用户消息前 40 字或 `新会话`）。
 
 ### 2.2 列表与详情
 
 ```http
-GET /api/v1/sessions?cwd=D:/code/demo&limit=20&cursor=
+GET /api/v1/sessions?cwd=D:/code/demo&limit=20
 GET /api/v1/sessions/{sessionId}
-DELETE /api/v1/sessions/{sessionId}
 ```
 
-- 列表按 `updated_at DESC`，不返回 entry 正文；
-- 详情包含状态、当前 leaf、分支摘要（直接子会话数量）；
-- 删除为级联删除 entry 与审批投影；v0.1 不做软删除。
+- 列表按 `updated_at DESC`，`cwd` 可省略，`limit` 默认 50；
+- 列表与详情使用同一个 `SessionResponse`，不返回 entry 正文；
+- 删除接口与分支摘要尚未实现。
 
-### 2.3 分支与树
+### 2.3 分支 entry
 
 ```http
-GET /api/v1/sessions/{sessionId}/entries?leafId={entryId}&view=branch
-GET /api/v1/sessions/{sessionId}/entries?view=tree
+GET /api/v1/sessions/{sessionId}/entries?leafId={entryId}
 ```
 
-`view=branch`（默认）：从指定 leaf（缺省为会话当前 leaf）回溯，返回该分支的 entry 列表：
+省略 `leafId` 时使用会话当前 leaf；响应是**裸数组**，按 `seq` 升序。每个 entry 使用
+稳定 envelope，前端不需要理解领域 payload 的 Java 类型：
 
 ```json
-{
-  "sessionId": "01J...",
-  "leafId": "01J...",
-  "entries": [
-    {
-      "id": "01J...",
-      "seq": 1,
-      "parentId": null,
-      "type": "MESSAGE",
-      "payloadVersion": 1,
-      "tokenEstimate": 12,
-      "createdAt": "2026-10-21T06:00:01.000Z",
-      "payload": {"role": "user", "content": [{"type": "text", "text": "你好"}]}
+[
+  {
+    "id": "01J...",
+    "parentId": null,
+    "seq": 1,
+    "type": "MESSAGE",
+    "createdAt": "2026-10-21T06:00:01Z",
+    "body": {
+      "role": "user",
+      "content": [{"type": "text", "text": "你好"}],
+      "toolCallId": null,
+      "toolName": null,
+      "isError": null,
+      "extra": {}
     }
-  ]
-}
+  }
+]
 ```
 
-`view=tree`：返回节点摘要（id、parentId、seq、type、createdAt、label、子节点数量），
-不返回完整 payload，供 UI 绘制会话树。
+`body.role` 为 `user / assistant / tool / system`；`body.extra` 承载压缩、运行摘要、
+审批、模型切换等结构化信息。`view=tree` 尚未实现。
 
-### 2.4 Fork
+### 2.4 Fork（应用用例已实现，HTTP 未暴露）
+
+> 领域与应用层已有 `SessionApplicationService.fork`，M4 尚未提供 HTTP 端点；
+> 以下为后续契约草案。
 
 ```http
 POST /api/v1/sessions/{sessionId}/fork?entryId={entryId}
@@ -133,7 +138,9 @@ POST /api/v1/sessions/{sessionId}/fork?entryId={entryId}
 > 说明：与 pi 的“原地切分支”不同，pi-java 的 fork 创建**新会话**；
 > 原地移动 leaf 通过 `POST /sessions/{id}/branch` 完成。
 
-### 2.5 切换分支
+### 2.5 切换分支（应用用例已实现，HTTP 未暴露）
+
+> `SessionApplicationService.moveBranch` 已存在，M4 尚未提供 HTTP 端点。
 
 ```http
 POST /api/v1/sessions/{sessionId}/branch
@@ -154,57 +161,58 @@ POST /api/v1/sessions/{sessionId}/messages/stream
 Content-Type: application/json
 Accept: text/event-stream
 
-{"content": "读取 pom.xml 并解释依赖"}
+{"text": "读取 pom.xml 并解释依赖"}
 ```
 
-响应 `200 text/event-stream`，事件格式：
+响应 `200 text/event-stream`。服务端先同步完成“追加用户消息 + 预留 run”，再返回
+emitter；run 在虚拟线程执行，响应体随事件持续输出，终态后关闭：
 
 ```text
 id: 01J-run:1
 event: run.started
-data: {"seq":1,"runId":"01J-run","sessionId":"01J...","type":"run.started","at":"2026-10-21T06:00:00.000Z","data":{"model":"deepseek-chat"}}
+data: {"seq":1,"runId":"01J-run","sessionId":"01J...","type":"run.started","at":"2026-10-21T06:00:00Z","data":{"runId":"01J-run","modelProfileId":"fake-demo","modelName":"fake-demo","maxTurns":20,"startedAt":"..."}}
 
 id: 01J-run:2
 event: message.delta
-data: {"seq":2,...,"data":{"delta":"我先"}}
-
-: heartbeat
+data: {"seq":2,...,"type":"message.delta","data":{"kind":"text","text":"我先"}}
 ```
 
 - 事件类型与 data 字段见 [04 运行时与事件](04-runtime-and-events.md)；
-- 客户端可用 `Last-Event-ID` 请求头重连；`POST` 重连时用同一请求体与
-  `GET /runs/{runId}/events` 组合恢复；
-- 该请求在 run 结束后才返回，超时由 `SseEmitter(timeout=0)` 保持；
-- 同一会话已有活跃 run 时返回 409。
+- 同一会话已有活跃 run 返回 409 `RUN_ALREADY_ACTIVE`；全局并发已满返回 429 `AGENT_BUSY`；
+- `Last-Event-ID` 只对 `GET /runs/{runId}/events` 生效；POST 不能重放已创建的消息，
+  断线后用 runId 走重连接口。
 
-### 2.7 断线重连
+### 2.7 活跃 run 与断线重连
 
 ```http
+GET /api/v1/sessions/{sessionId}/run
+GET /api/v1/runs/{runId}
 GET /api/v1/runs/{runId}/events
 Last-Event-ID: 01J-run:17
 Accept: text/event-stream
 ```
 
-- 命中缓冲：从 18 开始回放，再持续推送新事件；
-- 超出缓冲：先发 `replay.gap`，客户端调用 entry 接口重拉完整分支；
-- run 已结束且缓冲仍在：回放后发送终态并关闭；
-- run 不存在或缓冲已清理：404，客户端以 entry 数据为准。
+- `GET /sessions/{id}/run`：有活跃 run 返回 `{runId, sessionId}`，否则 `204`；
+  页面刷新后用它在“新建流”和“重连流”之间选择；
+- `GET /runs/{runId}`：返回 run 快照 `runId/sessionId/status/stopReason/turns/toolCalls/usage/startedAt/finishedAt/durationMs/errorMessage`；
+- `Last-Event-ID` 支持 `runId:seq` 与纯数字；空值从头回放；
+- 命中缓冲：回放 `seq+1` 起的事件，再持续推送；已结束且缓冲仍在：回放后关闭；
+- 起点已淘汰：先收到 `replay.gap`，客户端调用 entry 接口重拉分支；
+- run 不存在或事件通道已清理：404 `RUN_NOT_FOUND`。
 
-### 2.8 取消与压缩
+### 2.8 取消
 
 ```http
 POST /api/v1/sessions/{sessionId}/abort
-POST /api/v1/sessions/{sessionId}/compact
-Content-Type: application/json
-
-{"instructions": "重点保留数据库设计决策"}
 ```
 
-- abort：无活跃 run 时幂等返回当前状态；有则触发取消令牌；
-- compact：手动压缩，可在 IDLE 时执行；有活跃 run 时排队到当前 turn 结束后执行；
-- 响应返回 `runId`、`accepted` 与当前状态。
+响应 `202` 与 `{runId, sessionId}`；无活跃 run 返回 404 `RUN_NOT_FOUND`。
+取消是协作式的：当前 LLM 流被关闭，已输出文本保留，随后写
+`RUN_SUMMARY(stopReason=CANCELLED)`。
 
-## 3. 审批 API
+> 手动压缩 `POST /compact` 在 M7 提供。
+
+## 3. 审批 API（M6）
 
 ```http
 GET /api/v1/approvals?status=PENDING&sessionId=01J...
@@ -324,7 +332,7 @@ GET /api/v1/tools?cwd=D:/code/demo
 - 策略管理 `GET/PUT /api/v1/tool-policies` 推迟到 M6，与审批和写工具一起实现；
   届时未知工具不能创建 ALLOW 规则，防止插件卸载后残留放行。
 
-## 6. 插件 API
+## 6. 插件 API（M5）
 
 ```http
 GET  /api/v1/plugins
@@ -347,36 +355,44 @@ POST /api/v1/plugins/{id}/disable
 - disable 先置 `DISABLED`，等待活跃调用归零后关闭 ClassLoader；
 - 运行中的 run 继续使用旧工具快照，不因卸载而失败。
 
-## 7. Skills 与健康检查
+## 7. 系统信息、Skills 与健康检查
+
+M4 已实现：
 
 ```http
-GET  /api/v1/skills
-POST /api/v1/skills/refresh
-GET  /api/v1/health
+GET /api/v1/system/info
 ```
-
-`/skills` 返回 name、description、path、source（GLOBAL/PROJECT/CONFIG）；
-`refresh` 清空并重建 Skill 目录缓存；`/health` 返回：
 
 ```json
 {
-  "status": "UP",
-  "database": "UP",
-  "migration": "UP",
-  "plugins": {"active": 2, "failed": 0},
-  "activeRuns": 1
+  "version": "0.1.0-SNAPSHOT",
+  "workspaceRoot": "D:\\code\\pi-java",
+  "osName": "Windows 11"
 }
 ```
 
-## 8. CLI
+Web UI 用它获取默认工作目录，避免把开发者机器路径硬编码进静态资源。
+只暴露版本、进程工作目录与操作系统，不含密钥或环境变量。
 
-启动方式：
+后续里程碑追加：
+
+```http
+GET  /api/v1/skills          # M7
+POST /api/v1/skills/refresh  # M7
+GET  /api/v1/health          # M9
+```
+
+`/health` 计划返回数据库、Flyway、插件快照与活跃 run 数；M4 尚无该端点。
+
+## 8. CLI（M9）
+
+M4 只能通过 Java 进程启动服务：
 
 ```bash
-java -jar pi-java-app.jar --spring.profiles.active=demo
-# 或安装脚本后
-pi serve --port 8080
+java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 ```
+
+picocli 命令在 M9 实现；以下为已冻结的规划契约。
 
 ### 8.1 命令总览
 
@@ -440,29 +456,28 @@ CLI 与 Web 使用同一个数据库与同一套用例；CLI 不直接操作 Map
 
 ## 9. Web UI
 
-静态资源位于 `pi-java-app/src/main/resources/static/`，原生 HTML/CSS/JS，无构建步骤。
-
-页面结构：
+M4 的静态资源位于 `pi-java-app/src/main/resources/static/`，原生 HTML/CSS/JS，无构建步骤，
+只依赖 `/api/v1`。当前页面为单栏布局：
 
 ```text
-┌───────────────┬─────────────────────────────────────┬──────────────────┐
-│ 会话侧栏       │ 消息流                               │ 右侧上下文面板     │
-│ + 新建         │ - 用户/助手气泡                       │ - 模型/思考级别    │
-│ 会话列表       │ - 工具卡片（可展开参数与输出）          │ - 上下文占用条     │
-│ 分支/子会话     │ - 审批弹窗（APPROVE/DENY）            │ - token 统计       │
-│ 设置入口       │ - 流式光标、取消按钮                   │ - 工具策略提示     │
-└───────────────┴─────────────────────────────────────┴──────────────────┘
+┌───────────────┬─────────────────────────────────────────┐
+│ 会话侧栏       │ 消息流                                   │
+│ + 新建会话     │ - 用户/助手气泡                           │
+│ 会话列表       │ - 工具卡片（工具名、参数、输出、错误态）    │
+│ 当前 run 状态  │ - 流式文本与光标                          │
+│               │ - 停止按钮、token 统计                    │
+└───────────────┴─────────────────────────────────────────┘
 ```
 
-必须覆盖的交互：
+M4 已覆盖的交互：
 
-1. 新建会话 → 发送消息 → 流式增量 → 完成；
-2. 工具卡片展开/折叠，显示参数摘要、输出摘要、耗时；
-3. 审批弹窗展示脱敏参数、风险、过期时间；允许/拒绝后继续；
-4. 取消运行，显示 ABORTED；
-5. 会话树查看与切换分支；
-6. 模型/插件/Skills 设置页；
-7. SSE 断开后自动重连或提示重拉。
+1. 新建会话（标题、工作目录、模型档案）→ 发送消息 → 流式增量 → 完成；
+2. 工具卡片展示 `read` 等只读工具的参数与输出；
+3. 停止运行，显示 ABORTED，保留已输出内容；
+4. 会话切换与刷新后通过 `GET /sessions/{id}/run` 重连 SSE；
+5. 输入 `/read README.md`、`/ls .` 或普通问候即可在 Fake 模型下体验。
+
+审批弹窗、会话树、设置页、Skills/插件管理分别在 M6–M8 接入。
 
 ## 10. 版本与兼容
 

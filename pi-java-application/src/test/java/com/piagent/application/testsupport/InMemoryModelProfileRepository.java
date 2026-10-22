@@ -1,4 +1,4 @@
-package com.piagent.application.model.service;
+package com.piagent.application.testsupport;
 
 import com.piagent.domain.model.ModelId;
 import com.piagent.domain.model.ModelProfile;
@@ -15,7 +15,7 @@ import java.util.Optional;
  *
  * <p>与真实仓储一致：update 使用旧 version 做 CAS，成功后版本加一。</p>
  */
-final class InMemoryModelProfileRepository implements ModelProfileRepository {
+public final class InMemoryModelProfileRepository implements ModelProfileRepository {
 
     private final Map<String, ModelProfile> store = new LinkedHashMap<>();
 

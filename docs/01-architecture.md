@@ -126,7 +126,8 @@ tool    ◄──── extension      （插件工具映射为 ToolDescriptor�
 ### 4.2 application
 
 - 一个用例一个类（如 `SendMessageUseCase`、`DecideApprovalUseCase`），避免巨型 Service。
-- Agent Loop 拆成 `RunLifecycle`、`TurnExecutor`、`ToolCallCoordinator`、`ContextAssemblyService`。
+- Agent Loop 拆成 `AgentLoopService`、`RunRuntime`、`TurnPipeline`、`TurnExecutor`、
+  `ToolCallCoordinator`、`RunEventHub`，各自只负责一段可测试的职责。
 - 事务只包住单次 entry 追加或状态更新；LLM 流与工具执行期间不持有数据库事务。
 - 通过构造器注入 domain 端口；不出现 `@Mapper`、`ObjectMapper`、`HttpServletRequest`。
 

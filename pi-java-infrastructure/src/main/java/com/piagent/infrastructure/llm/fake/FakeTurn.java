@@ -205,7 +205,7 @@ public record FakeTurn(List<LlmDelta> deltas, LlmResponse response, Failure fail
         }
     }
 
-    private static String lastUserText(LlmRequest request) {
+    static String lastUserText(LlmRequest request) {
         for (int index = request.messages().size() - 1; index >= 0; index--) {
             if (request.messages().get(index) instanceof UserMessage user) {
                 return user.content().stream()

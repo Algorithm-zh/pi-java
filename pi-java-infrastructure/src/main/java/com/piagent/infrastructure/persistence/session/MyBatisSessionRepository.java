@@ -73,4 +73,14 @@ public class MyBatisSessionRepository implements SessionRepository {
                 .map(converter::toDomain)
                 .toList();
     }
+
+    @Override
+    public List<ChatSession> findRecent(int limit) {
+        if (limit <= 0) {
+            throw new DomainException(DomainErrorCode.INVALID_ARGUMENT, "limit 必须大于 0");
+        }
+        return mapper.findRecent(limit).stream()
+                .map(converter::toDomain)
+                .toList();
+    }
 }

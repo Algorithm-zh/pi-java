@@ -29,6 +29,7 @@ import com.piagent.domain.shared.IdGenerator;
 import com.piagent.domain.shared.Ulid;
 import java.time.Clock;
 import java.time.Instant;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -168,6 +169,40 @@ public class SessionApplicationService {
     @Transactional(readOnly = true)
     public ChatSession find(SessionId sessionId) {
         return require(sessionId);
+    }
+
+    /**
+     * 列出最近会话。
+     *
+     * @param cwd 工作目录；为 null 时不限制目录
+     * @param limit 最大条数
+     * @return 会话列表
+     */
+    @Transactional(readOnly = true)
+    public List<ChatSession> list(Path cwd, int limit) {
+        Guard.require(limit >= 1 && limit <= 200, DomainErrorCode.INVALID_ARGUMENT,
+                "limit 必须在 1 到 200 之间");
+        if (cwd == null) {
+            return repository.findRecent(limit);
+        }
+        return repository.findByCwd(cwd.toAbsolutePath().normalize(), limit);
+    }
+
+    /**
+     * 查询指定分支的 entry，用于 Web UI 时间线。
+     *
+     * @param sessionId 会话标识
+     * @param leafId 叶子；为 null 时使用当前叶子
+     * @return 按 seq 升序排列的分支
+     */
+    @Transactional(readOnly = true)
+    public List<SessionEntry> listBranch(SessionId sessionId, EntryId leafId) {
+        ChatSession session = require(sessionId);
+        EntryId effective = leafId == null ? session.leafEntryId() : leafId;
+        if (effective == null) {
+            return List.of();
+        }
+        return entryStore.loadBranch(sessionId, effective);
     }
 
     /**

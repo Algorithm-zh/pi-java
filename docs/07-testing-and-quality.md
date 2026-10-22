@@ -83,13 +83,22 @@ M6 补充：
 
 ### 4.3 运行时
 
-- 同一 session 并发发起两个 run：第二个返回 409；
-- LLM 失败发生在首个 delta 之前：adapter 重试 ≤ 2；
-- 已输出 delta 后失败：不重试，状态 FAILED；
-- 取消：LLM/工具/审批/子代理全部收到取消，最终 ABORTED；
-- 预算：maxTurns 达到时停止并写 MAX_STEPS；
-- run 结束必写 RUN_SUMMARY，且只写一次；
-- 启动恢复：悬空 toolCall 补结果、无 run 的 RUNNING 会话补摘要。
+M4 已覆盖（`AgentLoopServiceTest` 15 个用例 + `AgentLoopIntegrationTest` 2 个链路）：
+
+- 同一 session 并发发起两个 run：第二个返回 `RUN_ALREADY_ACTIVE`（单测）
+  或全局满额返回 `AGENT_BUSY`（并发许可测试）；
+- 文本 run 单轮完成；工具 run 两轮完成且 toolCall/toolResult 成对；
+- 并行工具按声明顺序落库；混入串行工具时整批串行；
+- `ASK` 策略在 M4 转为错误结果且不执行工具；工作区规则可 `DENY`；
+- 未注册工具得到配对错误结果，run 继续；
+- 取消：LLM 流收到取消，assistant 保留部分文本并以 ABORTED 落库；
+- 模型失败：不写 assistant 消息，写 RUN_SUMMARY(ERROR)；
+- maxTurns 与工具预算耗尽写 `MAX_STEPS`；
+- 启动失败清理：模型缺失回滚预留、会话恢复 IDLE；
+- 悬空 RUNNING 会话在下次启动前自愈为 IDLE；
+- run 结束必写且只写一条 RUN_SUMMARY。
+
+M6/M7 补充：审批等待/超时/取消、压缩切点与收敛。
 
 ### 4.4 压缩与 Skills
 
@@ -204,19 +213,25 @@ WireMock 覆盖（10 个端到端用例）：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
-M3 实测（2026-10-21，`mvn -q verify`）：
+M4 实测（2026-10-22，`mvn -q verify`）：
 
 | 模块 | 行覆盖 | 测试数 | 门槛 |
 |---|---|---|---|
-| `pi-java-domain` | 86.7%（723/834） | 76 | ≥ 60% |
-| `pi-java-application` | 98.0%（148/151） | 24 | ≥ 60% |
-| `pi-java-infrastructure` | 64.1%（1022/1594） | 101（2 跳过） | 无门槛 |
-| `pi-java-trigger` | 91.5%（54/59） | 11 | 无门槛 |
-| `pi-java-app` | 33.3%（1/3，仅启动类） | 27 | 无门槛 |
+| `pi-java-domain` | 86.7%（822/948） | 88 | ≥ 60% |
+| `pi-java-application` | 88.9%（821/924） | 48 | ≥ 60% |
+| `pi-java-infrastructure` | 64.8%（1066/1646） | 108（2 跳过） | 无门槛 |
+| `pi-java-trigger` | 38.3%（120/313） | 21 | 无门槛 |
+| `pi-java-app` | 7.7%（1/13，仅启动类） | 30 | 无门槛 |
 
-当前共 239 个测试全绿。infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的
-关闭/拒绝分支与部分 IO 异常路径难以稳定触发；这些路径由行为测试和手工 smoke 兜底，
-不以排除代码的方式抬高数字。domain/application 始终保持 ≥ 60%，新增行为必须有测试。
+当前共 295 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
+application 覆盖率从 M3 的 98.0% 降到 88.9%，是因为新增了 Agent Loop、事件中心、
+入口追加器等大量运行时代码，而测试仍以内存端口单测为主；仍高于 60% 门槛。
+trigger 从 17.3% 升到 38.3%，新增的 `SessionControllerTest`、`RunControllerTest`
+覆盖了会话/运行端点与错误映射；SSE 连接与心跳线程属于长生命周期资源，由
+app 层的 `RunSseIntegrationTest` 走真实 MockMvc 异步链路验证。
+
+infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的关闭/拒绝分支与部分 IO
+异常路径难以稳定触发；这些路径由行为测试和手工 smoke 兜底，不以排除代码的方式抬高数字。
 
 application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 app 模块的 H2 集成测试覆盖，
 避免为了覆盖率把基础设施依赖倒灌进应用层。
@@ -232,13 +247,22 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 
 ### 8.1 demo E2E（M4 起）
 
-1. 启动 `demo` profile（H2 + Fake）；
-2. 创建会话；
-3. POST 消息并读取 SSE；
-4. 断言文本增量、工具卡片事件、run.completed；
-5. 触发一次 read 工具与一次审批写文件；
-6. 取消一次运行，断言 ABORTED；
-7. 查看 entry 树与分支。
+已自动化（`RunSseIntegrationTest`，真实 Spring MVC + H2 + Fake + 读工具）：
+
+1. 创建会话；
+2. POST `/messages/stream` 并等待异步 emitter 完成；
+3. 断言 `run.started → turn.started → message.* → tool.started/completed →
+   message.completed → run.completed` 的顺序与 `id=runId:seq`；
+4. 用 `Last-Event-ID: runId:2` 重连，断言只回放 `seq>2` 的事件且连接自动关闭。
+
+浏览器手工走查（M4 验收）：
+
+1. 启动 demo profile（H2 + Fake）；
+2. 新建会话 → 发送 `/read README.md` → 观察流式文本与工具卡片；
+3. 停止一次运行，确认界面显示 ABORTED 且保留部分输出；
+4. 刷新页面，确认会话列表与历史 entry 可恢复。
+
+审批写文件、会话树/分支查看在 M6–M8 加入走查清单。
 
 ### 8.2 黄金样本（M7）
 

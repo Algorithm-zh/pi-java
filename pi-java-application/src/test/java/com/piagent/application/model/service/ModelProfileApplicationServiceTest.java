@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.piagent.application.model.command.CreateModelProfileCommand;
 import com.piagent.application.model.command.UpdateModelProfileCommand;
+import com.piagent.application.testsupport.InMemoryModelProfileRepository;
 import com.piagent.domain.model.ModelCapabilities;
 import com.piagent.domain.model.ModelEndpoint;
 import com.piagent.domain.model.ModelProfile;
