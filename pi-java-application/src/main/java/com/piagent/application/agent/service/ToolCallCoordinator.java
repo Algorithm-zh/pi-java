@@ -64,7 +64,6 @@ public class ToolCallCoordinator {
         this.preflight = preflight;
         this.executor = executor;
     }
-
     /**
      * 执行一批工具调用并写入会话日志。
      *
@@ -76,7 +75,8 @@ public class ToolCallCoordinator {
                 context.registry(), context.remainingCalls());
         SandboxPolicy sandbox = sandboxOf(context.session());
         BatchExecution execution = preflight.supportsParallel(prepared)
-                ? executeParallel(prepared, sandbox, context.events(), context.cancelled())
+                ? executeParallel(prepared, context.session(), sandbox, context.events(),
+                        context.cancelled())
                 : executeSequential(context.session(), context.runId(), prepared, sandbox,
                         context.events(), context.cancelled());
         writeResults(context.session(), execution.results());
@@ -105,7 +105,7 @@ public class ToolCallCoordinator {
                     executed++;
                 }
             } else {
-                result = invoke(call, sandbox);
+                result = invoke(call, sandbox, session);
                 executed++;
             }
             results.add(result);
@@ -133,7 +133,7 @@ public class ToolCallCoordinator {
         if (cancelled.getAsBoolean()) {
             return new ApprovalExecution(cancelled(call.call()), false);
         }
-        return new ApprovalExecution(invoke(call, sandbox), true);
+        return new ApprovalExecution(invoke(call, sandbox, session), true);
     }
 
     private ToolResult approvalRejection(PreparedCall call, ApprovalRequest approval) {
@@ -148,8 +148,8 @@ public class ToolCallCoordinator {
         return ToolResult.error(callIdOf(call.call()), call.descriptor().name(), message);
     }
 
-    private BatchExecution executeParallel(List<PreparedCall> prepared, SandboxPolicy sandbox,
-            RunEventPublisher events, BooleanSupplier cancelled) {
+    private BatchExecution executeParallel(List<PreparedCall> prepared, ChatSession session,
+            SandboxPolicy sandbox, RunEventPublisher events, BooleanSupplier cancelled) {
         List<Future<ToolResult>> futures = new ArrayList<>(prepared.size());
         int executed = 0;
         for (PreparedCall call : prepared) {
@@ -159,7 +159,7 @@ public class ToolCallCoordinator {
             } else if (cancelled.getAsBoolean()) {
                 futures.add(CompletableFuture.completedFuture(cancelled(call.call())));
             } else {
-                futures.add(executor.submit(() -> invoke(call, sandbox)));
+                futures.add(executor.submit(() -> invoke(call, sandbox, session)));
                 executed++;
             }
         }
@@ -184,11 +184,12 @@ public class ToolCallCoordinator {
         }
     }
 
-    private ToolResult invoke(PreparedCall call, SandboxPolicy sandbox) {
+    private ToolResult invoke(PreparedCall call, SandboxPolicy sandbox, ChatSession session) {
         ToolCallId callId = callIdOf(call.call());
         try {
+            // 携带发起会话：subagent 等需要父会话上下文的工具依赖它
             ToolInvocation invocation = new ToolInvocation(callId, call.descriptor().name(),
-                    call.call().arguments(), sandbox);
+                    call.call().arguments(), sandbox, session.identity().id());
             return invoker.invoke(invocation);
         } catch (RuntimeException error) {
             return ToolResult.error(callId, call.descriptor().name(),

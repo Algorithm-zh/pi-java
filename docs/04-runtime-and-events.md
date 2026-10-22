@@ -377,16 +377,69 @@ description: 发布流程    # 可省略，默认取正文第一段
 3. 同一技能正文也会注入本轮 system prompt 第 6 小节；
 4. 技能不存在、正文读取失败时按普通消息处理，不报错。
 
-## 8. 子代理（M8）
+## 8. 子代理（M8 已实现）
 
-- 工具形态 `subagent`，同步执行，参数：`mode=SPAWN|FORK`、`task`、`persona`、`tools`、`timeout`；
-- `SPAWN`：新子会话，零父上下文；`FORK`：把父投影按预算裁剪后复制为子会话初始 entry；
-- 子会话 `origin=SUBAGENT`，记录 `parent_session_id/root_session_id/depth/fork_from_entry_id`；
-- 工具集合 = 父快照 ∩ 请求白名单；深度达到上限时从子工具目录移除 `subagent`；
-- 子会话审批独立，不继承父的“本会话已允许”；沙箱根取父子交集，只收紧不放宽；
-- 父取消级联子取消；子超时终止并返回 `ABORTED`；
-- 结果写父会话 toolResult：`childSessionId`、`stopReason`、`usage`、摘要；`isError = stopReason != STOP`；
-- 子代理内部异常不向父循环抛出，父模型始终拿到结构化工具结果。
+### 8.1 工具契约
+
+`subagent` 工具，**同步**执行，参数：
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `task` | 是 | 自包含的任务描述（≤8k 字符） |
+| `mode` | 否 | `SPAWN`（默认，零父上下文）/ `FORK`（复制父投影） |
+| `persona` | 否 | 角色设定（≤1k 字符） |
+| `tools` | 否 | 工具白名单；为空表示继承父工具集 |
+| `timeoutSeconds` | 否 | 超时；默认 300，上限 600（超过直接拒绝） |
+
+风险级别 `MEDIUM`，执行模式 `SEQUENTIAL`，默认策略 `ASK`。
+
+### 8.2 执行流程
+
+```text
+SubagentToolInvoker.invoke
+  ├─ 解析参数（失败 → isError 结果）
+  ├─ 由 originSessionId 读取父会话（缺失 → isError 结果）
+  ├─ SubagentService.delegate
+  │    ├─ 深度校验（超限 → isError 结果）
+  │    ├─ 工具子集 = 父快照 ∩ 白名单，深度达上限移除 subagent（空集 → isError）
+  │    ├─ SubagentSessionFactory 构造子会话（origin=SUBAGENT, depth=父+1）
+  │    ├─ 持久化子会话
+  │    ├─ 组装提示词（角色 / 任务 / 可用工具 / 输出契约）
+  │    └─ SubagentExecutionService.run
+  │         ├─ AgentLoopService.start（子会话，新 run）
+  │         ├─ awaitTerminal（有界等待）
+  │         └─ aggregate：取最后一条助手文本 + run 统计
+  └─ 回写 ToolResult：content = render()，details = childSessionId/stopReason/usage/...
+```
+
+### 8.3 失败语义
+
+| 情形 | 父模型看到的结果 |
+|---|---|
+| 深度超限、白名单空交集 | `isError=true`，content 说明原因 |
+| 子 run 正常结束 | `isError=false`，content = 结论 + 统计行 |
+| 子 run 以 LENGTH/MAX_STEPS/CANCELLED/TIMEOUT/ERROR 结束 | `isError=true`，content 首行标注原因 |
+| 等待超时 | 取消子 run，结果 `stopReason=TIMEOUT` |
+| 子代理内部抛异常 | `isError=true`，content 含异常消息；**不向父循环抛出** |
+
+### 8.4 循环依赖
+
+子代理在工具管线内部启动 Agent Loop，形成结构性环：
+
+```text
+AgentLoopService → TurnPipeline → ToolCallCoordinator
+  → SubagentToolInvoker → SubagentExecutionService → AgentLoopService
+```
+
+`SubagentExecutionService` 使用 `ObjectProvider<AgentLoopService>` **延迟解析**，只在真正
+执行时取值。没有开启全局 `spring.main.allow-circular-references`，其余循环依赖仍会被拒绝。
+
+### 8.5 一次 run 内的可见性
+
+- 子 run 有独立的 `RunId`、独立的事件通道与其自己的 `RUN_SUMMARY`；
+- 父 run 只把子代理当普通工具：`tool.started` → （执行中）→ `tool.completed`；
+- 子会话通过会话树查询（`findChildren`）或 `GET /sessions/{id}` 查看；
+- v0.1 **不向父 SSE 流推送** `subagent.*` 事件。
 
 ## 9. SSE 事件
 

@@ -1,6 +1,6 @@
 # 08 路线图
 
-> 状态：M0–M7 已完成（M7 于 2026-10-22），下一步 M8 子智能体。
+> 状态：M0–M8 已完成（M8 于 2026-10-22），下一步 M9 CLI + 打磨 + v0.1.0。
 > 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
@@ -261,19 +261,34 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M8 子智能体
 
-范围：
+状态：已完成（2026-10-22），详见 [M8 记录](milestones/M8.md)。
 
-- SubagentPolicy、subagent 工具、SPAWN/FORK；
-- 子会话创建与 entry 复制（FORK）；
-- 权限交集、取消级联；
-- SSE/UI 子会话时间线。
+范围（实际交付）：
 
-验收：
+- `domain.subagent`：`SubagentMode`、`SubagentPolicy`、`SubagentRequest`、`SubagentResult`、
+  `SubagentToolset`（工具子集 + 深度裁剪，纯函数）；
+- 应用层 `application.subagent`：`SubagentSessionFactory`、`SubagentExecutionService`、
+  `SubagentService`、`SubagentToolInvoker`（`@Primary`，截获 `subagent`）、`SubagentRegistry`；
+- `ToolInvocation` 增加 `originSessionId`，让需要父会话上下文的工具能拿到发起者；
+- 循环依赖用 `ObjectProvider` 延迟解析，不开启全局 `allow-circular-references`；
+- 配置：`pi.agent.max-subagent-depth`、`subagent-timeout-seconds`、`subagent-max-timeout-seconds`；
+- 无新增表（子代理复用 `pi_session` 的 parent/root/depth/origin）。
 
-- 深度上限移除 subagent 工具；
-- 工具子集与沙箱交集；
-- 父取消子取消；
-- 结果回写结构化。
+验收结果：
+
+- `subagent` 工具出现在目录中，默认 `ASK`；
+- 深度达上限后子工具集不再包含 `subagent`；
+- 白名单只收紧：父没有的工具不会因为白名单而出现；
+- 子会话正确入树（parent/root/depth/origin），父会话保持 IDLE 且不被写入；
+- 子代理失败/超时/异常都以 toolResult 回写，父循环不中断；
+- `mvn clean verify` 全绿，573 个测试（2 跳过）。
+
+未包含（按计划后移）：
+
+- SSE `subagent.*` 事件与 UI 会话树展示；
+- 异步/并行子代理、远程执行；
+- 子会话沙箱进一步收紧（例如限制到子目录）；
+- 审批的会话级“记住批准”复用。
 
 ### M9 CLI + 打磨 + v0.1.0
 

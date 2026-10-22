@@ -67,4 +67,16 @@ M7 完成 `application.context`：
 | `PromptSections` / `SkillCommand` | system prompt 小节与 `/skill:` 语法 |
 
 同时修正了 M1 遗留的 token 估算口径（统一为 `EntryTokenCounter`），中文会话才能正确触发压缩。
-application 共 101 个测试。详见 [M7 记录](../docs/milestones/M7.md)。
+
+M8 完成 `application.subagent`：
+
+| 类型 | 职责 |
+|---|---|
+| `SubagentSessionFactory` | 构造子会话（沿用模型与沙箱、`origin=SUBAGENT`、深度 +1） |
+| `SubagentExecutionService` | 持久化子会话、启动子 run、有界等待、聚合结论 |
+| `SubagentService` | 深度校验、工具子集、组装提示词、委派 |
+| `SubagentToolInvoker` | `@Primary` 的 `ToolInvoker`，截获 `subagent` 并转发其余工具 |
+| `SubagentRegistry` | `subagent` 工具定义（与执行者成对出现） |
+
+`AgentLoopService` 用 `ObjectProvider` 延迟解析，避免“子代理在工具管线内启动 Agent Loop”
+造成的结构性循环依赖。application 共 111 个测试。详见 [M8 记录](../docs/milestones/M8.md)。

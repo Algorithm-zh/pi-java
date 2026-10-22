@@ -569,6 +569,9 @@ ACTIVE            --disable--> DISABLED
 | INV-13 | 上下文能整体放进保留窗口时不压缩（压缩无收益） | `CompactionPlanner` |
 | INV-14 | token 估算只有一套口径：落库估算与投影汇总均来自 `EntryTokenCounter` | `SessionEntryAppender` + 投影器 |
 | INV-15 | 摘要不收敛时仍写入，但必须标记 `prunedOnly=true`，且每 run 自动压缩至多一次 | `ContextCompactionService` + `ContextCompactionState` |
+| INV-16 | 深度达到 `maxDepth` 时子工具集不含 `subagent` 工具 | `SubagentToolset` |
+| INV-17 | 子代理超时不得超过工具调度上限（600 秒），超出直接拒绝而非静默截断 | `SubagentPolicy` |
+| INV-18 | 子代理失败/超时/取消必须以 toolResult 回写，不得抛出到父循环 | `SubagentToolInvoker` |
 | INV-06 | 同一 session 同时最多一个活跃 run | `RunRegistry` 原子注册 |
 | INV-07 | 审批终态不可逆；决策必须写 entry | `ApprovalRequest` + 应用层 |
 | INV-08 | 写路径必须在可写根内，真实路径复核 | `PathSandbox` + `RealPathResolver` |

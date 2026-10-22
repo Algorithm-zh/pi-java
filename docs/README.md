@@ -32,7 +32,8 @@
 - [M5：插件 SDK](milestones/M5.md)
 - [M6：审批与写工具](milestones/M6.md)
 - [M7：上下文压缩与 Skills](milestones/M7.md)
-- M8–M9：随里程碑完成补齐
+- [M8：同步子智能体](milestones/M8.md)
+- M9：随里程碑完成补齐
 
 ## 模块文档
 

@@ -4,11 +4,11 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M7 上下文压缩与 Skills 已完成**（2026-10-22）。已具备树形会话日志、
+> 当前状态：**M8 同步子智能体已完成**（2026-10-22）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI、零依赖插件契约与 run 级工具快照、审批状态机、
-> 以及**结构化上下文压缩**（自动/溢出重试/手动）与**文件系统 Skills**。
-> 下一步 M8：同步子智能体。每个里程碑都包含实现、测试、文档与 git 提交。
+> 结构化上下文压缩、文件系统 Skills，以及**带深度与工具子集限制的同步子代理**。
+> 下一步 M9：CLI + 打磨 + v0.1.0。每个里程碑都包含实现、测试、文档与 git 提交。
 
 ## 快速体验
 
@@ -78,6 +78,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 - **安全默认**：只读工具放行；`write/edit` 默认询问并阻塞等待人工审批，批准后才执行；
   `bash` 默认拒绝，需要显式策略放行；路径沙箱对所有文件工具生效。
 - **插件化**：零依赖 `plugin-api`，每个插件独立 ClassLoader，工具带插件前缀。
+- **子代理受限**：`subagent` 工具同步委派子任务；工具子集只能收紧、深度有上限、
+  失败/超时都以结构化结果回写，父循环不中断。
 - **上下文有界**：接近窗口时结构化压缩（目标/约束/进展/决策/下一步/关键上下文），
   不收敛时降级为只剪枝，绝不进入无限压缩。
 - **技能按需加载**：只把名称与描述放进 system prompt，正文由模型 `read` 或
@@ -108,8 +110,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M7 已验证通过：553 个测试全绿（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 通过，domain 行覆盖 89.2%、application 行覆盖 86.1%。
+当前 M8 已验证通过：573 个测试全绿（2 个符号链接用例条件跳过），
+Checkstyle/ArchUnit 通过。
 
 ## 文档
 
@@ -133,6 +135,7 @@ Checkstyle/ArchUnit 通过，domain 行覆盖 89.2%、application 行覆盖 86.1
 - [M5 里程碑记录](docs/milestones/M5.md)
 - [M6 里程碑记录](docs/milestones/M6.md)
 - [M7 里程碑记录](docs/milestones/M7.md)
+- [M8 里程碑记录](docs/milestones/M8.md)
 
 架构决策：
 

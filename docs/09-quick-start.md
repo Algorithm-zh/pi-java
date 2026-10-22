@@ -135,6 +135,51 @@ curl http://127.0.0.1:8080/api/v1/skills          # 查看目录
 在项目根目录放 `AGENTS.md`，内容会自动进入 system prompt，用来声明
 代码风格、测试要求等团队约定。
 
+## 六点五、子代理（M8）
+
+模型可以在对话中自行调用 `subagent` 工具，把一段自包含的任务交给子代理执行，
+只拿回结论。默认策略是 `ASK`（需要审批），放行后模型才会使用。
+
+参数示例（模型自行填写，也可手工通过 `/tool` 触发）：
+
+```json
+{
+  "mode": "SPAWN",
+  "task": "阅读 pom.xml，总结项目用到的所有第三方依赖及其用途",
+  "persona": "严谨的构建工程师",
+  "tools": ["read", "grep"],
+  "timeoutSeconds": 120
+}
+```
+
+- `mode=SPAWN`：全新子会话，不继承当前对话；
+- `mode=FORK`：继承当前上下文继续工作；
+- `tools`：白名单，只能是你已经拥有的工具的子集；
+- 子代理是**新会话**，会出现在会话树里，可单独查看其完整过程。
+
+相关配置：
+
+```yaml
+pi:
+  agent:
+    max-subagent-depth: 2              # 用户 → 子 → 孙；到上限后不再提供 subagent 工具
+    subagent-timeout-seconds: 300      # 默认超时
+    subagent-max-timeout-seconds: 600  # 上限，不得超过 600（受工具调度约束）
+```
+
+放行方式（默认 ASK）：
+
+```powershell
+curl -X PUT http://127.0.0.1:8080/api/v1/tool-policies `
+  -H "Content-Type: application/json" `
+  -d '{"scope":"USER","toolName":"subagent","effect":"ALLOW"}'
+```
+
+`scope` 可取 `USER`（所有工作区）或 `WORKSPACE`（需要同时给 `cwd`）。
+
+> 注意：使用 Fake Demo 模型时子代理无法真正执行（Fake 按最后一条用户消息匹配指令），
+> 需要用真实模型验证效果。
+
 ## 七、常见问题
 
 **Q：脚本报"表达式或语句中包含意外的标记"，满屏解析错误**

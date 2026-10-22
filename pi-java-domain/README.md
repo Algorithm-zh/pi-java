@@ -57,4 +57,9 @@ M7 完成 `context`：`TokenEstimator`/`TokenEstimate`（含 `estimateChars`）�
 `CompactionPromptBuilder`、`SkillDescriptor`/`SkillCatalog`/`SkillPromptFormatter`、
 `SkillFrontmatter`，以及端口 `SkillSource`、`WorkspacePromptSource`。
 domain 单测 174 个，行覆盖 89.2%。
-详见 [领域模型](../docs/02-domain-model.md) 与 [M7 记录](../docs/milestones/M7.md)。
+
+M8 完成 `subagent`：`SubagentMode`、`SubagentPolicy`（深度/超时上限）、
+`SubagentRequest`、`SubagentResult`、`SubagentToolset`（工具子集与深度裁剪）。
+`ToolInvocation` 新增可空字段 `originSessionId`，供需要父会话上下文的工具使用；
+保留四参数构造器以兼容既有调用。domain 单测 188 个。
+详见 [领域模型](../docs/02-domain-model.md) 与 [M8 记录](../docs/milestones/M8.md)。
