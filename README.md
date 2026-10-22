@@ -12,6 +12,15 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 
 ## 快速体验
 
+推荐用脚本启动（自动探测 JDK 21、检查 Key、注册模型档案）：
+
+```powershell
+$env:PI_DEEPSEEK_KEY = "sk-你的key"   # 可选；不设则只能用 Fake 离线模型
+.\scripts\start.ps1
+```
+
+也可以手动启动：
+
 ```bash
 mvn -q -DskipTests package
 java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
@@ -21,6 +30,8 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 `/write notes.txt 你好`。写工具会弹出审批框，批准后才真正落盘；也可以在弹窗中拒绝。
 默认 demo profile 使用 H2 文件库与 Fake LLM，**不需要任何 API Key**。
 服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
+
+接入真实模型、技能配置与常见问题见 [快速上手](docs/09-quick-start.md)。
 
 上下文压缩与技能（M7）：
 
@@ -113,6 +124,7 @@ Checkstyle/ArchUnit 通过，domain 行覆盖 89.2%、application 行覆盖 86.1
 - [插件 SDK](docs/06-plugin-sdk.md)
 - [测试与质量](docs/07-testing-and-quality.md)
 - [路线图](docs/08-roadmap.md)
+- [快速上手](docs/09-quick-start.md)
 - [M0 里程碑记录](docs/milestones/M0.md)
 - [M1 里程碑记录](docs/milestones/M1.md)
 - [M2 里程碑记录](docs/milestones/M2.md)
