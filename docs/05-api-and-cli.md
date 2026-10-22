@@ -1,7 +1,7 @@
 # 05 API 与 CLI
 
-> 状态：M4 已实现会话/运行 REST、SSE、模型与工具查询；分支/fork/compact、审批、
-> 插件、Skills 与 CLI 是后续里程碑。HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
+> 状态：M5 已实现会话/运行 REST、SSE、模型与工具查询、插件管理；分支/fork/compact、
+> 审批、Skills 与 CLI 是后续里程碑。HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
 ## 1. 通用约定
@@ -17,7 +17,7 @@
 
 ### 1.1 错误格式
 
-M4 的错误响应只有稳定错误码与可读消息：
+当前的错误响应只有稳定错误码与可读消息：
 
 ```json
 {
@@ -29,8 +29,9 @@ M4 的错误响应只有稳定错误码与可读消息：
 | HTTP | 实际 code | 场景 |
 |---|---|---|
 | 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON |
-| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` | 资源不存在 |
-| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` | 状态或并发冲突 |
+| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` | 资源不存在 |
+| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` | 状态或并发冲突 |
+| 422 | `PLUGIN_INCOMPATIBLE` / `PLUGIN_LOAD_FAILED` | 插件 jar/API 不兼容或加载失败 |
 | 429 | `AGENT_BUSY` | 全局并发 run 已满 |
 | 500 | 框架默认错误体 | 未映射异常；不伪装成领域错误 |
 
@@ -300,7 +301,7 @@ POST /api/v1/models/{id}/disable
 
 ## 5. 工具与策略 API
 
-M3 只实现工具目录查询：
+当前只实现工具目录查询；启用插件后，插件工具与内置工具出现在同一列表中：
 
 ```http
 GET /api/v1/tools?cwd=D:/code/demo
@@ -341,19 +342,46 @@ POST /api/v1/plugins/{id}/enable
 POST /api/v1/plugins/{id}/disable
 ```
 
-安装请求（multipart 或本地路径）：
+安装请求只接受宿主可读的**本地 jar 路径**（没有上传接口）：
 
 ```json
 {
-  "jarPath": "D:/plugins/hello-plugin-1.0.0.jar",
+  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.1.0-SNAPSHOT.jar",
   "config": {}
 }
 ```
 
-- 服务端计算 SHA-256、读取 manifest、校验 API 主版本与工具重名；
-- 安装后默认 `INSTALLED`，显式 enable 才加载；
-- disable 先置 `DISABLED`，等待活跃调用归零后关闭 ClassLoader；
-- 运行中的 run 继续使用旧工具快照，不因卸载而失败。
+`config` 必须是 JSON 对象，可省略；M5 只保存不使用，留给 v0.2 的插件配置。
+
+响应 `201`：
+
+```json
+{
+  "id": "com.piagent.example.hello",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.1.0-SNAPSHOT.jar",
+  "status": "INSTALLED",
+  "lastError": null,
+  "installedAt": "2026-10-22T08:00:00Z",
+  "updatedAt": "2026-10-22T08:00:00Z"
+}
+```
+
+- 响应不返回配置原文与完整校验和；
+- 安装只校验并落库，不执行插件代码；enable 才创建类加载器并调用 `start`；
+- 安装时校验：jar 存在且 ≤ 64 MB、清单完整、入口类存在、API 主版本为 1、
+  插件 id 未安装、jar 内不含 `com/piagent/plugin/api` 类；
+- enable：重新检查 jar 与安装记录（路径、版本、API 版本、SHA-256 一致），
+  加载失败返回 422 `PLUGIN_LOAD_FAILED` 并落库为 `FAILED`；
+- disable：立即从实时工具目录移除并置 `DISABLED`；**不等待**活跃调用归零，
+  已开始的 run 继续用旧快照与旧类加载器完成；
+- enable/disable 对目标状态幂等；从 `FAILED`、`DISABLED`、`INSTALLED` 均可再次 enable；
+- 重复安装返回 409 `PLUGIN_ALREADY_EXISTS`；未知插件返回 404 `PLUGIN_NOT_FOUND`；
+- 应用重启后只自动恢复 `ACTIVE` 记录，恢复失败的插件置 `FAILED` 并记录 `lastError`。
+
+停用后插件工具从 `GET /api/v1/tools` 消失；新 run 调用该工具得到
+`工具未注册: <name>` 的 toolResult，run 本身仍正常完成。
 
 ## 7. 系统信息、Skills 与健康检查
 
@@ -477,7 +505,8 @@ M4 已覆盖的交互：
 4. 会话切换与刷新后通过 `GET /sessions/{id}/run` 重连 SSE；
 5. 输入 `/read README.md`、`/ls .` 或普通问候即可在 Fake 模型下体验。
 
-审批弹窗、会话树、设置页、Skills/插件管理分别在 M6–M8 接入。
+审批弹窗、会话树与设置页分别在 M6–M8 接入。M5 的插件管理只有 REST API，
+用 curl 或 App 内测试夹具操作，尚无 Web UI。
 
 ## 10. 版本与兼容
 

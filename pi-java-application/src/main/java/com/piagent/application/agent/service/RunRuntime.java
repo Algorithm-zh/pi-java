@@ -11,6 +11,7 @@ import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AgentMessage;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.shared.IdGenerator;
+import com.piagent.domain.tool.port.ToolRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,6 +33,7 @@ public class RunRuntime {
     private final ActiveRunRegistry registry;
     private final RunEventHub hub;
     private final SessionEntryAppender appender;
+    private final ToolRegistry toolRegistry;
     private final IdGenerator idGenerator;
     private final Clock clock;
 
@@ -41,20 +43,24 @@ public class RunRuntime {
      * @param registry run 注册表
      * @param hub 事件中心
      * @param appender entry 追加器
+     * @param toolRegistry 工具目录
      * @param idGenerator 标识生成器
      * @param clock 时钟
      */
     public RunRuntime(ActiveRunRegistry registry, RunEventHub hub, SessionEntryAppender appender,
-            IdGenerator idGenerator, Clock clock) {
+            ToolRegistry toolRegistry, IdGenerator idGenerator, Clock clock) {
         this.registry = registry;
         this.hub = hub;
         this.appender = appender;
+        this.toolRegistry = toolRegistry;
         this.idGenerator = idGenerator;
         this.clock = clock;
     }
 
     /**
      * 预留一个 run 并打开事件通道。
+     *
+     * <p>工具目录在此刻冻结：插件在 run 运行期间启停，只影响之后开始的 run。</p>
      *
      * @param sessionId 会话标识
      * @return 运行句柄
@@ -64,7 +70,7 @@ public class RunRuntime {
         AgentRun run = AgentRun.start(runId, sessionId, RunBudget.defaults(), clock.instant());
         registry.register(run);
         hub.open(runId, sessionId);
-        return new ReservedRun(runId, new RunEventPublisher(hub, runId));
+        return new ReservedRun(runId, new RunEventPublisher(hub, runId), toolRegistry.snapshot());
     }
 
     /**

@@ -8,7 +8,6 @@ import com.piagent.domain.governance.port.ToolPolicyRepository;
 import com.piagent.domain.governance.service.ToolAccessPolicy;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.message.ToolCallBlock;
-import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.tool.model.ExecutionMode;
 import com.piagent.domain.tool.model.ToolCallId;
 import com.piagent.domain.tool.model.ToolDescriptor;
@@ -42,9 +41,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class ToolCallCoordinator {
 
-    private static final ToolName UNKNOWN_TOOL = new ToolName("unknown");
-
-    private final ToolRegistry registry;
     private final ToolInvoker invoker;
     private final ToolPolicyRepository policyRepository;
     private final ToolAccessPolicy accessPolicy;
@@ -54,18 +50,16 @@ public class ToolCallCoordinator {
     /**
      * 创建协调器。
      *
-     * @param registry 工具目录
      * @param invoker 工具执行器
      * @param policyRepository 策略仓储
      * @param accessPolicy 策略解析器
      * @param appender entry 追加器
      * @param executor 工具并行执行器
      */
-    public ToolCallCoordinator(ToolRegistry registry, ToolInvoker invoker,
+    public ToolCallCoordinator(ToolInvoker invoker,
             ToolPolicyRepository policyRepository, ToolAccessPolicy accessPolicy,
             SessionEntryAppender appender,
             @Qualifier("toolExecutor") ExecutorService executor) {
-        this.registry = registry;
         this.invoker = invoker;
         this.policyRepository = policyRepository;
         this.accessPolicy = accessPolicy;
@@ -78,17 +72,19 @@ public class ToolCallCoordinator {
      *
      * @param session 当前会话
      * @param calls 模型返回的工具调用
+     * @param registry 本次 run 的工具快照
      * @param events 事件发布器
      * @param cancelled 取消查询
      * @param remainingCalls 剩余可执行工具次数
      * @return 批次摘要
      */
     public ToolBatchResult execute(ChatSession session, List<ToolCallBlock> calls,
-            RunEventPublisher events, BooleanSupplier cancelled, int remainingCalls) {
+            ToolRegistry registry, RunEventPublisher events, BooleanSupplier cancelled,
+            int remainingCalls) {
         List<ToolPolicyRule> rules = policyRepository.findByWorkspace(
                 WorkspaceKey.of(session.config().cwd()));
         SandboxPolicy sandbox = sandboxOf(session);
-        List<PreparedCall> prepared = prepare(calls, rules, remainingCalls);
+        List<PreparedCall> prepared = prepare(calls, registry, rules, remainingCalls);
         BatchExecution execution = supportsParallel(prepared)
                 ? executeParallel(prepared, sandbox, events, cancelled)
                 : executeSequential(prepared, sandbox, events, cancelled);
@@ -97,14 +93,14 @@ public class ToolCallCoordinator {
         return new ToolBatchResult(execution.executed(), cancelled.getAsBoolean(), budgetExhausted);
     }
 
-    private List<PreparedCall> prepare(List<ToolCallBlock> calls, List<ToolPolicyRule> rules,
-            int remainingCalls) {
+    private List<PreparedCall> prepare(List<ToolCallBlock> calls, ToolRegistry registry,
+            List<ToolPolicyRule> rules, int remainingCalls) {
         List<PreparedCall> prepared = new ArrayList<>(calls.size());
         int granted = 0;
         for (ToolCallBlock call : calls) {
-            PreparedCall preflight = preflight(call, rules);
+            PreparedCall preflight = preflight(call, registry, rules);
             if (preflight.executable() && granted >= remainingCalls) {
-                preflight = preflight.withRejection(ToolResult.error(safeId(call), safeName(call),
+                preflight = preflight.withRejection(ToolResult.error(callIdOf(call), toolNameOf(call),
                         "已达到本次运行的工具调用上限，该调用未执行"), true);
             } else if (preflight.executable()) {
                 granted++;
@@ -114,20 +110,21 @@ public class ToolCallCoordinator {
         return prepared;
     }
 
-    private PreparedCall preflight(ToolCallBlock call, List<ToolPolicyRule> rules) {
-        ToolName name = safeName(call);
+    private PreparedCall preflight(ToolCallBlock call, ToolRegistry registry,
+            List<ToolPolicyRule> rules) {
+        ToolName name = toolNameOf(call);
         Optional<ToolDescriptor> found = registry.find(name);
         if (found.isEmpty()) {
-            return new PreparedCall(call, null, ToolResult.error(safeId(call), UNKNOWN_TOOL,
+            return new PreparedCall(call, null, ToolResult.error(callIdOf(call), name,
                     "工具未注册: " + call.name()), false);
         }
         ToolDescriptor descriptor = found.get();
         PolicyEffect effect = accessPolicy.resolve(descriptor, rules);
         return switch (effect) {
             case ALLOW -> new PreparedCall(call, descriptor, null, false);
-            case ASK -> new PreparedCall(call, descriptor, ToolResult.error(safeId(call), name,
+            case ASK -> new PreparedCall(call, descriptor, ToolResult.error(callIdOf(call), name,
                     "工具 " + name + " 需要用户审批；审批功能将在 M6 提供，本次调用未执行"), false);
-            case DENY -> new PreparedCall(call, descriptor, ToolResult.error(safeId(call), name,
+            case DENY -> new PreparedCall(call, descriptor, ToolResult.error(callIdOf(call), name,
                     "工具策略拒绝执行: " + name), false);
         };
     }
@@ -188,15 +185,15 @@ public class ToolCallCoordinator {
             return future.get();
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
-            return ToolResult.error(safeId(call), safeName(call), "等待工具执行时被中断");
+            return ToolResult.error(callIdOf(call), toolNameOf(call), "等待工具执行时被中断");
         } catch (ExecutionException error) {
             Throwable cause = error.getCause() == null ? error : error.getCause();
-            return ToolResult.error(safeId(call), safeName(call), "工具执行异常: " + cause.getMessage());
+            return ToolResult.error(callIdOf(call), toolNameOf(call), "工具执行异常: " + cause.getMessage());
         }
     }
 
     private ToolResult invoke(PreparedCall call, SandboxPolicy sandbox) {
-        ToolCallId callId = safeId(call.call());
+        ToolCallId callId = callIdOf(call.call());
         try {
             ToolInvocation invocation = new ToolInvocation(callId, call.descriptor().name(),
                     call.call().arguments(), sandbox);
@@ -217,23 +214,15 @@ public class ToolCallCoordinator {
     }
 
     private ToolResult cancelled(ToolCallBlock call) {
-        return ToolResult.error(safeId(call), safeName(call), "运行已取消，该工具调用未执行");
+        return ToolResult.error(callIdOf(call), toolNameOf(call), "运行已取消，该工具调用未执行");
     }
 
-    private ToolCallId safeId(ToolCallBlock call) {
-        try {
-            return new ToolCallId(call.id());
-        } catch (DomainException | IllegalArgumentException error) {
-            return new ToolCallId("invalid-call");
-        }
+    private ToolCallId callIdOf(ToolCallBlock call) {
+        return new ToolCallId(call.id());
     }
 
-    private ToolName safeName(ToolCallBlock call) {
-        try {
-            return new ToolName(call.name());
-        } catch (DomainException | IllegalArgumentException error) {
-            return UNKNOWN_TOOL;
-        }
+    private ToolName toolNameOf(ToolCallBlock call) {
+        return new ToolName(call.name());
     }
 
     /**

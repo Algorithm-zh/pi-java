@@ -1,6 +1,7 @@
 package com.piagent.application.agent.service;
 
 import com.piagent.domain.agent.RunId;
+import com.piagent.domain.tool.port.ToolRegistry;
 
 /**
  * 已占用会话槽位的运行句柄。
@@ -10,6 +11,7 @@ import com.piagent.domain.agent.RunId;
  *
  * @param runId 运行标识
  * @param events 绑定该 run 的事件发布器
+ * @param tools 运行开始时冻结的工具目录快照
  */
-record ReservedRun(RunId runId, RunEventPublisher events) {
+record ReservedRun(RunId runId, RunEventPublisher events, ToolRegistry tools) {
 }

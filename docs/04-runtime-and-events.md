@@ -146,12 +146,13 @@ ToolCallBlock
   -> 发布 tool.started / tool.completed
 ```
 
-M5/M6 将插入插件拦截器与审批等待：
+M5 已把插件工具接入这条管线，但**没有**插件拦截器或观察器；若后续引入，
+只允许 allow/deny 或只读观察，不能改参数：
 
 ```text
-  -> 插件 ToolInterceptor（只允许 allow/deny，不允许改参数；M5）
-     ASK -> 创建 ApprovalRequest，等待决策（M6）
-  -> 插件 ToolResultObserver（只读观察；M5）
+  -> 插件工具与内置工具同样经过策略与沙箱（M5）
+     ASK -> 当前生成“需要审批”的 isError 结果；M6 改为等待决策
+  -> [未实现] 插件 ToolInterceptor / ToolResultObserver（M6/M7 评估）
 ```
 
 ### 4.2 并行策略
@@ -285,7 +286,7 @@ M7 将扩展为固定顺序，任何 section 都有长度上限：
 3. 工具目录与风险摘要（不含完整 schema，schema 走工具参数）；
 4. Skills 目录：仅 `name + description`；
 5. `AGENTS.md`：v0.1 只读 cwd 根目录，上限 32 KB；
-6. 插件 `PromptSection`（按注册顺序，总上限 16 KB）；
+6. 插件 `PromptSection`（尚未提供契约，v0.2 候选；引入时按注册顺序、总上限 16 KB）；
 7. 压缩/会话提示（如有）。
 
 Skills 的正文不进入系统提示；agent 通过 `read` 读取 `SKILL.md`，或用户使用

@@ -83,13 +83,26 @@ final class ScriptedLlmGateway implements LlmGateway {
      * @return 流
      */
     static LlmStream toolCalls(List<ToolCallBlock> calls) {
+        return toolCalls(calls, null);
+    }
+
+    /**
+     * 工具调用脚本，并在产出首个 delta 后执行回调。
+     *
+     * <p>回调用于在 run 已经冻结工具快照之后修改实时目录，验证运行期隔离。</p>
+     *
+     * @param calls 工具调用
+     * @param afterFirstDelta 首个 delta 产出后的回调
+     * @return 流
+     */
+    static LlmStream toolCalls(List<ToolCallBlock> calls, Runnable afterFirstDelta) {
         List<LlmDelta> deltas = new ArrayList<>();
         for (ToolCallBlock call : calls) {
             deltas.add(new ToolCallDelta(0, call.id(), call.name(), "{}"));
         }
         LlmResponse response = new LlmResponse(List.copyOf(calls), Usage.zero(),
                 AssistantStopReason.TOOL_USE, null);
-        return new ScriptedStream(deltas, response, null, null);
+        return new ScriptedStream(deltas, response, null, afterFirstDelta);
     }
 
     /**

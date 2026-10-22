@@ -2,15 +2,17 @@
 
 第三方插件稳定契约。**只依赖 JDK**，不出现 Spring、Jackson、MyBatis 或内部 domain 类型。
 
-## 契约内容
+## 契约内容（M5）
 
-- `PiPlugin`：插件入口；
-- `PluginContext`：注册工具、命令、hook、prompt section，发送消息、追加状态；
-- `ToolSpec` / `PluginTool`：工具描述与执行；
-- `PluginCommand`：用户显式命令；
-- sealed `HookEvent`：只读生命周期观察；
-- `ToolInterceptor`：只允许 allow/deny，不允许改参数；
-- `PromptSection`、`PluginLogger`、`CancellationToken`、`Registration`。
+- `PiPlugin`：插件入口，`descriptor / start / stop`；
+- `PluginDescriptor` / `PluginId`：插件自描述与标识；
+- `PluginContext`：注册工具、获取日志器；
+- `ToolSpec` / `PluginTool`：工具短名、schema、风险、超时与执行；
+- `PluginToolCall` / `PluginToolResult`：调用参数与结果；
+- `PluginToolContext`：工作区、取消令牌、日志、进度上报（M5 空实现）；
+- `PluginLogger`、`CancellationToken`、`Registration`。
+
+命令、hook、工具拦截器与 prompt section **不在 M5 契约中**，按后续里程碑以兼容方式加入。
 
 ## 规则
 
@@ -31,4 +33,5 @@ mvn -q -pl examples/pi-plugin-example -am package
 
 ## 当前状态
 
-M0：包结构已建立；接口从 M5 开始落地。
+M5 已落地上述契约；3 个单元测试与 ArchUnit 纯度检查通过。示例插件 4 个测试、
+100% 行覆盖。详见 [M5 记录](../docs/milestones/M5.md)。

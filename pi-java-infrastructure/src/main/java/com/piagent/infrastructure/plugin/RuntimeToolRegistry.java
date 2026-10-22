@@ -8,7 +8,6 @@ import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolName;
 import com.piagent.domain.tool.port.ToolRegistry;
 import com.piagent.domain.tool.service.ToolCatalog;
-import com.piagent.infrastructure.tool.CatalogToolRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -67,15 +66,6 @@ public final class RuntimeToolRegistry implements ToolRegistry {
         candidate.remove(pluginId);
         this.catalog = buildCatalog(candidate);
         this.pluginTools.remove(pluginId);
-    }
-
-    /**
-     * 当前工具的不可变快照。
-     *
-     * @return 快照
-     */
-    public ToolRegistry snapshot() {
-        return new CatalogToolRegistry(catalog.descriptors());
     }
 
     /**

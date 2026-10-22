@@ -187,10 +187,11 @@ class AgentLoopServiceTest {
 
         AgentRun run = fixture.run(session.identity().id(), "调不存在的工具");
 
+        assertThat(run.status()).isEqualTo(RunStatus.COMPLETED);
         assertThat(run.toolCalls()).isZero();
         assertThat(fixture.invoker.invocations()).isEmpty();
         ToolResultMessage result = toolResult(fixture.branch(session.identity().id()).get(2));
-        assertThat(result.toolName()).isEqualTo("unknown");
+        assertThat(result.toolName()).isEqualTo("missing");
         assertThat(result.isError()).isTrue();
         assertThat(textOf(result.content())).contains("工具未注册");
     }

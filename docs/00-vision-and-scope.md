@@ -53,7 +53,7 @@
 | 治理 | 是 | 工具策略、人工审批、路径沙箱、参数脱敏、超时 |
 | 上下文 | 是 | 结构化压缩、token 估算、保留尾部、摘要不收敛回退 |
 | Skills | 是 | `SKILL.md` 扫描、frontmatter、按需加载、`/skill:name` |
-| 插件 | 是 | 零依赖 SDK、工具/hook/命令/prompt section、类加载隔离 |
+| 插件 | 是 | 零依赖 SDK、工具注册、类加载隔离；命令/hook/prompt section 视后续里程碑 |
 | 子代理 | 是 | 同步、进程内、SPAWN/FORK、深度与工具子集约束 |
 | 入口 | 是 | REST + SSE、原生 Web UI、picocli CLI |
 | 持久化 | 是 | MySQL 8 与 H2（MySQL 模式）、Flyway 分厂商脚本 |
@@ -61,7 +61,7 @@
 | Anthropic 原生 | 否 | 预留 `LlmGateway` SPI |
 | 多实例 / Redis | 否 | 单机部署；未来通过端口扩展 |
 | 异步/并行子代理 | 否 | 只做同步子代理 |
-| 插件热重载 | 否 | 禁用后等待活跃调用归零再卸载 |
+| 插件热重载 | 否 | 停用立即移出工具目录；旧实例与类加载器保留到进程退出 |
 | 多模态输入 / TUI | 否 | v0.1 只处理文本 |
 
 ## 5. 非目标

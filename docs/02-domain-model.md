@@ -1,6 +1,6 @@
 # 02 领域模型
 
-> 状态：M0 冻结。本文是领域层的实现契约：包名、类型名、不变量一旦落地，变更必须同步更新本文与测试。
+> 状态：随里程碑更新，当前覆盖至 M5。本文是领域层的实现契约：包名、类型名、不变量一旦落地，变更必须同步更新本文与测试。
 >
 > 领域层只依赖 JDK。所有跨上下文的引用只允许“身份引用”（ID）或只读值对象，不允许跨上下文调用聚合行为。
 
@@ -341,7 +341,7 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 
 | 类型 | 说明 |
 |---|---|
-| `ToolName` | 小写字母开头，允许小写字母/数字/点/下划线/连字符，最长 128；插件工具在 M5 强制 `pluginId.` 前缀 |
+| `ToolName` | 小写字母开头，允许小写字母/数字/点/下划线/连字符，最长 128；M5 起插件工具由宿主强制 `pluginId.` 前缀 |
 | `ToolCallId` | LLM 返回的调用 ID，包装 String |
 | `ExecutionMode` | `PARALLEL / SEQUENTIAL` |
 | `ToolRisk` | `LOW / MEDIUM / HIGH / CRITICAL` |
@@ -355,13 +355,16 @@ UNSUPPORTED_PROVIDER/CANCELLED`）。重试策略只在 adapter 内执行，领�
 
 | 类型 | 职责 | 状态 |
 |---|---|---|
-| `ToolCatalog` | 不可变目录；合并内置与插件工具、拒绝重名、按名查询；插件工具合并与白名单过滤在 M5 扩展 | M3 已实现 |
+| `ToolCatalog` | 不可变目录；校验重名、按名查询；由 `RuntimeToolRegistry` 用“内置 + 已启用插件”构建 | M3 已实现 |
 | `ToolArgumentGuard` | 拒绝未知参数，读取必填字符串、可选字符串/整数/布尔并校验上限；JSON Schema 深度校验由具体 handler 完成 | M3 已实现 |
 | `ToolCallCoordinator`（应用层） | 依据 `ExecutionMode` 分批：整批 `PARALLEL` 才并行，否则整批串行，结果保持模型给出的顺序；设计稿中的 `ToolExecutionPlanner` 已并入此类 | M4 已实现 |
-| `ToolRegistry` | 端口：`descriptors()`、`find(ToolName)`、`require(ToolName)` | M3 已实现 |
-| `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation)`；超时与中断由适配器处理，M4 起每个工具执行前检查 run 取消标志 | M3 已实现；M4 已接入取消 |
+| `ToolRegistry` | 端口：`descriptors()`、`find(ToolName)`、`require(ToolName)`；默认 `snapshot()` 返回冻结目录 | M3 已实现；M5 增加快照 |
+| `ToolInvoker` | 端口：`ToolResult invoke(ToolInvocation)`；超时与中断由适配器处理；插件工具由 `RuntimeToolInvoker` 委派给 `PluginHost` | M3 已实现；M4 接入取消；M5 接入插件 |
 
-`ToolCatalog` 在每次 run 开始时取快照，run 期间插件卸载不影响本次执行。
+`RuntimeToolRegistry` 位于 infrastructure：内置工具固定不变，插件工具按插件 id 分组；
+每次启用/停用都重建一个新的 `ToolCatalog` 并原子替换，读侧无锁。每次 run 开始时
+`RunRuntime.reserve` 调用 `ToolRegistry.snapshot()` 冻结目录，run 内始终使用该快照，
+因此插件停用不影响已开始的 run，新 run 也不会看到已停用的工具。
 
 ## 6. 治理上下文 `domain.governance`
 
@@ -476,16 +479,38 @@ final class PathSandbox {
 
 | 类型 | 说明 |
 |---|---|
-| `PluginId` | `groupId:artifactId` 或 manifest id；全局唯一 |
-| `PluginDescriptor` | 名称、版本、API 主版本、主类、描述 |
-| `ApiVersion` | 解析 `1.x`，主版本必须为 1 |
+| `PluginId` | 形如 `com.example.hello`，只允许小写字母、数字、点与连字符；全局唯一，同时作为工具名前缀 |
+| `PluginPackage` | jar 检查结果：id、name、version、apiVersion、jarPath、checksum、mainClass、description |
+| `PluginArtifact` | 落库的安装事实：version、apiVersion、jarPath、checksum、configJson |
+| `PluginDescriptor` | `plugin-api` 中的插件自描述：名称、版本、API 版本、主类、描述 |
+| `ApiVersion` | 解析 `MAJOR` 或 `MAJOR.MINOR`，规范化为 `major.minor`；宿主只接受主版本 1 |
 | `PluginStatus` | `INSTALLED / ACTIVE / DISABLED / FAILED` |
-| `PluginInstallation` | 聚合根：id、version、apiVersion、jarPath、checksum、status、configJson、lastError、时间 |
-| `PluginCompatibilityChecker` | API 主版本、重复 ID、内置工具冲突校验 |
-| `PluginActivationPolicy` | 允许的状态迁移：INSTALLED→ACTIVE/DISABLED；ACTIVE→DISABLED/FAILED；FAILED→DISABLED |
+| `PluginInstallation` | 聚合根：id、artifact、status、lastError、installedAt、updatedAt |
+| `PluginCompatibilityChecker` | API 主版本、工具名前缀、与已有工具冲突校验；**没有**独立的激活策略类型，状态迁移由聚合方法保证 |
 
-端口：`PluginRepository`、`PluginRuntime`（加载/卸载/当前工具快照）。
-插件注册的具体类型在 `plugin-api`，领域层不引用；infrastructure 将插件工具映射为 `ToolDescriptor`。
+状态迁移：
+
+```text
+install           -> INSTALLED
+INSTALLED/DISABLED/FAILED --enable--> ACTIVE
+ACTIVE            --disable--> DISABLED
+任意 enable 失败    -> FAILED
+```
+
+不存在 `PluginActivationPolicy` 类型；`activate/disable/fail` 三个聚合方法分别校验前置状态。
+聚合不引用 `plugin-api`：jar 检查、类加载与工具注册属于运行时，由基础设施的
+`PluginHost` 通过 `PluginRuntime` 端口完成。
+
+端口：
+
+- `PluginRepository`：`findById`、`findAll`、`insert`、`update`；
+- `PluginPackageInspector`：检查本地 jar，返回 `PluginPackage`；
+- `PluginRuntime`：`load(PluginInstallation)`、`unload(PluginId)`、`isLoaded(PluginId)`。
+
+`PluginHost` 实现 `PluginRuntime`：加载时创建 child-first 类加载器、校验 descriptor、
+调用 `start`、把插件工具映射为领域 `ToolDescriptor` 并写入 `RuntimeToolRegistry`；
+停用立即移出目录，但把工具句柄、插件实例与类加载器移入 retired 列表，直到进程退出
+才调用 `stop()` 并关闭。M5 不支持热重载。
 
 ## 9. 跨上下文不变量
 
@@ -500,7 +525,7 @@ final class PathSandbox {
 | INV-07 | 审批终态不可逆；决策必须写 entry | `ApprovalRequest` + 应用层 |
 | INV-08 | 写路径必须在可写根内，真实路径复核 | `PathSandbox` + `RealPathResolver` |
 | INV-09 | 子代理工具集合 ⊆ 父工具集合；沙箱只收紧不放宽 | `SubagentPolicy` |
-| INV-10 | 插件 API 主版本必须为 1；不得覆盖内置工具 | `PluginCompatibilityChecker` |
+| INV-10 | 插件 API 主版本必须为 1；工具名前缀等于插件 id；不得覆盖内置或其他插件工具 | `PluginCompatibilityChecker` + `RuntimeToolRegistry` |
 | INV-11 | 模型档案不存密钥，只存环境变量名 | 聚合构造校验 |
 | INV-12 | run 结束后必须留下 `RUN_SUMMARY` | Agent Loop 收尾 + 启动恢复 |
 

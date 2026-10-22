@@ -44,5 +44,7 @@ M1 完成 `SessionApplicationService`；M2 完成 `ModelProfileApplicationServic
 （创建、更新、启停、查询、启用校验）与对应 Command；M3 完成
 `ToolCatalogApplicationService`（工具目录 + 当前工作区策略效果）；M4 完成
 `application.agent`：Agent Loop、run 运行时与事件中心、turn 流水线、工具协调器、
-短事务 entry 追加器。application 共 48 个测试，行覆盖 88.9%。
-详见 [M4 记录](../docs/milestones/M4.md)。
+短事务 entry 追加器；M5 完成 `PluginApplicationService`（安装、启停、查询、
+启动恢复）与 run 级工具快照接入：`RunRuntime.reserve` 冻结工具目录，
+`TurnPipeline` 与 `ToolCallCoordinator` 只使用该快照。application 共 60 个测试，
+行覆盖 89.7%。详见 [M5 记录](../docs/milestones/M5.md)。

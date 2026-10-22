@@ -43,11 +43,13 @@ public class ApiExceptionHandler {
 
     private HttpStatus statusOf(DomainErrorCode code) {
         return switch (code) {
-            case MODEL_NOT_FOUND, SESSION_NOT_FOUND, ENTRY_NOT_FOUND, RUN_NOT_FOUND ->
-                    HttpStatus.NOT_FOUND;
+            case MODEL_NOT_FOUND, SESSION_NOT_FOUND, ENTRY_NOT_FOUND, RUN_NOT_FOUND,
+                    PLUGIN_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case MODEL_ALREADY_EXISTS, CONCURRENT_MODIFICATION, MODEL_DISABLED,
-                    INVALID_STATE_TRANSITION, SESSION_ARCHIVED, RUN_ALREADY_ACTIVE ->
+                    INVALID_STATE_TRANSITION, SESSION_ARCHIVED, RUN_ALREADY_ACTIVE,
+                    PLUGIN_ALREADY_EXISTS, PLUGIN_INVALID_STATE, PLUGIN_TOOL_CONFLICT ->
                     HttpStatus.CONFLICT;
+            case PLUGIN_INCOMPATIBLE, PLUGIN_LOAD_FAILED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case AGENT_BUSY -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.BAD_REQUEST;
         };

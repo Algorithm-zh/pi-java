@@ -28,7 +28,8 @@
 - [M2：模型接入与流式 LLM Gateway](milestones/M2.md)
 - [M3：只读工具与路径沙箱](milestones/M3.md)
 - [M4：Agent Loop 与只读 Web demo](milestones/M4.md)
-- M5–M9：随里程碑完成补齐
+- [M5：插件 SDK](milestones/M5.md)
+- M6–M9：随里程碑完成补齐
 
 ## 模块文档
 

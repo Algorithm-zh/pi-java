@@ -27,7 +27,7 @@ com.piagent.infrastructure
 - 模型密钥只从环境变量读取，不落库、不进日志；
 - SSH/文件/进程访问都通过端口注入，便于测试；
 - LLM 重试只在 adapter 内，且首个 delta 后不重试；
-- 插件卸载等待活跃调用归零，运行中的 run 固定旧快照。
+- 插件停用立即移出实时目录；已开始的 run 使用旧快照，插件实例与类加载器保留到进程退出。
 
 ## 测试
 
@@ -43,6 +43,8 @@ M2 完成 `persistence.model`（V2、CAS 更新、capabilities codec）与 `llm`
 （Fake 脚本 provider、provider 路由、OpenAI-compatible 的请求映射/SSE 解析/重试/取消）；
 M3 完成 `tool`（RealPathResolver、read/ls/grep/glob、虚拟线程超时调用器）与
 `persistence.model` 下的 V3 工具策略仓储；M4 增加 demo 模式的
-`DemoTurnScript` 与 `DemoDataInitializer` 依赖的 Fake 脚本。infrastructure 共 108 个测试
-（2 个符号链接用例在无权限环境条件跳过），行覆盖 64.8%。详见
-[M4 记录](../docs/milestones/M4.md)。
+`DemoTurnScript` 与 `DemoDataInitializer` 依赖的 Fake 脚本；M5 完成 `plugin`
+（`PluginJarInspector`、child-first `PluginClassLoader`、`PluginHost`、
+`RuntimeToolRegistry`、`RuntimeToolInvoker`）与 V4 插件记录仓储，并为 Fake demo
+增加 `/tool <name> <json>`。infrastructure 共 135 个测试（2 个符号链接用例在无权限
+环境条件跳过），行覆盖 65.8%。详见 [M5 记录](../docs/milestones/M5.md)。

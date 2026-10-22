@@ -4,9 +4,10 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M4 Agent Loop 与只读 Web demo 已完成**（2026-10-22）。已具备树形会话日志、
+> 当前状态：**M5 插件 SDK 已完成**（2026-10-22）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读工具与路径沙箱、
-> Agent Loop、SSE 事件重放、Web UI。下一步 M5：插件 SDK。
+> Agent Loop、SSE 事件重放、Web UI，以及零依赖插件契约、child-first 类加载隔离、
+> 插件安装/启停与 run 级工具快照。下一步 M6：审批 + 写工具。
 > 每个里程碑都包含实现、测试、文档与 git 提交。
 
 ## 快速体验
@@ -20,12 +21,27 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 默认 demo profile 使用 H2 文件库与 Fake LLM，**不需要任何 API Key**。
 服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
 
+体验插件（另开终端）：
+
+```bash
+mvn -q -pl examples/pi-plugin-example -am package
+
+curl -X POST http://127.0.0.1:8080/api/v1/plugins \
+  -H 'Content-Type: application/json' \
+  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.1.0-SNAPSHOT.jar"}'
+curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enable
+```
+
+然后在会话输入 `/tool com.piagent.example.hello.greet {"name":"pi"}`。
+完整步骤见 [示例插件说明](examples/pi-plugin-example/README.md)。
+
 ## 核心设计
 
 - **会话日志是唯一事实源**：消息、压缩摘要、审批决策、运行摘要都是 append-only entry，
   分支只移动 leaf，不复制历史。
 - **领域纯净**：`domain` 只依赖 JDK；Spring、Jackson、MyBatis、插件加载都在外层。
-- **安全默认**：只读工具放行，写工具询问，未知工具拒绝；路径沙箱 + 人工审批。
+- **安全默认**：只读工具放行，未知工具拒绝；写工具询问与人工审批在 M6 落地；
+  路径沙箱从 M3 起生效。
 - **插件化**：零依赖 `plugin-api`，每个插件独立 ClassLoader，工具带插件前缀。
 - **单机强一致**：一个 session 同时只有一个活跃 run；不引入 Redis。
 - **可测试**：Fake LLM、Fake 时钟、H2、WireMock，离线可跑完整链路。
@@ -53,8 +69,8 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 mvn -q verify
 ```
 
-当前 M4 已验证通过：295 个测试全绿（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 通过，domain 行覆盖 86.7%、application 行覆盖 88.9%。
+当前 M5 已验证通过：368 个测试全绿（2 个符号链接用例条件跳过），
+Checkstyle/ArchUnit 通过，domain 行覆盖 87.6%、application 行覆盖 89.7%。
 
 ## 文档
 
@@ -74,6 +90,7 @@ Checkstyle/ArchUnit 通过，domain 行覆盖 86.7%、application 行覆盖 88.9
 - [M2 里程碑记录](docs/milestones/M2.md)
 - [M3 里程碑记录](docs/milestones/M3.md)
 - [M4 里程碑记录](docs/milestones/M4.md)
+- [M5 里程碑记录](docs/milestones/M5.md)
 
 架构决策：
 

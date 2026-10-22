@@ -1,6 +1,6 @@
 # 08 路线图
 
-> 状态：M0–M4 已完成（M4 于 2026-10-22），下一步 M5 插件 SDK。里程碑顺序不可跳跃；
+> 状态：M0–M5 已完成（M5 于 2026-10-22），下一步 M6 审批 + 写工具。里程碑顺序不可跳跃；
 > 每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
@@ -100,7 +100,7 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 未包含（按计划后移）：
 
 - `ToolExecutionPlanner` 与并行分批：M4 已实现，并入应用层 `ToolCallCoordinator`；
-- 插件 hook 与工具拦截器：M5；
+- 插件 hook 与工具拦截器：未在 M5 交付，后续里程碑按需引入；
 - 审批、策略管理 API、write/edit/bash：M6。
 
 验收结果：
@@ -144,19 +144,40 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 
 ### M5 插件 SDK
 
-范围：
+状态：已完成（2026-10-22），详见 [M5 记录](milestones/M5.md)。
 
-- `pi-java-plugin-api` 全部契约；
-- PluginRuntime、child-first ClassLoader、注册/回滚/卸载；
-- V4、插件管理 API；
-- 示例插件独立编译；
-- ArchUnit 契约纯度。
+范围（实际交付）：
 
-验收：
+- `pi-java-plugin-api`：`PiPlugin / PluginDescriptor / PluginContext / PluginTool /
+  ToolSpec / PluginToolResult / PluginToolContext / CancellationToken / PluginLogger /
+  Registration`，只依赖 JDK；
+- `domain.extension`：`PluginId / ApiVersion / PluginPackage / PluginArtifact /
+  PluginInstallation / PluginStatus`、`PluginRepository / PluginPackageInspector /
+  PluginRuntime`、`PluginCompatibilityChecker`；
+- infrastructure：`PluginJarInspector`、`PluginClassLoader`、`PluginApiClassLoader`、
+  `PluginHost`、`RuntimeToolRegistry`、`RuntimeToolInvoker`、`PluginToolAdapter`；
+- application：`PluginApplicationService`（安装、启停、查询、启动恢复）；
+- trigger：`GET/POST /api/v1/plugins`、`POST /{id}/enable`、`POST /{id}/disable`；
+- V4 `pi_plugin` 与 MyBatis 仓储；
+- run 工具快照：`ToolRegistry.snapshot()`，`RunRuntime.reserve` 冻结；
+- 示例插件 `examples/pi-plugin-example` 与安装/启用文档；
+- Fake demo 新增 `/tool <name> <json>`，可端到端调用插件工具。
 
-- 安装 → enable → 工具可见可调 → disable → 工具消失；
-- 运行中的 run 使用旧快照完成；
-- 插件无法加载宿主内部类（类隔离测试）。
+验收结果：
+
+- 安装只落库；enable 后 `/api/v1/tools` 出现 `com.piagent.example.hello.greet`，
+  disable 后消失；重复安装 409、未知插件 404、缺失 jar 422；
+- 插件端到端：Fake 模型调用插件工具 → `tool.completed` → `echo:你好` →
+  `run.completed`；停用后新调用得到“工具未注册”，run 仍完成；
+- run 快照测试：run 开始后禁用插件，本次调用仍执行，第二个模型请求仍看到旧目录；
+- 示例插件不依赖宿主模块，`plugin-api` ArchUnit 纯度检查通过；
+- 全量 `mvn -q verify` 通过，368 个测试（2 跳过），domain 87.6%、application 89.7%。
+
+未包含（按计划后移）：
+
+- 插件命令、hook、工具拦截器、prompt section、消息/自定义 entry：M6–M7 或 v0.2；
+- 插件 Web UI、热重载、卸载接口、配置读取：v0.2；
+- 停用后旧类加载器保留到进程退出，属于已知限制。
 
 ### M6 审批 + 写工具
 
@@ -229,8 +250,9 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 ```
 
 - M2 与 M3 可在 M1 后并行实现，但 M4 依赖两者；
-- M5 依赖 M3 的工具目录抽象；
-- M6 依赖 M5 的插件拦截器与 M3 的沙箱；
+- M5 依赖 M3 的工具目录抽象与 M4 的 run 生命周期；
+- M6 依赖 M3 的沙箱与 M5 的插件工具生命周期；插件拦截器不是 M5 的交付物，
+  如需要应在 M6 以新契约引入；
 - M7 依赖 M4 的上下文组装；
 - M8 依赖 M4 的 run 生命周期与 M6 的审批。
 

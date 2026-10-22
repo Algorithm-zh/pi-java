@@ -57,7 +57,7 @@ plugin-api     -> JDK
 | 模块 | 允许依赖 | 职责 | 明确禁止 |
 |---|---|---|---|
 | `pi-java-domain` | 仅 JDK | 7 个上下文的聚合、实体、值对象、领域服务、仓储/端口接口、共享内核 | Spring、Jackson、MyBatis、Web、插件 API |
-| `pi-java-plugin-api` | 仅 JDK | 第三方插件稳定契约：工具、命令、hook、prompt section、日志 | Spring、Jackson、domain/application 类型 |
+| `pi-java-plugin-api` | 仅 JDK | 第三方插件稳定契约：入口、描述、工具注册、执行上下文、日志 | Spring、Jackson、domain/application 类型 |
 | `pi-java-application` | domain、Spring stereotype/tx | 用例编排、Agent Loop、上下文组装、事务边界、读模型 | MyBatis、Jackson、Web、插件 API、基础设施实现 |
 | `pi-java-infrastructure` | domain、application、plugin-api、驱动库 | LLM 适配器、MyBatis 仓储、内置工具、路径解析、插件加载、Caffeine 缓存 | trigger |
 | `pi-java-trigger` | application、Spring MVC、picocli | Controller、SSE、DTO 映射、CLI 命令、参数校验 | 基础设施、Mapper、领域仓储实现 |
@@ -84,7 +84,7 @@ plugin-api     -> JDK
 | 工具 tool | `domain.tool` | 工具描述、调用、结果、目录与参数守卫 | 具体文件/进程实现 |
 | 治理 governance | `domain.governance` | 工具策略、审批状态机、路径沙箱、风险级别 | 等待 UI、数据库投影 |
 | 上下文 context | `domain.context` | token 估算、压缩计划、Skill 描述与 prompt 格式化 | 文件扫描、YAML 解析 |
-| 扩展 extension | `domain.extension` | 插件安装记录、描述、兼容性与激活策略 | ClassLoader、Spring 容器 |
+| 扩展 extension | `domain.extension` | 插件安装记录、jar 检查结果、兼容性与运行时端口 | ClassLoader、Spring 容器 |
 
 ### 上下文映射
 
@@ -192,7 +192,7 @@ Web 与 CLI 共享同一个 Spring 容器与用例，不维护两套 agent 逻�
 | 模型档案 | `pi_model_profile` | Caffeine 10 分钟 |
 | 工具策略 | `pi_tool_policy` | Caffeine 2 分钟 |
 | 审批待办 | `pi_approval_request`（投影） + `APPROVAL` entry（审计） | 不缓存 |
-| 插件安装 | `pi_plugin` + 磁盘 jar | 启动快照 |
+| 插件安装 | `pi_plugin` + 磁盘 jar | 启动时重新加载 ACTIVE；运行时目录在内存 |
 | Skill | 文件系统 | Caffeine 5 分钟 + mtime |
 | Run 状态 | 进程内 `RunRegistry` | 不持久化，结束写 `RUN_SUMMARY` |
 

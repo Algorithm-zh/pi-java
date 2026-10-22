@@ -1,0 +1,8 @@
+{
+  "id": "com.piagent.example.hello",
+  "name": "Hello Plugin",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "mainClass": "com.piagent.example.HelloPlugin",
+  "description": "示例插件：演示零依赖契约与工具注册"
+}

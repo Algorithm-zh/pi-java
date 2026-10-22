@@ -82,14 +82,14 @@ final class AgentLoopFixture {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         DirectExecutorService executor = new DirectExecutorService();
         appender = new SessionEntryAppender(sessions, entries, ids, clock);
-        runtime = new RunRuntime(registry, hub, appender, ids, clock);
+        runtime = new RunRuntime(registry, hub, appender, tools, ids, clock);
         profile = ModelProfile.create(new ModelId(MODEL_ID), "Loop Fake",
                 ModelEndpoint.fake(MODEL_ID));
         models.insert(profile);
-        ToolCallCoordinator coordinator = new ToolCallCoordinator(tools, invoker, policies,
+        ToolCallCoordinator coordinator = new ToolCallCoordinator(invoker, policies,
                 new ToolAccessPolicy(), appender, executor);
         pipeline = new TurnPipeline(entries, new SessionContextProjector(),
-                new SystemPromptBuilder(), new TurnExecutor(gateway, registry), coordinator, tools);
+                new SystemPromptBuilder(), new TurnExecutor(gateway, registry), coordinator);
         dispatcher = new RunDispatcher(executor, maxConcurrentRuns);
         loop = new AgentLoopService(sessions,
                 new ActiveModelResolver(models, new ModelSelectionPolicy()),
@@ -140,6 +140,10 @@ final class AgentLoopFixture {
             definitions.put(tool, new ToolDescriptor(tool, "测试工具 " + name,
                     "{\"type\":\"object\"}", risk, mode, Duration.ofSeconds(5)));
             return this;
+        }
+
+        void remove(String name) {
+            definitions.remove(new ToolName(name));
         }
 
         @Override

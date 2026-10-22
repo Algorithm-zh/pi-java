@@ -71,6 +71,32 @@ class DemoTurnScriptTest {
     }
 
     @Test
+    void toolCommandProducesArbitraryToolCall() {
+        FakeTurn turn = DemoTurnScript.next(
+                request(user("/tool app.test.sample.echo {\"text\":\"你好\"}")));
+
+        assertThat(turn.response().stopReason()).isEqualTo(AssistantStopReason.TOOL_USE);
+        assertThat(toolName(turn)).isEqualTo("app.test.sample.echo");
+        assertThat(toolArguments(turn)).containsEntry("text", "你好");
+    }
+
+    @Test
+    void toolCommandWithoutArgumentsSendsEmptyObject() {
+        FakeTurn turn = DemoTurnScript.next(request(user("/tool example.ping")));
+
+        assertThat(toolName(turn)).isEqualTo("example.ping");
+        assertThat(toolArguments(turn)).isEmpty();
+    }
+
+    @Test
+    void invalidToolArgumentsReturnHint() {
+        FakeTurn turn = DemoTurnScript.next(request(user("/tool example.echo not-json")));
+
+        assertThat(turn.response().stopReason()).isEqualTo(AssistantStopReason.STOP);
+        assertThat(text(turn)).contains("JSON 对象").contains("/tool");
+    }
+
+    @Test
     void toolResultBecomesTextSummary() {
         FakeTurn turn = DemoTurnScript.next(request(
                 user("/read hello.txt"), toolResult("hello\nworld", false)));

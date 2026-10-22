@@ -10,7 +10,6 @@ import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.port.SessionEntryStore;
 import com.piagent.domain.session.service.SessionContextProjector;
-import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.port.ToolRegistry;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -31,7 +30,6 @@ public class TurnPipeline {
     private final SystemPromptBuilder promptBuilder;
     private final TurnExecutor turnExecutor;
     private final ToolCallCoordinator toolCoordinator;
-    private final ToolRegistry registry;
 
     /**
      * 创建流水线。
@@ -41,17 +39,15 @@ public class TurnPipeline {
      * @param promptBuilder 提示词组装器
      * @param turnExecutor 流式执行器
      * @param toolCoordinator 工具协调器
-     * @param registry 工具目录
      */
     public TurnPipeline(SessionEntryStore entryStore, SessionContextProjector projector,
             SystemPromptBuilder promptBuilder, TurnExecutor turnExecutor,
-            ToolCallCoordinator toolCoordinator, ToolRegistry registry) {
+            ToolCallCoordinator toolCoordinator) {
         this.entryStore = entryStore;
         this.projector = projector;
         this.promptBuilder = promptBuilder;
         this.turnExecutor = turnExecutor;
         this.toolCoordinator = toolCoordinator;
-        this.registry = registry;
     }
 
     /**
@@ -75,11 +71,13 @@ public class TurnPipeline {
      * @param session 会话快照
      * @param profile 模型档案
      * @param context 投影上下文
+     * @param tools 本次 run 的工具快照
      * @return 请求
      */
-    public LlmRequest request(ChatSession session, ModelProfile profile, ProjectedContext context) {
-        return new LlmRequest(profile, promptBuilder.build(session, registry.descriptors()),
-                context.messages(), tools(), session.config().thinkingLevel());
+    public LlmRequest request(ChatSession session, ModelProfile profile, ProjectedContext context,
+            ToolRegistry tools) {
+        return new LlmRequest(profile, promptBuilder.build(session, tools.descriptors()),
+                context.messages(), llmTools(tools), session.config().thinkingLevel());
     }
 
     /**
@@ -102,27 +100,20 @@ public class TurnPipeline {
      *
      * @param session 会话快照
      * @param calls 工具调用
+     * @param tools 本次 run 的工具快照
      * @param events 事件发布器
      * @param cancelled 取消查询
      * @param remainingCalls 剩余工具预算
      * @return 批次摘要
      */
     public ToolBatchResult executeTools(ChatSession session, List<ToolCallBlock> calls,
-            RunEventPublisher events, BooleanSupplier cancelled, int remainingCalls) {
-        return toolCoordinator.execute(session, calls, events, cancelled, remainingCalls);
+            ToolRegistry tools, RunEventPublisher events, BooleanSupplier cancelled,
+            int remainingCalls) {
+        return toolCoordinator.execute(session, calls, tools, events, cancelled, remainingCalls);
     }
 
-    /**
-     * 当前目录中的工具定义。
-     *
-     * @return 工具定义
-     */
-    public List<ToolDescriptor> toolDescriptors() {
-        return registry.descriptors();
-    }
-
-    private List<LlmTool> tools() {
-        return registry.descriptors().stream()
+    private List<LlmTool> llmTools(ToolRegistry tools) {
+        return tools.descriptors().stream()
                 .map(tool -> new LlmTool(tool.name().toString(), tool.description(),
                         tool.inputSchemaJson()))
                 .toList();

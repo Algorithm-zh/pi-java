@@ -1,6 +1,6 @@
 # 07 测试与质量
 
-> 状态：M0 冻结。每个里程碑必须通过本文定义的统一门禁，才能提交与进入下一阶段。
+> 状态：M5 更新。每个里程碑必须通过本文定义的统一门禁，才能提交与进入下一阶段。
 
 ## 1. 质量目标
 
@@ -41,11 +41,11 @@
 | 模块 | 测试类型 | 关键内容 |
 |---|---|---|
 | domain | JUnit 5 + AssertJ | ULID 排序/解析、entry 校验、投影、分支策略、压缩切点、消息配对、路径判定、审批状态机、子代理权限 |
-| plugin-api | 编译期检查 + ArchUnit | 只依赖 JDK；示例插件独立编译 |
-| application | JUnit + Mockito | 用例编排、状态机、取消传播、重试边界、事件顺序 |
-| infrastructure | H2 集成、WireMock、临时目录 | MyBatis 映射、Flyway、LLM SSE 解析、工具路径/超时、ClassLoader 卸载 |
-| trigger | MockMvc + 单元测试 | DTO 校验、错误映射、SSE 格式、CLI 参数解析 |
-| app | `@SpringBootTest` | 装配、Flyway、健康检查、ArchUnit、E2E |
+| plugin-api | 单元测试 + ArchUnit | 标识/工具定义校验；只依赖 JDK；示例插件独立编译 |
+| application | JUnit + Mockito | 用例编排、状态机、取消传播、重试边界、事件顺序、run 工具快照 |
+| infrastructure | H2 集成、WireMock、临时目录、动态 jar | MyBatis 映射、Flyway、LLM SSE 解析、工具路径/超时、插件加载与隔离 |
+| trigger | MockMvc + 单元测试 | DTO 校验、错误映射、SSE 格式、插件端点状态码 |
+| app | `@SpringBootTest` | 装配、Flyway、ArchUnit、插件安装/启停/端到端、SSE 链路 |
 
 ## 4. 领域测试清单
 
@@ -109,7 +109,19 @@ M6/M7 补充：审批等待/超时/取消、压缩切点与收敛。
 - Skill frontmatter 解析：name/description 必填，非法 name 警告但加载；
 - 目录 mtime 改变后缓存失效；`/skill:name` 注入正文。
 
-### 4.5 子代理
+### 4.5 插件（M5）
+
+- `PluginId` / `ApiVersion` / `ToolSpec` 的字符集、长度与版本规范化；
+- 聚合状态迁移：INSTALLED/DISABLED/FAILED → ACTIVE、ACTIVE → DISABLED、失败 → FAILED；
+- jar 检查：缺失/非文件/超大、清单缺字段、入口类不存在、打包 plugin-api 类、
+  API 主版本不为 1、安装后 jar 被替换；
+- 加载回滚：`start` 抛异常、工具 schema 非法、工具重名时，实时目录不残留；
+- 停用：工具立即从目录移除，旧 run 的快照与工具句柄仍可用；
+- 工具名：完整名等于 `pluginId.toolName`，与内置工具冲突时整次加载失败；
+- 已实现测试：plugin-api 3 个、infrastructure 135 个（含 2 个符号链接跳过）、
+  app 插件 HTTP 3 个 + 端到端 1 个、示例插件 4 个。
+
+### 4.6 子代理
 
 - 深度上限：达到后子工具目录不含 `subagent`；
 - 工具子集：请求白名单不能超出父快照；
@@ -174,6 +186,7 @@ WireMock 覆盖（10 个端到端用例）：
   - session 删除级联 entry/approval；
   - parent_session `SET NULL`；
   - 工具策略 `(scope, workspace_key, tool_name)` 唯一键、工作区+全局查询、CAS；
+  - 插件记录往返、状态更新、重复 id 冲突（M5）；
   - 审批唯一键 `(run_id, tool_call_id)`（M6）；
   - 时间精度毫秒、UTF-8 中文往返；
 - MySQL 方言不靠 H2 完全替代：M9 增加本机 MySQL smoke（建库 → Flyway → 启动 → 一条会话）。
@@ -213,25 +226,27 @@ WireMock 覆盖（10 个端到端用例）：
 - 生成 HTML 报告到 `target/site/jacoco`；
 - 排除纯 record/DTO 需谨慎：优先补行为测试，不靠排除刷数字。
 
-M4 实测（2026-10-22，`mvn -q verify`）：
+M5 实测（2026-10-22，`mvn -q verify`）：
 
 | 模块 | 行覆盖 | 测试数 | 门槛 |
 |---|---|---|---|
-| `pi-java-domain` | 86.7%（822/948） | 88 | ≥ 60% |
-| `pi-java-application` | 88.9%（821/924） | 48 | ≥ 60% |
-| `pi-java-infrastructure` | 64.8%（1066/1646） | 108（2 跳过） | 无门槛 |
-| `pi-java-trigger` | 38.3%（120/313） | 21 | 无门槛 |
-| `pi-java-app` | 7.7%（1/13，仅启动类） | 30 | 无门槛 |
+| `pi-java-domain` | 87.6%（942/1075） | 106 | ≥ 60% |
+| `pi-java-application` | 89.7%（885/987） | 60 | ≥ 60% |
+| `pi-java-infrastructure` | 65.8%（1418/2156） | 135（2 跳过） | 无门槛 |
+| `pi-java-trigger` | 35.6%（120/337） | 21 | 无门槛 |
+| `pi-java-app` | 38.1%（8/21） | 39 | 无门槛 |
+| `pi-java-plugin-api` | 73.1%（49/67） | 3 | 无门槛 |
+| `examples/pi-plugin-example` | 100%（13/13） | 4 | 无门槛 |
 
-当前共 295 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
-application 覆盖率从 M3 的 98.0% 降到 88.9%，是因为新增了 Agent Loop、事件中心、
-入口追加器等大量运行时代码，而测试仍以内存端口单测为主；仍高于 60% 门槛。
-trigger 从 17.3% 升到 38.3%，新增的 `SessionControllerTest`、`RunControllerTest`
-覆盖了会话/运行端点与错误映射；SSE 连接与心跳线程属于长生命周期资源，由
-app 层的 `RunSseIntegrationTest` 走真实 MockMvc 异步链路验证。
+当前共 368 个测试全绿（2 个符号链接用例在 Windows 无权限环境条件跳过）。
+application 覆盖率从 M4 的 88.9% 升到 89.7%，新增的插件用例服务与 run 快照
+接入都有覆盖；仍高于 60% 门槛。
+trigger 从 38.3% 降到 35.6%，是因为新增插件端点的分支多于测试数；
+插件 Controller 的 3 个 MockMvc 用例已覆盖安装/启用/停用主路径与 404/409/422。
 
-infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的关闭/拒绝分支与部分 IO
-异常路径难以稳定触发；这些路径由行为测试和手工 smoke 兜底，不以排除代码的方式抬高数字。
+infrastructure 覆盖率较低是因为 `BuiltInToolInvoker` 的关闭/拒绝分支、
+`PluginHost` 的若干异常回滚路径与部分 IO 异常不易稳定触发；这些路径由
+行为测试和手工 smoke 兜底，不以排除代码的方式抬高数字。
 
 application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 app 模块的 H2 集成测试覆盖，
 避免为了覆盖率把基础设施依赖倒灌进应用层。
@@ -255,6 +270,14 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
    message.completed → run.completed` 的顺序与 `id=runId:seq`；
 4. 用 `Last-Event-ID: runId:2` 重连，断言只回放 `seq>2` 的事件且连接自动关闭。
 
+插件 E2E（M5，`PluginEndToEndIntegrationTest`）：
+
+1. 用测试类路径中的字节码动态生成插件 jar；
+2. `POST /plugins` 安装 → `POST /plugins/{id}/enable`；
+3. 创建会话 → `/tool app.test.sample.echo {"text":"你好"}`；
+4. 断言 SSE 出现 `tool.completed`、插件工具名、`echo:你好` 与 `run.completed`；
+5. 停用插件 → 再次调用得到“工具未注册”，run 仍完成。
+
 浏览器手工走查（M4 验收）：
 
 1. 启动 demo profile（H2 + Fake）；
@@ -262,7 +285,8 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 3. 停止一次运行，确认界面显示 ABORTED 且保留部分输出；
 4. 刷新页面，确认会话列表与历史 entry 可恢复。
 
-审批写文件、会话树/分支查看在 M6–M8 加入走查清单。
+插件安装/启停在 M5 通过 curl 走查（无 Web UI）；审批写文件、会话树/分支查看
+在 M6–M8 加入走查清单。
 
 ### 8.2 黄金样本（M7）
 

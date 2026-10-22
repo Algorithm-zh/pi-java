@@ -196,8 +196,10 @@ CREATE TABLE pi_plugin (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 ```
 
-一个插件 key 在库中只有一行；升级覆盖版本与 jar 路径，历史审计依赖 git/备份。
-同时最多一个 ACTIVE 版本。
+M5 已落地。一个插件 id 在库中只有一行；M5 **没有升级/覆盖接口**，重复安装返回
+409，修改插件后需要重启进程并重新安装。`jar_path` 与 `checksum` 是启用时重新校验
+文件一致性的依据；`config_json` 当前只保存不读取。启动时只恢复 `ACTIVE` 记录，
+加载失败会把该行置为 `FAILED` 并写入 `last_error`，不影响应用启动。
 
 ### 3.5 `V5__approval_request.sql`
 
@@ -365,7 +367,7 @@ COMMIT
 - `clean` 在生产禁用（`spring.flyway.clean-disabled=true`）；
 - 启动时 Flyway 校验 checksum，迁移失败应用拒绝启动；
 - 测试库每次启动执行全部迁移，验证 H2 与 MySQL 的语义一致性；
-- M1 落地 V1，M2 落 V2，M3 落 V3，M5 落 V4，M6 落 V5。
+- M1 落地 V1，M2 落 V2，M3 落 V3，M5 落 V4（已实现），M6 落 V5。
 
 ## 9. 索引与容量
 

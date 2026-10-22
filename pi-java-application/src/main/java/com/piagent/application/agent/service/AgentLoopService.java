@@ -88,7 +88,8 @@ public class AgentLoopService {
             reserved = runtime.reserve(session.identity().id());
             runtime.appendUserAndStart(session.identity().id(), command.text());
             ModelProfile profile = models.resolve(session.config().modelProfileId(),
-                    session.config().thinkingLevel(), !pipeline.toolDescriptors().isEmpty());
+                    session.config().thinkingLevel(),
+                    !reserved.tools().descriptors().isEmpty());
             ReservedRun handle = reserved;
             dispatcher.dispatch(() -> runSafely(handle, profile));
             submitted = true;
@@ -173,7 +174,7 @@ public class AgentLoopService {
             ChatSession session = requireSession(sessionId);
             reserved.events().turnStarted(run.turns() + 1);
             ProjectedContext context = pipeline.project(session);
-            LlmRequest request = pipeline.request(session, profile, context);
+            LlmRequest request = pipeline.request(session, profile, context, reserved.tools());
             TurnResult result;
             try {
                 result = pipeline.stream(request, runId, reserved.events(),
@@ -227,8 +228,8 @@ public class AgentLoopService {
         RunId runId = reserved.runId();
         AgentRun run = runtime.current(runId);
         int remaining = Math.max(0, run.budget().maxToolCalls() - run.toolCalls());
-        ToolBatchResult batch = pipeline.executeTools(session, calls, reserved.events(),
-                () -> runtime.isCancelled(runId), remaining);
+        ToolBatchResult batch = pipeline.executeTools(session, calls, reserved.tools(),
+                reserved.events(), () -> runtime.isCancelled(runId), remaining);
         runtime.recordToolCalls(runId, batch.executed());
         if (batch.cancelled()) {
             runtime.finish(reserved, RunStopReason.CANCELLED, null);

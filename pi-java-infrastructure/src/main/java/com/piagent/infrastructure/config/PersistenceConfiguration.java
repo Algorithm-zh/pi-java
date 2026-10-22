@@ -5,6 +5,7 @@ import com.piagent.infrastructure.persistence.codec.EntryPayloadCodec;
 import com.piagent.infrastructure.persistence.codec.ModelCapabilitiesCodec;
 import com.piagent.infrastructure.persistence.codec.SandboxJsonCodec;
 import com.piagent.infrastructure.persistence.codec.ToolPolicyConfigCodec;
+import com.piagent.infrastructure.persistence.extension.PluginPoConverter;
 import com.piagent.infrastructure.persistence.model.ModelProfilePoConverter;
 import com.piagent.infrastructure.persistence.model.ToolPolicyPoConverter;
 import com.piagent.infrastructure.persistence.session.SessionEntryPoConverter;
@@ -110,5 +111,15 @@ public class PersistenceConfiguration {
     @Bean
     public ToolPolicyPoConverter toolPolicyPoConverter(ToolPolicyConfigCodec configCodec) {
         return new ToolPolicyPoConverter(configCodec);
+    }
+
+    /**
+     * 插件安装记录行转换器。
+     *
+     * @return 转换器
+     */
+    @Bean
+    public PluginPoConverter pluginPoConverter() {
+        return new PluginPoConverter();
     }
 }

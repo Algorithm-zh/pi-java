@@ -1,5 +1,9 @@
 package com.piagent.infrastructure.llm.fake;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.domain.model.Usage;
 import com.piagent.domain.model.llm.LlmRequest;
 import com.piagent.domain.model.llm.LlmResponse;
@@ -20,18 +24,22 @@ import java.util.regex.Pattern;
  * Demo 模式的确定性回合脚本。
  *
  * <p>和 {@link FakeTurn} 的固定脚本不同，这里根据请求的最后一条消息决定产出：
- * 用户输入 {@code /read <path>}、{@code /ls} 或中文同义词时触发只读工具调用；
- * 工具结果回传后生成一段摘要文本；其余输入给出使用提示。它不访问网络，
- * 只用于零配置的 Web/CLI 演示和端到端测试。</p>
+ * 用户输入 {@code /read <path>}、{@code /ls}、{@code /tool <name> <json>}
+ * 或中文同义词时触发真实工具调用；工具结果回传后生成一段摘要文本；其余输入
+ * 给出使用提示。它不访问网络，只用于零配置的 Web/CLI 演示和端到端测试。</p>
  */
 final class DemoTurnScript {
 
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final int PREVIEW_LENGTH = 1_200;
     private static final Pattern READ = Pattern.compile(
             "^(?:/read|read|读取文件|读取|读一下|看看|查看)\\s*[:：]?\\s*(.*)$",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern LIST = Pattern.compile(
             "^(?:/ls|ls|列出目录|列目录|目录)\\s*[:：]?\\s*(.*)$",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern TOOL = Pattern.compile(
+            "^(?:/tool|tool|调用工具)\\s+([a-z][a-z0-9._-]*)\\s*(.*)$",
             Pattern.CASE_INSENSITIVE);
 
     private DemoTurnScript() {
@@ -58,8 +66,34 @@ final class DemoTurnScript {
         if (list.matches()) {
             return toolCall("ls", Map.of("path", pathOrDefault(list.group(1), ".")));
         }
+        Matcher tool = TOOL.matcher(input);
+        if (tool.matches()) {
+            return toolCommand(tool.group(1), tool.group(2));
+        }
         return text("（Fake 模型 · demo）我收到：" + (input.isBlank() ? "（空消息）" : input)
-                + "\n\n试试输入 `/read README.md` 或 `/ls .`，我会真实调用工作区里的只读工具。");
+                + "\n\n试试输入 `/read README.md`、`/ls .`，"
+                + "或用 `/tool <工具名> <JSON参数>` 调用已启用的插件工具。");
+    }
+
+    private static FakeTurn toolCommand(String name, String rawArguments) {
+        if (rawArguments == null || rawArguments.isBlank()) {
+            return toolCall(name, Map.of());
+        }
+        try {
+            JsonNode arguments = JSON.readTree(rawArguments);
+            if (arguments == null || !arguments.isObject()) {
+                return invalidArguments();
+            }
+            return toolCall(name, JSON.convertValue(arguments,
+                    new TypeReference<Map<String, Object>>() { }));
+        } catch (JsonProcessingException error) {
+            return invalidArguments();
+        }
+    }
+
+    private static FakeTurn invalidArguments() {
+        return text("（Fake 模型 · demo）工具参数必须是 JSON 对象。"
+                + "示例：`/tool app.test.sample.echo {\"text\":\"你好\"}`");
     }
 
     private static FakeTurn toolCall(String toolName, Map<String, Object> arguments) {
