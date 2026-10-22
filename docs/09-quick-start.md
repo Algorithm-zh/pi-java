@@ -21,6 +21,11 @@ JDK 路径、环境变量名和模型档案参数。
 .\scripts\start.ps1
 ```
 
+> 脚本可在 **Windows PowerShell 5.1** 与 **PowerShell 7** 下运行。
+> Windows 若提示"禁止运行脚本"，用以下任一方式：
+> - 当前会话临时放行：`Set-ExecutionPolicy -Scope Process Bypass`
+> - 或直接调用：`powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1`
+
 打开 <http://127.0.0.1:8080>，新建会话时选择 **Fake Demo（离线）**，然后输入：
 
 | 输入 | 说明 |
@@ -132,8 +137,15 @@ curl http://127.0.0.1:8080/api/v1/skills          # 查看目录
 
 ## 七、常见问题
 
+**Q：脚本报"表达式或语句中包含意外的标记"，满屏解析错误**
+用的是 Windows PowerShell 5.1，且脚本文件被保存成了**无 BOM 的 UTF-8**，中文被按 GBK
+解析导致字符串断裂。本仓库的 `start.ps1` 已带 UTF-8 BOM；如果你自己复制或改过文件，
+请用"UTF-8 with BOM"重新保存。
+
 **Q：提示"未找到 JDK 21"**
 安装 JDK 21，或把 `JAVA_HOME` 指向它。脚本只能在你已安装的 JDK 中选择。
+（PowerShell 5.1 会把 `java -version` 的 stderr 当作终止性错误，脚本已做了兼容处理，
+不会再误报版本为 0。）
 
 **Q：端口被占用**
 换端口：`.\scripts\start.ps1 -Port 8081`。或先确认占用者：

@@ -1,0 +1,12 @@
+# 保持 PowerShell 脚本使用 UTF-8 with BOM。
+#
+# 为什么需要：Windows PowerShell 5.1 在没有 BOM 时按系统代码页（中文 Windows 为
+# GBK）读取脚本，中文注释和字符串会被解析成乱码，进而报出大量误导性的
+# "意外的标记 }"、"字符串缺少终止符" 等语法错误。
+#
+# 注意：.gitattributes 里的 `* text=auto` 会让 Git 在检出时规范化编码相关内容，
+# 单纯在仓库里存 BOM 不足以保证工作区文件带 BOM，因此这里显式声明二进制属性，
+# 让 Git 原样保留字节。
+
+*.ps1 -text
+*.psm1 -text

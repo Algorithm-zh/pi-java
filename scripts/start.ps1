@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     启动 pi-java 本地服务（demo profile：H2 文件库 + 可选的真实模型档案）。
 
@@ -68,16 +68,25 @@ function Write-Fail([string]$Message) {
 
 <#
   解析某个 java.exe 的主版本号；不可执行或解析失败返回 0。
+
+  注意：java -version 的输出走 stderr。脚本全局设置了 $ErrorActionPreference =
+  "Stop"，在 Windows PowerShell 5.1 中 stderr 会被当成终止性错误抛出，直接导致
+  探测永远返回 0（表现为"未找到 JDK 21"）。因此这里临时改回 "Continue"，
+  并在 finally 中恢复原值。
 #>
 function Get-JavaMajorVersion([string]$JavaExe) {
-    if (-not (Test-Path -LiteralPath $JavaExe)) {
+    if (-not $JavaExe -or -not (Test-Path -LiteralPath $JavaExe)) {
         return 0
     }
+    $output = ''
+    $previousPreference = $ErrorActionPreference
     try {
-        # java -version 输出到 stderr，这里合并后取首个匹配
-        $output = & $JavaExe -version 2>&1 | Out-String
+        $ErrorActionPreference = 'Continue'
+        $output = (& $JavaExe -version 2>&1 | Out-String)
     } catch {
         return 0
+    } finally {
+        $ErrorActionPreference = $previousPreference
     }
     if ($output -match 'version "(\d+)(?:\.(\d+))?') {
         $major = [int]$Matches[1]
@@ -213,7 +222,13 @@ if (-not (Test-Path -LiteralPath $JarPath)) {
 $java = Resolve-Java21
 if (-not $java) {
     Write-Fail "未找到 JDK $MinimumJavaVersion 或更高版本。"
-    Write-Fail "当前 PATH 上的 java 版本可能是 $(Get-JavaMajorVersion (Get-Command java -ErrorAction SilentlyContinue).Source)。"
+    $pathJava = Get-Command java -ErrorAction SilentlyContinue
+    if ($pathJava) {
+        $pathVersion = Get-JavaMajorVersion $pathJava.Source
+        Write-Fail "当前 PATH 上的 java 版本是 $pathVersion：$($pathJava.Source)"
+    } else {
+        Write-Fail "当前 PATH 上找不到 java。"
+    }
     Write-Fail "请安装 JDK $MinimumJavaVersion+，或把 JAVA_HOME 指向它。"
     exit 1
 }
