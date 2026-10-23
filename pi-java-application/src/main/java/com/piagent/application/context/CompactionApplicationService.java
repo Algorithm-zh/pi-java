@@ -109,13 +109,41 @@ public class CompactionApplicationService {
      * @return token 估算
      */
     public int estimateContextTokens(SessionId sessionId) {
-        ChatSession session = sessions.findById(sessionId)
-                .orElseThrow(() -> new DomainException(DomainErrorCode.SESSION_NOT_FOUND,
-                        "会话不存在: " + sessionId));
+        ChatSession session = require(sessionId);
+        return estimate(session);
+    }
+
+    /**
+     * 查询上下文用量与模型窗口，供头部仪表显示。
+     *
+     * @param sessionId 会话标识
+     * @return 上下文状态
+     */
+    public ContextStatusView contextStatus(SessionId sessionId) {
+        ChatSession session = require(sessionId);
+        ModelProfile profile = models.findById(new com.piagent.domain.model.ModelId(
+                        session.config().modelProfileId()))
+                .orElseThrow(() -> new DomainException(DomainErrorCode.MODEL_NOT_FOUND,
+                        "模型档案不存在: " + session.config().modelProfileId()));
+        ContextBudget budget = measurements.budgetOf(profile);
+        return new ContextStatusView(estimate(session), profile.endpoint().contextWindow(),
+                budget.availableTokens(), profile.endpoint().maxOutputTokens(),
+                profile.id().value(), profile.endpoint().modelName(),
+                profile.endpoint().provider().name());
+    }
+
+    private int estimate(ChatSession session) {
         EntryId leaf = session.leafEntryId();
         if (leaf == null) {
             return 0;
         }
-        return projector.project(entryStore.loadBranch(sessionId, leaf), leaf).estimatedTokens();
+        return projector.project(
+                entryStore.loadBranch(session.identity().id(), leaf), leaf).estimatedTokens();
+    }
+
+    private ChatSession require(SessionId sessionId) {
+        return sessions.findById(sessionId)
+                .orElseThrow(() -> new DomainException(DomainErrorCode.SESSION_NOT_FOUND,
+                        "会话不存在: " + sessionId));
     }
 }

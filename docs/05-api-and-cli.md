@@ -1,7 +1,8 @@
 # 05 API 与 CLI
 
-> 状态：M6 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理；
-> 分支/fork/compact、Skills 与 CLI 是后续里程碑。
+> 状态：M9 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理、
+> Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
+> 设置中心；CLI 尚未实现，命令契约保留在第 8 节。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -212,7 +213,57 @@ POST /api/v1/sessions/{sessionId}/abort
 取消是协作式的：当前 LLM 流被关闭，已输出文本保留，随后写
 `RUN_SUMMARY(stopReason=CANCELLED)`。
 
-> 手动压缩 `POST /compact` 在 M7 提供。
+> 手动压缩见 7.3；上下文用量见 2.9。
+
+### 2.9 会话设置与上下文状态（M9）
+
+```http
+PATCH /api/v1/sessions/{id}          # 重命名
+PUT   /api/v1/sessions/{id}/model    # 切换模型与思考级别
+POST  /api/v1/sessions/{id}/archive  # 归档
+GET   /api/v1/sessions/{id}/context  # 上下文用量估算
+```
+
+重命名请求：
+
+```json
+{ "title": "重构登录模块" }
+```
+
+切换模型请求：
+
+```json
+{ "modelProfileId": "deepseek-chat", "thinkingLevel": "MEDIUM" }
+```
+
+- `thinkingLevel` 可省略，省略时保留当前级别；
+- 目标档案必须存在且启用，否则 404 `MODEL_NOT_FOUND` / 409 `MODEL_DISABLED`；
+- 只有 `IDLE` 会话可以切换模型；运行中或等待审批返回 409 `INVALID_STATE_TRANSITION`；
+- 切换只影响之后的 run，历史 assistant 消息保留各自实际使用的模型名。
+
+归档：
+
+- 只有 `IDLE` 会话可以归档，否则 409 `INVALID_STATE_TRANSITION`；
+- 归档后 `status=ARCHIVED`，发送消息、压缩与再次切换模型都会被拒绝；
+- 重命名不限制状态，归档会话仍可改名，方便在侧栏中辨认；
+- 归档不删除任何 entry，会话仍可只读查看历史。
+
+上下文状态响应：
+
+```json
+{
+  "tokens": 19539,
+  "contextWindow": 64000,
+  "availableTokens": 55808,
+  "maxOutputTokens": 8192,
+  "modelProfileId": "deepseek-chat",
+  "modelName": "deepseek-chat",
+  "provider": "OPENAI_COMPATIBLE"
+}
+```
+
+`tokens` 是按当前分支估算的输入用量，不包含预留输出；`availableTokens =
+contextWindow - maxOutputTokens`。该接口只读，不写 entry，也不触发压缩。
 
 ## 3. 审批 API（M6）
 
@@ -282,7 +333,8 @@ POST /api/v1/models/{id}/disable
 }
 ```
 
-响应在请求字段之外增加 `enabled` 与 `version`，**任何响应都不返回密钥值**：
+响应在请求字段之外增加 `enabled`、`apiKeyConfigured` 与 `version`，
+**任何响应都不返回密钥值**：
 
 ```json
 {
@@ -290,9 +342,14 @@ POST /api/v1/models/{id}/disable
   "displayName": "DeepSeek Chat",
   "endpoint": {"provider": "OPENAI_COMPATIBLE", "...": "..."},
   "enabled": true,
+  "apiKeyConfigured": true,
   "version": 1
 }
 ```
+
+`apiKeyConfigured` 只表示 `apiKeyEnv` 指向的环境变量当前是否存在且非空；
+服务端从不读取该值写日志或返回给客户端。`FAKE` provider 固定为 `true`。
+设置页用它提示“密钥未配置”，但不会因此阻止保存档案。
 
 约束与错误：
 
@@ -593,34 +650,46 @@ CLI 与 Web 使用同一个数据库与同一套用例；CLI 不直接操作 Map
 
 ## 9. Web UI
 
-M4 的静态资源位于 `pi-java-app/src/main/resources/static/`，原生 HTML/CSS/JS，无构建步骤，
-只依赖 `/api/v1`。当前页面为单栏布局：
+静态资源位于 `pi-java-app/src/main/resources/static/`，原生 HTML/CSS/JS ES modules，
+无构建步骤，只依赖 `/api/v1`。布局为左侧会话栏 + 右侧消息流与输入框，移动端自动
+折叠为上下布局。
 
 ```text
 ┌───────────────┬─────────────────────────────────────────┐
-│ 会话侧栏       │ 消息流                                   │
-│ + 新建会话     │ - 用户/助手气泡                           │
-│ 会话列表       │ - 工具卡片（工具名、参数、输出、错误态）    │
-│ 当前 run 状态  │ - 流式文本与光标                          │
-│               │ - 停止按钮、token 统计                    │
+│ 会话侧栏       │ 顶栏：标题 / 上下文仪表 / 会话设置         │
+│ + 新建会话     │ 消息流                                   │
+│ 会话列表       │ - 用户/助手气泡                           │
+│ 设置入口       │ - 工具卡片（工具名、参数、输出、错误态）    │
+│               │ - 压缩/审批/模型切换历史条目               │
+│               │ - 流式文本与光标                          │
+│               │ 输入框：模型名 / 发送 / 停止               │
 └───────────────┴─────────────────────────────────────────┘
 ```
 
-M4 已覆盖基础交互，M6 增加审批弹窗：
+交互覆盖：
 
-1. 新建会话（标题、工作目录、模型档案）→ 发送消息 → 流式增量 → 完成；
-2. 工具卡片展示工具的参数与输出；
-3. 停止运行，显示 ABORTED，保留已输出内容；
-4. 会话切换与刷新后通过 `GET /sessions/{id}/run` 重连 SSE；
-5. 输入 `/read README.md`、`/ls .`、`/write notes.txt 你好` 或普通问候即可在
-   Fake 模型下体验；
-6. 写工具触发 `approval.requested` 后弹出审批框：展示风险级别、工具名、脱敏参数、
-   参数摘要与倒计时；批准/拒绝通过 `POST /approvals/{id}/decision` 提交；
-   多个待办按到达顺序串行展示，刷新后通过 `GET /approvals?status=PENDING` 恢复；
-7. `approval.resolved` 到达或决策提交成功后关闭弹窗，运行继续流式输出。
+1. 新建会话（标题、工作目录、模型档案、思考级别）→ 发送消息 → 流式增量 → 完成；
+2. 工具卡片展示参数、输出与错误态；写工具触发审批弹窗，展示风险级别、工具名、
+   脱敏参数、SHA-256 摘要与倒计时；批准/拒绝后写审批历史条目，多个待办串行展示，
+   刷新页面通过 `GET /approvals?status=PENDING` 恢复；
+3. 停止运行，显示 ABORTED，保留已输出内容；切换会话或刷新后通过
+   `GET /sessions/{id}/run` 自动重连 SSE；
+4. 顶栏上下文仪表显示 `已用 / 窗口 · 百分比`，达到 70% / 88% 变色；
+   “压缩”按钮只在空闲会话可用，内容不足时按后端说明提示无需压缩；
+5. 会话设置弹窗支持重命名、切换模型与思考级别、归档；归档后输入框、压缩与
+   设置控件全部禁用，历史仍可只读查看；
+6. 历史条目已渲染压缩摘要、分支摘要、审批决策与模型切换，不只是普通消息；
+7. 设置中心包含五个标签页：
+   - **模型与密钥**：卡片式档案列表、密钥环境变量状态、行内新建/编辑/启停；
+   - **技能**：扫描 `~/.pi-java/skills`，按需查看 `SKILL.md` 正文；
+   - **插件**：按本地 jar 路径安装、启用/停用、展示最近错误；
+   - **工具策略**：选择工具与作用域，设置 `ALLOW/ASK/DENY`、审批模式、风险与超时；
+   - **系统**：版本、工作目录、操作系统与安全须知。
+8. 输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`、`/skill:名称 任务`、
+   `/tool <工具名> <JSON>` 可在 Fake 模型下体验完整链路。
 
-会话树与设置页分别在 M7–M8 接入。M5 的插件管理只有 REST API，
-用 curl 或 App 内测试夹具操作，尚无 Web UI。
+前端只通过 `textContent` 写入服务端与模型文本，禁止 `innerHTML`；所有密钥相关
+字段只展示环境变量名与“是否已配置”。
 
 ## 10. 版本与兼容
 

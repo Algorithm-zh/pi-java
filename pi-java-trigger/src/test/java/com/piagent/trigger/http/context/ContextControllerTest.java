@@ -137,5 +137,20 @@ class ContextControllerTest {
         mvc.perform(post("/api/v1/sessions/{id}/compact", SESSION_ID))
                 .andExpect(status().isConflict());
     }
+
+    @Test
+    void exposesContextStatus() throws Exception {
+        when(compactions.contextStatus(SessionId.parse(SESSION_ID)))
+                .thenReturn(new com.piagent.application.context.ContextStatusView(
+                        12_000, 128_000, 111_616, 8_192, "fake-demo", "fake", "FAKE"));
+
+        MvcResult result = mvc.perform(get("/api/v1/sessions/{id}/context", SESSION_ID))
+                .andExpect(status().isOk()).andReturn();
+
+        JsonNode body = json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(body.path("tokens").asInt()).isEqualTo(12_000);
+        assertThat(body.path("availableTokens").asInt()).isEqualTo(111_616);
+        assertThat(body.path("modelProfileId").asText()).isEqualTo("fake-demo");
+    }
 }
 

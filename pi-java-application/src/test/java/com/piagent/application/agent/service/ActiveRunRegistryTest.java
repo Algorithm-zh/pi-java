@@ -13,6 +13,7 @@ import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.Ulid;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -23,6 +24,7 @@ class ActiveRunRegistryTest {
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
 
     private final ActiveRunRegistry registry = new ActiveRunRegistry();
+    private final AtomicLong sequence = new AtomicLong();
     private final SessionId sessionId = new SessionId(Ulid.generate(NOW));
 
     @Test
@@ -88,7 +90,7 @@ class ActiveRunRegistryTest {
     }
 
     private AgentRun startRun() {
-        RunId runId = new RunId(Ulid.generate(NOW.plusMillis(System.nanoTime())));
+        RunId runId = new RunId(Ulid.generate(NOW.plusMillis(sequence.incrementAndGet())));
         return AgentRun.start(runId, sessionId, RunBudget.defaults(), NOW);
     }
 }

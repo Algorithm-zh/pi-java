@@ -60,6 +60,7 @@ class ModelControllerTest {
         assertThat(body.get(0).path("id").asText()).isEqualTo("deepseek-chat");
         assertThat(body.get(0).path("endpoint").path("apiKeyEnv").asText())
                 .isEqualTo("DEEPSEEK_API_KEY");
+        assertThat(body.get(0).path("apiKeyConfigured").isBoolean()).isTrue();
         assertThat(result.getResponse().getContentAsString()).doesNotContain("sk-");
     }
 

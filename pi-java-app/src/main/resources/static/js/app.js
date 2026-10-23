@@ -4,17 +4,24 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
 import { start as startRun, reconnectRun, abort as abortRun } from "./run.js";
 import {
-    bindReconnect, openSession, refreshSessions, scrollToBottom, setComposerEnabled
+    bindReconnect, openSession, refreshSessions, reloadSession, scrollToBottom,
+    setComposerEnabled
 } from "./session-view.js";
+import * as sessionSettings from "./session-settings.js";
+import * as settings from "./settings.js";
 import { dom, setServer, state, toast } from "./store.js";
 
 async function init() {
     bindReconnect(reconnectRun);
-    dialog.init(createSession);
+    dialog.init(createSession, () => settings.open("models"));
     approval.init();
+    settings.init();
+    sessionSettings.init();
+    contextMeter.init({ onReload: reloadSession });
     wireEvents();
     try {
         const [system, models] = await Promise.all([api.systemInfo(), api.listModels()]);
@@ -64,6 +71,7 @@ function resizeInput() {
 
 function wireEvents() {
     dom.newSession.addEventListener("click", () => dialog.open(state.models, state.system));
+    dom.openSettings.addEventListener("click", () => settings.open("models"));
     dom.refreshSessions.addEventListener("click", () => refreshSessions().catch((error) => {
         toast(error.message, true);
     }));

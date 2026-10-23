@@ -240,6 +240,14 @@ button {
     box-shadow: 0 0 0 3px rgba(208, 90, 63, .18);
 }
 
+.session-item.is-archived {
+    opacity: .66;
+}
+
+.session-item.is-archived .session-copy strong {
+    color: #b5b2ab;
+}
+
 .session-empty {
     padding: 14px 10px;
     color: #7f7c75;

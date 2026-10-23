@@ -4,6 +4,7 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as contextMeter from "./context-meter.js";
 import { basename, renderEntries, renderSessions, statusLabel } from "./render.js";
 import { dom, modelDisplayName, setRunState, state, toast } from "./store.js";
 import * as usage from "./usage.js";
@@ -29,9 +30,13 @@ export async function refreshSessions(redraw = true) {
 export function setComposerEnabled(enabled) {
     dom.input.disabled = !enabled;
     dom.sendButton.disabled = !enabled || state.streaming;
-    dom.input.placeholder = enabled
-        ? "输入消息，Enter 发送，Shift + Enter 换行"
-        : "请先新建或选择会话";
+    if (enabled) {
+        dom.input.placeholder = "输入消息，Enter 发送，Shift + Enter 换行";
+    } else {
+        dom.input.placeholder = state.session?.status === "ARCHIVED"
+            ? "会话已归档，只读查看"
+            : "请先新建或选择会话";
+    }
 }
 
 export async function openSession(sessionId, updateUrl = true) {
@@ -54,7 +59,8 @@ export async function openSession(sessionId, updateUrl = true) {
         renderSessions(dom.sessionList, state.sessions, session.id, openSession);
         updateHeader();
         usage.restore(entries);
-        setComposerEnabled(true);
+        setComposerEnabled(session.status !== "ARCHIVED");
+        contextMeter.refresh();
         state.stick = true;
         scrollToBottom(true);
         if (updateUrl) {
@@ -87,7 +93,8 @@ export async function reloadSession() {
         renderSessions(dom.sessionList, sessions, session.id, openSession);
         updateHeader();
         usage.restore(entries);
-        setComposerEnabled(true);
+        setComposerEnabled(session.status !== "ARCHIVED");
+        contextMeter.refresh();
         state.stick = true;
         scrollToBottom(true);
     } catch (error) {
@@ -102,9 +109,12 @@ export function updateHeader() {
         dom.composerModel.textContent = "";
         dom.abortButton.classList.add("hidden");
         dom.runState.classList.add("hidden");
+        dom.contextWidget.classList.add("hidden");
+        dom.sessionSettingsOpen.classList.add("hidden");
         return;
     }
     const session = state.session;
+    dom.sessionSettingsOpen.classList.remove("hidden");
     dom.title.textContent = session.title;
     dom.meta.replaceChildren();
     const parts = [

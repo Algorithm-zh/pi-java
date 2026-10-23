@@ -3,6 +3,7 @@ package com.piagent.trigger.http.context;
 import com.piagent.application.context.CompactionApplicationService;
 import com.piagent.application.context.ManualCompactionView;
 import com.piagent.domain.session.model.SessionId;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,5 +42,18 @@ public class CompactionController {
     public CompactionResponse compact(@PathVariable String id) {
         ManualCompactionView view = compactions.compact(SessionId.parse(id));
         return CompactionResponse.from(view);
+    }
+
+    /**
+     * 查询会话上下文用量。
+     *
+     * <p>纯估算接口：不写入 entry，也不触发压缩，页面切换会话后可随时调用。</p>
+     *
+     * @param id 会话 ID
+     * @return 上下文状态
+     */
+    @GetMapping("/{id}/context")
+    public ContextStatusResponse context(@PathVariable String id) {
+        return ContextStatusResponse.from(compactions.contextStatus(SessionId.parse(id)));
     }
 }

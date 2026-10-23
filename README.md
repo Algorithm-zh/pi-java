@@ -1,14 +1,29 @@
 # pi-java
 
+[![Java 21](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
+[![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F)](https://spring.io/projects/spring-boot)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
 pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 coding agent。
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M8 同步子智能体已完成**（2026-10-22）。已具备树形会话日志、
+> 当前状态：**M9 Web UI 完善已完成**（2026-10-23）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
-> Agent Loop、SSE 事件重放、Web UI、零依赖插件契约与 run 级工具快照、审批状态机、
-> 结构化上下文压缩、文件系统 Skills，以及**带深度与工具子集限制的同步子代理**。
-> 下一步 M9：CLI + 打磨 + v0.1.0。每个里程碑都包含实现、测试、文档与 git 提交。
+> Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
+> 文件系统 Skills、同步子代理，以及会话设置与上下文用量仪表。
+> 602 个测试全绿。下一步：CLI + v0.1.0 发布。
+
+![聊天与工具审批](docs/images/chat.png)
+
+<details>
+<summary>更多截图：审批弹窗、模型与密钥设置</summary>
+
+![审批弹窗](docs/images/approval.png)
+
+![模型与密钥设置](docs/images/settings-models.png)
+
+</details>
 
 ## 快速体验
 
@@ -28,8 +43,9 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 
 打开 <http://127.0.0.1:8080>，新建会话后输入 `/read README.md`、`/ls .` 或
 `/write notes.txt 你好`。写工具会弹出审批框，批准后才真正落盘；也可以在弹窗中拒绝。
-默认 demo profile 使用 H2 文件库与 Fake LLM，**不需要任何 API Key**。
-服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
+右上角齿轮进入设置中心，可管理模型档案与密钥环境变量、技能、插件、工具策略；
+顶栏仪表显示上下文用量，空闲时可手动压缩。默认 demo profile 使用 H2 文件库与 Fake LLM，
+**不需要任何 API Key**。服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
 
 接入真实模型、技能配置与常见问题见 [快速上手](docs/09-quick-start.md)。
 
@@ -95,7 +111,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 | `pi-java-application` | 用例编排、Agent Loop、事务边界、读模型 |
 | `pi-java-plugin-api` | 零依赖的第三方插件契约 |
 | `pi-java-infrastructure` | LLM 接入、MyBatis 仓储、内置工具、插件加载、缓存 |
-| `pi-java-trigger` | HTTP/SSE、CLI（picocli） |
+| `pi-java-trigger` | HTTP/SSE 接口（CLI 入口规划中） |
 | `pi-java-app` | Spring Boot 装配、Flyway、Web UI、架构测试 |
 | `examples/pi-plugin-example` | 示例插件，验证契约纯度 |
 
@@ -110,7 +126,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M8 已验证通过：573 个测试全绿（2 个符号链接用例条件跳过），
+当前 M9 已验证通过：602 个测试全绿（2 个符号链接用例条件跳过），
 Checkstyle/ArchUnit 通过。
 
 ## 文档
@@ -136,6 +152,7 @@ Checkstyle/ArchUnit 通过。
 - [M6 里程碑记录](docs/milestones/M6.md)
 - [M7 里程碑记录](docs/milestones/M7.md)
 - [M8 里程碑记录](docs/milestones/M8.md)
+- [M9 里程碑记录（Web UI 与开源准备）](docs/milestones/M9.md)
 
 架构决策：
 

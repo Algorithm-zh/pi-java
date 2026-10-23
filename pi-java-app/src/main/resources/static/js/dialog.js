@@ -11,6 +11,8 @@ const dom = {
     title: document.getElementById("field-title"),
     cwd: document.getElementById("field-cwd"),
     model: document.getElementById("field-model"),
+    thinking: document.getElementById("field-thinking"),
+    manageModels: document.getElementById("dialog-manage-models"),
     error: document.getElementById("dialog-error"),
     close: document.getElementById("dialog-close"),
     cancel: document.getElementById("dialog-cancel"),
@@ -18,17 +20,24 @@ const dom = {
 };
 
 let createHandler = null;
+let manageHandler = null;
 
 /**
  * 绑定创建回调并注册表单事件。
  *
  * @param {(payload: object) => Promise<void>} handler 创建会话回调
+ * @param {() => void} onManageModels 打开模型管理回调
  */
-export function init(handler) {
+export function init(handler, onManageModels) {
     createHandler = handler;
+    manageHandler = onManageModels;
     dom.form.addEventListener("submit", submit);
     dom.close.addEventListener("click", () => dom.dialog.close());
     dom.cancel.addEventListener("click", () => dom.dialog.close());
+    dom.manageModels.addEventListener("click", () => {
+        dom.dialog.close();
+        manageHandler?.();
+    });
 }
 
 /**
@@ -41,6 +50,7 @@ export function open(models, system) {
     dom.error.classList.add("hidden");
     dom.title.value = "新会话";
     dom.cwd.value = system?.workspaceRoot || "";
+    dom.thinking.value = "OFF";
     dom.model.replaceChildren();
     const enabled = (models || []).filter((model) => model.enabled);
     if (!enabled.length) {
@@ -64,13 +74,14 @@ async function submit(event) {
     const title = dom.title.value.trim();
     const cwd = dom.cwd.value.trim();
     const modelProfileId = dom.model.value;
+    const thinkingLevel = dom.thinking.value;
     if (!title || !cwd || !modelProfileId) {
         showError("标题、工作目录与模型都不能为空");
         return;
     }
     dom.submit.disabled = true;
     try {
-        await createHandler({ title, cwd, modelProfileId });
+        await createHandler({ title, cwd, modelProfileId, thinkingLevel });
         dom.dialog.close();
     } catch (error) {
         showError(error.message || "创建会话失败");

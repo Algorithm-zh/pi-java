@@ -7,6 +7,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314161a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e5654a' font-family='Georgia'%3E%CF%80%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/messages.css">
+    <link rel="stylesheet" href="/css/settings.css">
 </head>
 <body>
 <div class="app">
@@ -34,6 +35,10 @@
             <span id="server-label">连接中…</span>
             <span id="server-version" class="server-version"></span>
         </div>
+        <button id="open-settings" class="settings-entry" type="button">
+            <span class="settings-entry-mark">S</span>
+            <span>设置 · 模型与密钥</span>
+        </button>
     </aside>
 
     <main class="main">
@@ -44,7 +49,17 @@
                 <div id="session-meta" class="session-meta"></div>
             </div>
             <div class="topbar-actions">
+                <div id="context-widget" class="context-widget hidden">
+                    <div class="context-track" title="当前上下文估算用量">
+                        <span id="context-fill" class="context-fill"></span>
+                    </div>
+                    <span id="context-label" class="context-label">—</span>
+                    <button id="compact-button" class="mini-button" type="button"
+                            title="手动压缩上下文">压缩</button>
+                </div>
                 <span id="run-state" class="run-state hidden"></span>
+                <button id="session-settings-open" class="icon-button topbar-icon hidden"
+                        type="button" title="会话设置" aria-label="会话设置">⋯</button>
                 <button id="abort-button" class="stop-button hidden" type="button">停止生成</button>
             </div>
         </header>
@@ -115,8 +130,19 @@
             <input id="field-cwd" type="text" required>
         </label>
         <label class="field">
-            <span>模型档案</span>
+            <span>模型档案
+                <button id="dialog-manage-models" class="link-button" type="button">管理模型</button>
+            </span>
             <select id="field-model"></select>
+        </label>
+        <label class="field">
+            <span>思考级别 <em>是否生效取决于模型能力</em></span>
+            <select id="field-thinking">
+                <option value="OFF">关闭</option>
+                <option value="LOW">低</option>
+                <option value="MEDIUM">中</option>
+                <option value="HIGH">高</option>
+            </select>
         </label>
         <p id="dialog-error" class="dialog-error hidden"></p>
         <footer>
@@ -171,6 +197,70 @@
 </dialog>
 
 <div id="toast" class="toast hidden" role="status"></div>
+
+<dialog id="session-settings-dialog" class="session-dialog">
+    <form id="session-settings-form">
+        <header>
+            <div>
+                <span class="eyebrow">SESSION SETTINGS</span>
+                <h2>会话设置</h2>
+            </div>
+            <button id="session-settings-close" class="icon-button" type="button"
+                    aria-label="关闭">×</button>
+        </header>
+        <label class="field">
+            <span>标题</span>
+            <input id="session-settings-title" type="text" maxlength="255" required>
+        </label>
+        <label class="field">
+            <span>模型档案 <em>仅空闲会话可切换，历史消息保留原模型</em></span>
+            <select id="session-settings-model"></select>
+        </label>
+        <label class="field">
+            <span>思考级别</span>
+            <select id="session-settings-thinking">
+                <option value="OFF">关闭</option>
+                <option value="LOW">低</option>
+                <option value="MEDIUM">中</option>
+                <option value="HIGH">高</option>
+            </select>
+        </label>
+        <p id="session-settings-meta" class="dialog-hint"></p>
+        <p id="session-settings-error" class="dialog-error hidden"></p>
+        <footer class="session-settings-footer">
+            <button id="session-archive" class="ghost-button danger-button" type="button">
+                归档会话
+            </button>
+            <div class="footer-actions">
+                <button id="session-settings-cancel" class="ghost-button" type="button">取消</button>
+                <button id="session-settings-save" class="primary-button" type="submit">保存</button>
+            </div>
+        </footer>
+    </form>
+</dialog>
+
+<dialog id="settings-dialog" class="settings-dialog">
+    <div class="settings-shell">
+        <header class="settings-head">
+            <div>
+                <span class="eyebrow">CONTROL CENTER</span>
+                <h2>设置</h2>
+                <p>密钥只保存环境变量名；服务端不会接收、存储或返回任何密钥明文。</p>
+            </div>
+            <button id="settings-close" class="icon-button" type="button" aria-label="关闭">×</button>
+        </header>
+        <div class="settings-layout">
+            <nav id="settings-tabs" class="settings-tabs" aria-label="设置分类">
+                <button type="button" data-tab="models" class="active">模型与密钥</button>
+                <button type="button" data-tab="skills">技能</button>
+                <button type="button" data-tab="plugins">插件</button>
+                <button type="button" data-tab="policies">工具策略</button>
+                <button type="button" data-tab="system">系统信息</button>
+            </nav>
+            <section id="settings-panel" class="settings-panel" aria-live="polite"></section>
+        </div>
+    </div>
+</dialog>
 
 <template id="empty-template">
     <div class="welcome welcome-compact">

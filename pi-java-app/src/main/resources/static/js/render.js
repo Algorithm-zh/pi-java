@@ -5,6 +5,8 @@
  * 避免工具输出或模型输出注入脚本。
  */
 
+import { modelDisplayName } from "./store.js";
+
 export function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) {
@@ -30,6 +32,15 @@ const STOP_LABELS = {
     CANCELLED: "已取消",
     TIMEOUT: "超时",
     ERROR: "失败"
+};
+
+const THINKING_LABELS = { OFF: "关闭", LOW: "低", MEDIUM: "中", HIGH: "高" };
+
+const APPROVAL_LABELS = {
+    APPROVED: "已批准",
+    DENIED: "已拒绝",
+    EXPIRED: "已过期",
+    CANCELLED: "已取消"
 };
 
 export function statusLabel(status) {
@@ -70,14 +81,20 @@ export function renderSessions(container, sessions, activeId, onSelect) {
         return;
     }
     for (const session of sessions) {
-        const button = el("button", "session-item" + (session.id === activeId ? " active" : ""));
+        const archived = session.status === "ARCHIVED";
+        const button = el("button", "session-item"
+            + (session.id === activeId ? " active" : "")
+            + (archived ? " is-archived" : ""));
         button.type = "button";
         button.dataset.id = session.id;
         button.append(el("span", "session-dot"));
         const copy = el("span", "session-copy");
         copy.append(el("strong", "", session.title));
-        copy.append(el("small", "", [statusLabel(session.status), basename(session.cwd)]
-            .filter(Boolean).join(" · ")));
+        copy.append(el("small", "", [
+            session.origin === "SUBAGENT" ? "子会话" : "",
+            statusLabel(session.status),
+            basename(session.cwd)
+        ].filter(Boolean).join(" · ")));
         button.append(copy);
         button.addEventListener("click", () => onSelect(session.id));
         container.append(button);
@@ -111,6 +128,14 @@ export function renderEntries(container, entries) {
         const body = entry.body || {};
         if (entry.type === "RUN_SUMMARY") {
             inner.append(renderRunSummary(entry));
+        } else if (entry.type === "COMPACTION") {
+            inner.append(renderCompaction(entry));
+        } else if (entry.type === "BRANCH_SUMMARY") {
+            inner.append(renderBranchSummary(entry));
+        } else if (entry.type === "APPROVAL") {
+            inner.append(renderApproval(entry));
+        } else if (entry.type === "MODEL_CHANGE") {
+            inner.append(renderModelChange(entry));
         } else if (body.role === "user") {
             const text = blocksText(body.content);
             if (text) {
@@ -326,6 +351,53 @@ export function lastRunSummary(entries) {
         }
     }
     return null;
+}
+
+function renderCompaction(entry) {
+    const extra = entry.body?.extra || {};
+    const details = document.createElement("details");
+    details.className = "history-note compaction-note";
+    const summary = document.createElement("summary");
+    summary.textContent = `上下文已压缩 · 压缩前 ${formatNumber(extra.tokensBefore)} tokens`;
+    details.append(summary, el("pre", "history-note-body", extra.summary || "（无摘要）"));
+    return details;
+}
+
+function renderBranchSummary(entry) {
+    const extra = entry.body?.extra || {};
+    const details = document.createElement("details");
+    details.className = "history-note branch-note";
+    const summary = document.createElement("summary");
+    const from = extra.fromEntryId ? String(extra.fromEntryId).slice(0, 8) : "—";
+    summary.textContent = `分支摘要 · 起点 ${from}`;
+    details.append(summary, el("pre", "history-note-body", extra.summary || "（无摘要）"));
+    return details;
+}
+
+function renderApproval(entry) {
+    const extra = entry.body?.extra || {};
+    const decision = APPROVAL_LABELS[extra.decision] || extra.decision || "已处理";
+    const note = el("div", "history-note approval-note"
+        + (extra.decision === "DENIED" ? " is-denied" : ""));
+    note.append(el("span", "history-note-title",
+        `审批 · ${entry.body?.toolName || "工具"}`), el("span", "history-note-state", decision));
+    if (extra.decidedBy) {
+        note.append(el("span", "history-note-meta", `由 ${extra.decidedBy} 决定`));
+    }
+    if (extra.reason) {
+        note.append(el("span", "history-note-meta", `意见：${extra.reason}`));
+    }
+    return note;
+}
+
+function renderModelChange(entry) {
+    const extra = entry.body?.extra || {};
+    const note = el("div", "history-note model-note");
+    note.append(el("span", "history-note-title", "模型切换"),
+        el("span", "", modelDisplayName(extra.modelProfileId)),
+        el("span", "history-note-meta",
+            `思考 ${THINKING_LABELS[extra.thinkingLevel] || extra.thinkingLevel || "关闭"}`));
+    return note;
 }
 
 export function resetForConversation(container) {

@@ -7,6 +7,7 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as contextMeter from "./context-meter.js";
 import {
     beginAssistant, resetForConversation, renderUserBubble, stopReasonLabel, upsertToolCard
 } from "./render.js";
@@ -209,6 +210,7 @@ function setStreamingUi(streaming) {
     dom.sendButton.disabled = streaming || !state.session;
     dom.abortButton.classList.toggle("hidden", !streaming);
     dom.abortButton.disabled = false;
+    contextMeter.sync();
     if (streaming) {
         setRunState("生成中");
     } else if (!state.terminalSeen) {

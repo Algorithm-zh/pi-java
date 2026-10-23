@@ -43,7 +43,7 @@ public class ModelController {
      */
     @GetMapping
     public List<ModelProfileResponse> list() {
-        return service.listAll().stream().map(ModelProfileResponse::from).toList();
+        return service.listAll().stream().map(ModelController::response).toList();
     }
 
     /**
@@ -54,7 +54,7 @@ public class ModelController {
      */
     @GetMapping("/{id}")
     public ModelProfileResponse find(@PathVariable String id) {
-        return ModelProfileResponse.from(service.find(id));
+        return response(service.find(id));
     }
 
     /**
@@ -68,7 +68,7 @@ public class ModelController {
     public ModelProfileResponse create(@RequestBody CreateModelRequest request) {
         ModelProfile created = service.create(new CreateModelProfileCommand(request.id(),
                 request.displayName(), request.endpoint().toDomain()));
-        return ModelProfileResponse.from(created);
+        return response(created);
     }
 
     /**
@@ -82,7 +82,7 @@ public class ModelController {
     public ModelProfileResponse update(@PathVariable String id, @RequestBody UpdateModelRequest request) {
         ModelProfile updated = service.update(new UpdateModelProfileCommand(id, request.displayName(),
                 request.endpoint().toDomain()));
-        return ModelProfileResponse.from(updated);
+        return response(updated);
     }
 
     /**
@@ -93,7 +93,7 @@ public class ModelController {
      */
     @PostMapping("/{id}/enable")
     public ModelProfileResponse enable(@PathVariable String id) {
-        return ModelProfileResponse.from(service.enable(id));
+        return response(service.enable(id));
     }
 
     /**
@@ -104,6 +104,10 @@ public class ModelController {
      */
     @PostMapping("/{id}/disable")
     public ModelProfileResponse disable(@PathVariable String id) {
-        return ModelProfileResponse.from(service.disable(id));
+        return response(service.disable(id));
+    }
+
+    private static ModelProfileResponse response(ModelProfile profile) {
+        return ModelProfileResponse.from(profile, ApiKeyStatus.configured(profile.endpoint()));
     }
 }

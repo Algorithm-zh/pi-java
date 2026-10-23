@@ -25,3 +25,8 @@ Thumbs.db
 
 plugins/*.jar
 examples/**/target/
+
+# 个人文件，不进入开源仓库
+.workbuddy/
+resume/
+docs/resume-entry.md

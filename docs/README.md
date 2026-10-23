@@ -33,7 +33,7 @@
 - [M6：审批与写工具](milestones/M6.md)
 - [M7：上下文压缩与 Skills](milestones/M7.md)
 - [M8：同步子智能体](milestones/M8.md)
-- M9：随里程碑完成补齐
+- [M9：Web UI 完善与开源准备](milestones/M9.md)
 
 ## 模块文档
 

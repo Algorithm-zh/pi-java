@@ -50,6 +50,186 @@ export function listModels() {
     return request("/api/v1/models");
 }
 
+/**
+ * 创建模型档案。请求只包含密钥环境变量名。
+ *
+ * @param {object} payload 档案与端点
+ * @returns {Promise<object>} 新档案
+ */
+export function createModel(payload) {
+    return request("/api/v1/models", jsonInit("POST", payload));
+}
+
+/**
+ * 更新模型档案。
+ *
+ * @param {string} modelId 档案 ID
+ * @param {object} payload 展示名与端点
+ * @returns {Promise<object>} 更新后的档案
+ */
+export function updateModel(modelId, payload) {
+    return request(`/api/v1/models/${encodeURIComponent(modelId)}`,
+        jsonInit("PUT", payload));
+}
+
+/**
+ * 启用或停用模型档案。
+ *
+ * @param {string} modelId 档案 ID
+ * @param {boolean} enabled 是否启用
+ * @returns {Promise<object>} 更新后的档案
+ */
+export function setModelEnabled(modelId, enabled) {
+    return request(`/api/v1/models/${encodeURIComponent(modelId)}/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
+        headers: { Accept: "application/json" }
+    });
+}
+
+/**
+ * 列出技能；refresh=true 时服务端重新扫描目录。
+ *
+ * @param {boolean} refresh 是否强制刷新
+ * @returns {Promise<Array<object>>} 技能列表
+ */
+export function listSkills(refresh = false) {
+    return request(`/api/v1/skills${refresh ? "?refresh=true" : ""}`);
+}
+
+/**
+ * 读取技能正文。
+ *
+ * @param {string} name 技能名
+ * @returns {Promise<{name: string, content: string}>} 正文
+ */
+export function getSkillContent(name) {
+    return request(`/api/v1/skills/${encodeURIComponent(name)}/content`);
+}
+
+/**
+ * 列出已安装插件。
+ *
+ * @returns {Promise<Array<object>>} 插件列表
+ */
+export function listPlugins() {
+    return request("/api/v1/plugins");
+}
+
+/**
+ * 按本地 jar 路径安装插件，安装后默认不加载。
+ *
+ * @param {string} jarPath jar 绝对路径
+ * @returns {Promise<object>} 安装记录
+ */
+export function installPlugin(jarPath) {
+    return request("/api/v1/plugins", jsonInit("POST", { jarPath }));
+}
+
+/**
+ * 启用或停用插件。
+ *
+ * @param {string} pluginId 插件 ID
+ * @param {boolean} enabled 是否启用
+ * @returns {Promise<object>} 更新后的记录
+ */
+export function setPluginEnabled(pluginId, enabled) {
+    return request(`/api/v1/plugins/${encodeURIComponent(pluginId)}/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
+        headers: { Accept: "application/json" }
+    });
+}
+
+/**
+ * 列出工具策略。传入 cwd 时还会返回该工作区的规则。
+ *
+ * @param {string} cwd 工作目录，可为空
+ * @returns {Promise<Array<object>>} 策略列表
+ */
+export function listToolPolicies(cwd) {
+    const query = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
+    return request(`/api/v1/tool-policies${query}`);
+}
+
+/**
+ * 新增或更新工具策略。
+ *
+ * @param {object} payload 策略
+ * @returns {Promise<object>} 保存后的策略
+ */
+export function upsertToolPolicy(payload) {
+    return request("/api/v1/tool-policies", jsonInit("PUT", payload));
+}
+
+/**
+ * 列出工具目录，用于策略编辑器的工具选择。
+ *
+ * @returns {Promise<Array<object>>} 工具列表
+ */
+export function listTools() {
+    return request("/api/v1/tools");
+}
+
+/**
+ * 估算会话当前上下文用量。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 上下文状态
+ */
+export function contextStatus(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/context`);
+}
+
+/**
+ * 手动压缩会话上下文。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 压缩结果
+ */
+export function compactSession(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/compact`, {
+        method: "POST",
+        headers: { Accept: "application/json" }
+    });
+}
+
+/**
+ * 重命名会话。
+ *
+ * @param {string} sessionId 会话 ID
+ * @param {string} title 新标题
+ * @returns {Promise<object>} 更新后的会话
+ */
+export function renameSession(sessionId, title) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`,
+        jsonInit("PATCH", { title }));
+}
+
+/**
+ * 切换会话模型。
+ *
+ * @param {string} sessionId 会话 ID
+ * @param {string} modelProfileId 模型档案
+ * @param {string} thinkingLevel 思考级别
+ * @returns {Promise<object>} 更新后的会话
+ */
+export function changeSessionModel(sessionId, modelProfileId, thinkingLevel) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/model`,
+        jsonInit("PUT", { modelProfileId, thinkingLevel }));
+}
+
+/**
+ * 归档会话。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 更新后的会话
+ */
+export function archiveSession(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/archive`, {
+        method: "POST",
+        headers: { Accept: "application/json" }
+    });
+}
+
 export function listSessions() {
     return request("/api/v1/sessions?limit=50");
 }
