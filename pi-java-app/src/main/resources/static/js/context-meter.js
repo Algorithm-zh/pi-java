@@ -92,7 +92,7 @@ function renderMeter(status) {
     dom.contextFill.classList.toggle("is-warn", percent >= 70 && percent < 88);
     dom.contextFill.classList.toggle("is-hot", percent >= 88);
     dom.contextLabel.textContent =
-        `${formatNumber(tokens)} / ${formatNumber(windowSize)} · ${percent}%`;
+        `${formatNumber(tokens)} / ${formatNumber(windowSize)} (${percent}%)`;
     dom.contextWidget.title = [
         `模型：${status.modelName || status.modelProfileId || "未知"}`,
         `Provider：${status.provider || "未知"}`,

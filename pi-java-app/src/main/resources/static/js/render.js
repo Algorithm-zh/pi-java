@@ -80,21 +80,21 @@ export function renderSessions(container, sessions, activeId, onSelect) {
         container.append(el("div", "session-empty", "还没有会话。点击上方按钮创建第一个。"));
         return;
     }
-    for (const session of sessions) {
+    for (const [index, session] of sessions.entries()) {
         const archived = session.status === "ARCHIVED";
         const button = el("button", "session-item"
             + (session.id === activeId ? " active" : "")
             + (archived ? " is-archived" : ""));
         button.type = "button";
         button.dataset.id = session.id;
-        button.append(el("span", "session-dot"));
+        button.append(el("span", "session-index", String(index + 1).padStart(2, "0")));
         const copy = el("span", "session-copy");
         copy.append(el("strong", "", session.title));
         copy.append(el("small", "", [
             session.origin === "SUBAGENT" ? "子会话" : "",
             statusLabel(session.status),
             basename(session.cwd)
-        ].filter(Boolean).join(" · ")));
+        ].filter(Boolean).join(" / ")));
         button.append(copy);
         button.addEventListener("click", () => onSelect(session.id));
         container.append(button);
@@ -282,8 +282,8 @@ function renderAssistant(entry, results, consumed) {
     row.append(el("span", "avatar", "π"));
     const content = el("div", "assistant-body");
     const label = el("div", "message-label");
-    label.append(document.createTextNode("PI-JAVA"),
-        el("span", "", [extra.model, timeOf(entry)].filter(Boolean).join(" · ")));
+    label.append(document.createTextNode("pi-java"),
+        el("span", "", [extra.model, timeOf(entry)].filter(Boolean).join(" / ")));
     content.append(label);
     for (const block of body.content || []) {
         if (block.type === "text" && block.text) {
@@ -340,7 +340,7 @@ function renderRunSummary(entry) {
         parts.push(extra.errorMessage);
     }
     const line = el("div", "run-summary" + (extra.stopReason === "ERROR" ? " is-error" : ""));
-    line.textContent = parts.join(" · ");
+    line.textContent = parts.join(" / ");
     return line;
 }
 
@@ -358,7 +358,7 @@ function renderCompaction(entry) {
     const details = document.createElement("details");
     details.className = "history-note compaction-note";
     const summary = document.createElement("summary");
-    summary.textContent = `上下文已压缩 · 压缩前 ${formatNumber(extra.tokensBefore)} tokens`;
+    summary.textContent = `上下文已压缩，压缩前 ${formatNumber(extra.tokensBefore)} tokens`;
     details.append(summary, el("pre", "history-note-body", extra.summary || "（无摘要）"));
     return details;
 }
@@ -369,7 +369,7 @@ function renderBranchSummary(entry) {
     details.className = "history-note branch-note";
     const summary = document.createElement("summary");
     const from = extra.fromEntryId ? String(extra.fromEntryId).slice(0, 8) : "—";
-    summary.textContent = `分支摘要 · 起点 ${from}`;
+    summary.textContent = `分支摘要，起点 ${from}`;
     details.append(summary, el("pre", "history-note-body", extra.summary || "（无摘要）"));
     return details;
 }
@@ -380,7 +380,7 @@ function renderApproval(entry) {
     const note = el("div", "history-note approval-note"
         + (extra.decision === "DENIED" ? " is-denied" : ""));
     note.append(el("span", "history-note-title",
-        `审批 · ${entry.body?.toolName || "工具"}`), el("span", "history-note-state", decision));
+        `审批：${entry.body?.toolName || "工具"}`), el("span", "history-note-state", decision));
     if (extra.decidedBy) {
         note.append(el("span", "history-note-meta", `由 ${extra.decidedBy} 决定`));
     }
@@ -445,6 +445,6 @@ function summarizeArgs(args) {
     }
     const text = Object.entries(args)
         .map(([key, value]) => `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`)
-        .join(" · ");
+        .join(" / ");
     return text.length > 110 ? `${text.slice(0, 110)}…` : text;
 }

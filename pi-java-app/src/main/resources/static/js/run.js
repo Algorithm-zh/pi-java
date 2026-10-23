@@ -189,7 +189,7 @@ function finishRun(data, failed) {
     usage.show(data);
     const status = data.status || (failed ? "FAILED" : "COMPLETED");
     const label = status === "ABORTED" ? "已停止" : status === "FAILED" ? "失败" : "完成";
-    setRunState(`${label} · ${stopReasonLabel(data.stopReason)}`, status === "FAILED");
+    setRunState(`${label} / ${stopReasonLabel(data.stopReason)}`, status === "FAILED");
     if (data.errorMessage) {
         toast(data.errorMessage, true);
     }

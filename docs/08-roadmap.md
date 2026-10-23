@@ -1,6 +1,6 @@
 # 08 路线图
 
-> 状态：M0–M8 已完成（M8 于 2026-10-22），下一步 M9 CLI + 打磨 + v0.1.0。
+> 状态：M0–M10 已完成（M10 界面重构于 2026-10-23），下一步 M11 CLI + 打磨 + v0.1.0。
 > 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
@@ -24,7 +24,9 @@
 | **M6** | 审批 + 写工具 | ApprovalRequest、ToolPolicyRule、审批 API/SSE/UI、write/edit/bash、V5 | 审批并发/过期/取消、策略优先级、Windows 进程超时、脱敏 | `feat(governance): approval workflow and write tools` |
 | **M7** | 压缩 + Skills | CompactionPlanner、TokenEstimator、SkillCatalog、system prompt、`/compact`、`/skill:` | pi 黄金样本、切点配对、摘要收敛、frontmatter、缓存失效 | `feat(context): compaction and skills` |
 | **M8** | 子智能体 | SubagentPolicy、subagent 工具、SPAWN/FORK、子会话树、SSE/UI | 深度上限、工具子集、审批不继承、取消级联、结果 stopReason | `feat(agent): synchronous subagents` |
-| **M9** | CLI + 打磨 + v0.1.0 | picocli 命令、MySQL smoke、demo 脚本、用户手册、截图、tag | CLI 冒烟、Fake E2E、本机 MySQL 启动、浏览器完整走查 | `feat(cli): picocli entry and v0.1.0 demo`，tag `v0.1.0` |
+| **M9** | Web UI 完善与开源准备 | 设置中心、会话设置、上下文仪表、README/截图/许可证 | 浏览器走查、602 测试、公开仓库 | `feat(web): settings center, session settings and context meter` |
+| **M10** | 界面重构 | 信号工作台设计系统、本地字体、外壳/对话/设置全面重做 | 1440×900 与 531×553 实测、截图更新、602 测试 | `feat(web): redesign interface with signal workbench design system` |
+| **M11** | CLI + 打磨 + v0.1.0 | picocli 命令、MySQL smoke、demo 脚本、用户手册、tag | CLI 冒烟、Fake E2E、本机 MySQL 启动、完整走查 | `feat(cli): picocli entry and v0.1.0 demo`，tag `v0.1.0` |
 
 ## 3. 各里程碑详情
 
@@ -290,7 +292,37 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 - 子会话沙箱进一步收紧（例如限制到子目录）；
 - 审批的会话级“记住批准”复用。
 
-### M9 CLI + 打磨 + v0.1.0
+### M9 Web UI 与开源准备
+
+状态：已完成（2026-10-23），详见 [M9 记录](milestones/M9.md)。
+
+范围（实际交付）：
+
+- `SessionSettingsApplicationService` 与 `PATCH /sessions/{id}`、模型切换、归档；
+- `GET /sessions/{id}/context` 只读上下文估算与手动压缩入口；
+- 设置中心：模型/技能/插件/策略/系统五个标签；
+- 聊天历史渲染 COMPACTION、BRANCH_SUMMARY、APPROVAL、MODEL_CHANGE；
+- README、许可证、忽略规则、三张 1440×900 截图；
+- `mvn -q verify` 602 个测试全绿（2 跳过）。
+
+### M10 界面重构 · 信号工作台
+
+状态：已完成（2026-10-23），详见 [M10 记录](milestones/M10.md)。
+
+范围（实际交付）：
+
+- `css/theme.css` 设计令牌、本地 Archivo / IBM Plex Mono 字体；
+- 重做侧栏、顶栏、欢迎页、对话与工具轨迹、输入区和响应式布局；
+- 重做审批/会话弹窗与设置中心五个标签页；
+- 更新 README 与三张截图，交互与安全边界不变。
+
+验收结果：
+
+- `mvn -q verify` 602 个测试全绿（2 个符号链接用例条件跳过），Checkstyle/ArchUnit 通过；
+- 1440×900 与 531×553 完成新建会话、`/read`、审批批准/拒绝、设置五个标签走查；
+- 控制台 0 错误，字体与静态资源全部 200。
+
+### M11 CLI + 打磨 + v0.1.0（下一里程碑）
 
 范围：
 
@@ -307,7 +339,7 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 ## 4. 关键依赖
 
 ```text
-M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► M8 ─► M9
+M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► M8 ─► M9 ─► M10 ─► M11
                   │           │
                   └─ 只读工具  └─ 插件必须先有稳定工具目录
 ```
@@ -321,7 +353,7 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 
 ## 5. 发布与版本
 
-- 仓库版本 `0.1.0-SNAPSHOT`，M9 发布 `0.1.0`；
+- 仓库版本 `0.1.0-SNAPSHOT`，M11 发布 `0.1.0`；
 - tag 只在用户确认后创建；不自动 push；
 - 每次里程碑提交使用 Conventional Commits；
 - 发布说明包含：新增能力、已知限制、启动方式、验收结果。

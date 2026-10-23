@@ -1,166 +1,30 @@
 /*
- * 设置中心、上下文仪表与会话设置。
+ * 设置中心与设置类弹窗。
  *
- * 延续 app.css 的暖色纸张风格：设置页用浅色侧栏 + 白色面板，
- * 模型、插件、技能与策略统一使用卡片与胶囊标签。
+ * 设置中心是一块控制台：深色分类栏、纸面内容区。卡片只用结构线分隔，
+ * 状态用方块标签表达；密钥指引与代码示例使用深色代码井。
  */
 
-/* ---------- 侧边栏入口 ---------- */
-
-.settings-entry {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    width: 100%;
-    margin-top: 8px;
-    padding: 9px 10px;
-    border: 1px dashed #35363c;
-    border-radius: 9px;
-    color: #b8b5ae;
-    background: transparent;
-    font-size: 12px;
-    text-align: left;
-    transition: border-color .15s ease, background .15s ease, color .15s ease;
-}
-
-.settings-entry:hover {
-    border-color: rgba(208, 90, 63, .55);
-    color: #f0e8e1;
-    background: rgba(208, 90, 63, .1);
-}
-
-.settings-entry-mark {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    flex: 0 0 22px;
-    border-radius: 6px;
-    color: #e8a08c;
-    background: rgba(208, 90, 63, .16);
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-}
-
-/* ---------- 顶栏上下文仪表 ---------- */
-
-.context-widget {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 7px 5px 11px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--raised);
-}
-
-.context-track {
-    width: 86px;
-    height: 5px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: #e9e3d8;
-}
-
-.context-fill {
-    display: block;
-    width: 0;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--teal);
-    transition: width .3s ease, background .2s ease;
-}
-
-.context-fill.is-warn {
-    background: #b98a2e;
-}
-
-.context-fill.is-hot {
-    background: var(--danger);
-}
-
-.context-label {
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 10px;
-    white-space: nowrap;
-}
-
-.mini-button {
-    padding: 3px 8px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: var(--muted);
-    background: transparent;
-    font-size: 10.5px;
-    white-space: nowrap;
-}
-
-.mini-button:hover {
-    border-color: #cbbfae;
-    color: var(--text);
-    background: #f4f0e8;
-}
-
-.mini-button:disabled {
-    cursor: not-allowed;
-    opacity: .5;
-}
-
-.topbar-icon {
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    color: var(--muted);
-    background: var(--raised);
-    font-size: 18px;
-    opacity: 1;
-}
-
-.topbar-icon:hover {
-    color: var(--text);
-    background: #f1ede5;
-}
-
-/* ---------- 新建会话里的“管理模型” ---------- */
-
-.link-button {
-    margin-left: 8px;
-    padding: 0;
-    border: none;
-    color: var(--accent-deep);
-    background: none;
-    font-size: 11px;
-    font-weight: 500;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-.link-button:hover {
-    color: var(--accent);
-}
-
-/* ---------- 设置对话框 ---------- */
+/* ---------- 弹窗外壳 ---------- */
 
 .settings-dialog {
-    width: min(980px, calc(100vw - 40px));
-    height: min(720px, calc(100dvh - 40px));
+    width: min(1000px, calc(100vw - 40px));
+    height: min(740px, calc(100dvh - 40px));
     max-width: none;
     max-height: none;
     padding: 0;
     overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--raised);
+    border: 1px solid var(--ink);
+    border-top: 4px solid var(--yellow);
+    border-radius: 3px;
     color: var(--text);
-    box-shadow: 0 40px 110px -46px rgba(20, 16, 8, .78);
+    background: var(--sheet);
+    box-shadow: 8px 8px 0 rgba(16, 19, 20, .16);
 }
 
 .settings-dialog::backdrop {
-    background: rgba(20, 19, 17, .5);
-    backdrop-filter: blur(4px);
+    background: rgba(10, 13, 13, .66);
+    backdrop-filter: blur(3px);
 }
 
 .settings-dialog[open] {
@@ -179,33 +43,37 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 24px;
-    padding: 22px 26px 18px;
-    border-bottom: 1px solid var(--line);
-    background: linear-gradient(120deg, rgba(208, 90, 63, .06), transparent 55%);
+    padding: 18px 24px 15px;
+    border-bottom: 1px solid var(--ink);
+    background: var(--sheet);
 }
 
 .settings-head h2 {
-    margin: 4px 0 6px;
-    font-size: 21px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.2;
 }
 
 .settings-head p {
-    margin: 0;
+    margin-top: 5px;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 10.5px;
     line-height: 1.6;
 }
 
 .settings-head .icon-button {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--rule-strong);
     color: var(--muted);
-    font-size: 21px;
+    font-size: 19px;
 }
 
 .settings-head .icon-button:hover {
-    background: #f1ede5;
+    border-color: var(--ink);
+    color: var(--sheet);
+    background: var(--ink);
 }
 
 .settings-layout {
@@ -216,297 +84,319 @@
 
 .settings-tabs {
     display: flex;
-    width: 188px;
-    flex: 0 0 188px;
+    width: 196px;
+    flex: 0 0 196px;
     flex-direction: column;
-    gap: 4px;
-    padding: 18px 14px;
-    border-right: 1px solid var(--line);
-    background: #f4f0e8;
+    gap: 2px;
+    padding: 14px 10px;
+    border-right: 1px solid var(--ink);
+    background: var(--ink);
 }
 
 .settings-tabs button {
-    padding: 9px 12px;
-    border: none;
-    border-radius: 8px;
-    color: var(--muted);
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    color: #b4beb6;
     background: transparent;
-    font-size: 12.5px;
+    font-size: 11.5px;
     text-align: left;
     transition: background .14s ease, color .14s ease;
 }
 
+.settings-tabs button::before {
+    width: 5px;
+    height: 5px;
+    flex: 0 0 5px;
+    background: #4d5852;
+    content: "";
+}
+
 .settings-tabs button:hover {
-    background: #ece7dd;
-    color: var(--text);
+    color: #f0f2ec;
+    background: #1a2021;
 }
 
 .settings-tabs button.active {
-    color: var(--text);
-    background: var(--raised);
+    border-color: #000;
+    color: var(--ink);
+    background: var(--yellow);
     font-weight: 600;
-    box-shadow: 0 8px 18px -16px rgba(40, 32, 18, .7);
+}
+
+.settings-tabs button.active::before {
+    background: var(--ink);
 }
 
 .settings-panel {
     min-width: 0;
     flex: 1;
     overflow-y: auto;
-    padding: 22px 26px 30px;
+    padding: 21px 26px 30px;
+    background: var(--sheet);
 }
 
-.settings-panel::-webkit-scrollbar {
-    width: 6px;
-}
-
-.settings-panel::-webkit-scrollbar-thumb {
-    border-radius: 6px;
-    background: #ddd6c9;
-}
-
-/* ---------- 通用构件 ---------- */
+/* ---------- 区块与通用构件 ---------- */
 
 .settings-section-head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 18px;
-    margin-bottom: 16px;
+    margin-bottom: 13px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
 }
 
 .settings-section-copy h3 {
-    margin: 0 0 5px;
-    font-size: 16px;
-    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -.025em;
 }
 
 .settings-section-copy p {
-    max-width: 620px;
-    margin: 0;
+    max-width: 640px;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 10.5px;
     line-height: 1.65;
 }
 
 .settings-actions {
     display: flex;
     flex: 0 0 auto;
-    gap: 8px;
+    gap: 6px;
 }
 
 .settings-button {
-    padding: 7px 12px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 11px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    color: var(--ink);
     background: transparent;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     white-space: nowrap;
-    transition: background .14s ease, color .14s ease, border-color .14s ease;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
 }
 
-.settings-button.is-ghost:hover {
-    color: var(--text);
-    background: #f4f0e8;
+.settings-button:hover {
+    border-color: var(--ink);
+    background: var(--sheet-dim);
 }
 
 .settings-button.is-primary {
-    border-color: var(--accent-deep);
-    color: #fff8f4;
-    background: var(--accent);
+    border-color: var(--ink);
+    color: var(--ink);
+    background: var(--yellow);
+    font-weight: 600;
 }
 
 .settings-button.is-primary:hover {
-    background: var(--accent-deep);
+    background: #ffd51f;
 }
 
 .settings-button.is-danger {
-    border-color: #e7c6bc;
-    color: var(--danger);
-    background: #fdf2ee;
+    border-color: var(--red);
+    color: var(--red);
+    background: transparent;
 }
 
 .settings-button.is-danger:hover {
-    background: #fbe4dc;
+    background: var(--red-soft);
 }
 
 .settings-button.is-mini {
-    padding: 5px 9px;
-    font-size: 11px;
+    padding: 4px 8px;
+    font-size: 9.5px;
 }
 
 .settings-button:disabled {
-    cursor: not-allowed;
     opacity: .55;
+    cursor: not-allowed;
 }
 
 .settings-pill {
     display: inline-flex;
     align-items: center;
-    padding: 3px 8px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
+    padding: 2px 6px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 1px;
     font-family: var(--mono);
-    font-size: 9.5px;
-    letter-spacing: .03em;
+    font-size: 8.5px;
+    letter-spacing: .01em;
     white-space: nowrap;
 }
 
 .settings-pill.is-ok {
-    border-color: #cfe3dc;
-    color: var(--teal);
-    background: #e8f1ee;
+    border-color: #a9cdbb;
+    color: var(--green);
+    background: var(--green-soft);
 }
 
 .settings-pill.is-warn {
-    border-color: #eadfba;
-    color: #8a6a1f;
-    background: #f8f0d9;
+    border-color: #ded08a;
+    color: #6f5900;
+    background: var(--yellow-soft);
 }
 
 .settings-pill.is-danger {
-    border-color: #eec3bc;
-    color: #a02f25;
-    background: #f9e0dc;
+    border-color: #e4b3a9;
+    color: var(--red);
+    background: var(--red-soft);
 }
 
 .settings-pill.is-muted {
     color: var(--muted);
-    background: #f4f0e8;
+    background: var(--sheet-dim);
 }
 
 .settings-empty {
-    margin-top: 14px;
-    padding: 26px 20px;
-    border: 1px dashed var(--line);
-    border-radius: 12px;
+    margin-top: 12px;
+    padding: 24px 18px;
+    border: 1px dashed var(--rule-strong);
+    border-radius: 1px;
     color: var(--muted);
     text-align: center;
 }
 
 .settings-empty strong {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
     color: var(--text);
-    font-size: 13px;
+    font-size: 12.5px;
 }
 
 .settings-empty p {
     margin: 0;
-    font-size: 12px;
+    font-size: 10.5px;
     line-height: 1.7;
 }
 
 .settings-loading {
-    padding: 48px 20px;
+    padding: 44px 18px;
     color: var(--muted);
-    font-size: 12px;
+    font-family: var(--mono);
+    font-size: 10px;
     text-align: center;
 }
 
 .settings-error {
-    margin-top: 12px;
-    padding: 16px 18px;
-    border: 1px solid #eec3bc;
-    border-radius: 12px;
-    background: #fdf5f2;
-    color: #8c3a2e;
+    margin-top: 10px;
+    padding: 14px 15px;
+    border: 1px solid var(--red);
+    border-left-width: 3px;
+    border-radius: 1px;
+    color: var(--red);
+    background: var(--red-soft);
 }
 
 .settings-error strong {
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
+    font-size: 11.5px;
 }
 
 .settings-error p {
-    margin: 0 0 10px;
-    font-size: 12px;
+    margin: 0 0 9px;
+    font-size: 10.5px;
     line-height: 1.6;
 }
 
 .settings-meta {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px 20px;
-    margin: 12px 0 0;
+    gap: 7px 20px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
 }
 
 .settings-meta > div {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
 }
 
 .settings-meta dt {
-    color: #a19b8f;
-    font-size: 10px;
-    letter-spacing: .04em;
+    color: var(--muted-2);
+    font-size: 8.5px;
 }
 
 .settings-meta dd {
     margin: 0;
     overflow-wrap: anywhere;
-    color: #55524b;
+    color: var(--text);
     font-family: var(--mono);
-    font-size: 10.5px;
-    line-height: 1.5;
+    font-size: 9.5px;
+    line-height: 1.55;
 }
 
 .settings-callout {
-    margin: 14px 0;
-    padding: 13px 15px;
-    border: 1px solid var(--line);
-    border-radius: 11px;
-    background: #faf7f0;
+    margin: 12px 0;
+    padding: 11px 13px;
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--yellow);
+    border-radius: 1px;
+    background: var(--sheet-dim);
 }
 
 .settings-callout.is-danger {
-    border-color: #eec3bc;
-    background: #fdf5f2;
+    border-left-color: var(--red);
+    background: var(--red-soft);
 }
 
 .settings-callout strong {
     display: block;
-    margin-bottom: 5px;
-    font-size: 12px;
+    margin-bottom: 4px;
+    font-size: 11px;
 }
 
 .settings-callout p {
-    margin: 0;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 10.5px;
     line-height: 1.7;
 }
 
 .settings-callout small {
     display: block;
-    margin-top: 8px;
-    color: #a19b8f;
-    font-size: 10.5px;
+    margin-top: 7px;
+    color: var(--muted-2);
+    font-size: 9.5px;
     line-height: 1.6;
 }
 
 .settings-note-list {
-    margin: 6px 0 0;
-    padding-left: 18px;
+    margin-top: 5px;
+    padding-left: 16px;
     color: var(--muted);
-    font-size: 11.5px;
-    line-height: 1.9;
+    font-size: 10.5px;
+    line-height: 1.85;
+}
+
+.settings-note-list li::marker {
+    color: var(--rule-strong);
 }
 
 .settings-code {
-    margin: 8px 0 0;
+    margin-top: 7px;
     overflow-x: auto;
-    padding: 9px 11px;
-    border: 1px solid #e9e2d6;
-    border-radius: 8px;
-    color: #4b4a45;
-    background: #f5f1e9;
+    padding: 8px 10px;
+    border: 1px solid var(--ink);
+    border-radius: 1px;
+    color: #d8ded7;
+    background: var(--ink);
     font-family: var(--mono);
-    font-size: 10.5px;
-    line-height: 1.6;
+    font-size: 9.5px;
+    line-height: 1.65;
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -514,95 +404,100 @@
 .key-commands {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 10px;
+    gap: 8px;
+    margin-top: 9px;
 }
 
 .key-command {
     position: relative;
-    padding: 9px 10px;
-    border: 1px solid #e9e2d6;
-    border-radius: 9px;
-    background: #fffdf9;
+    padding: 8px 9px;
+    border: 1px solid var(--rule);
+    border-radius: 1px;
+    background: var(--sheet);
 }
 
 .key-command > span {
     display: block;
     margin-bottom: 2px;
-    color: #a19b8f;
-    font-size: 10px;
+    color: var(--muted-2);
+    font-size: 8.5px;
 }
 
 .key-command .settings-code {
     margin: 0;
     padding: 0;
-    border: none;
+    border: 0;
+    color: var(--text);
     background: transparent;
+    font-size: 9px;
 }
 
 .key-command .settings-button {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    top: 5px;
+    right: 5px;
 }
 
 /* ---------- 表单 ---------- */
 
 .settings-form {
-    margin-top: 12px;
+    margin-top: 10px;
 }
 
 .settings-form-title {
-    margin: 0 0 10px;
-    font-size: 12.5px;
+    margin-bottom: 9px;
+    font-size: 11.5px;
     font-weight: 600;
 }
 
 .settings-form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 16px;
+    gap: 10px 16px;
 }
 
 .settings-field {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 5px;
-    font-size: 11.5px;
+    gap: 4px;
+    font-size: 10.5px;
     font-weight: 500;
 }
 
 .settings-field-label {
-    color: #6f6a60;
+    color: var(--muted);
+    font-size: 9.5px;
+    font-weight: 600;
 }
 
 .settings-field input,
 .settings-field select {
     width: 100%;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
+    padding: 7px 9px;
     outline: none;
-    background: #fbf9f4;
-    font-size: 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    color: var(--text);
+    background: var(--sheet-dim);
+    font-size: 11.5px;
 }
 
 .settings-field input:focus,
 .settings-field select:focus {
-    border-color: #c4a99a;
+    border-color: var(--blue);
     background: #fff;
 }
 
 .settings-field input:disabled,
 .settings-field select:disabled {
-    color: #a19b8f;
-    background: #f3efe7;
+    color: var(--muted-2);
+    background: #e5e7e0;
 }
 
 .settings-field-hint {
-    color: #a19b8f;
-    font-size: 10px;
+    color: var(--muted-2);
+    font-size: 8.5px;
     font-weight: 400;
     line-height: 1.5;
 }
@@ -610,40 +505,40 @@
 .settings-checks {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
-    margin-top: 12px;
+    gap: 12px;
+    margin-top: 10px;
 }
 
 .settings-check {
     display: flex;
     align-items: center;
-    gap: 6px;
-    color: #6f6a60;
-    font-size: 11.5px;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 10.5px;
 }
 
 .settings-check input {
-    accent-color: var(--accent);
+    accent-color: var(--blue);
 }
 
 .settings-form-error {
-    margin: 10px 0 0;
-    color: var(--danger);
-    font-size: 11.5px;
+    margin-top: 8px;
+    color: var(--red);
+    font-size: 10.5px;
 }
 
 .settings-form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin-top: 14px;
+    gap: 6px;
+    margin-top: 12px;
 }
 
 .settings-inline-row {
     display: flex;
     align-items: flex-end;
-    gap: 10px;
-    margin: 14px 0;
+    gap: 9px;
+    margin: 12px 0;
 }
 
 .settings-inline-row .settings-field {
@@ -656,16 +551,16 @@
 
 .settings-inline-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 6px;
+    margin-top: 10px;
 }
 
 .settings-hint {
-    color: #a19b8f;
-    font-size: 10.5px;
+    color: var(--muted-2);
+    font-size: 9px;
 }
 
-/* ---------- 模型 ---------- */
+/* ---------- 卡片列表 ---------- */
 
 .model-list,
 .skill-list,
@@ -673,23 +568,23 @@
 .policy-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-top: 12px;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 .model-card,
 .skill-card,
 .plugin-card,
 .policy-card {
-    padding: 14px 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--raised);
-    box-shadow: 0 10px 24px -24px rgba(40, 32, 18, .6);
+    padding: 12px 14px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    background: var(--sheet);
 }
 
 .model-card.is-disabled {
-    opacity: .72;
+    opacity: .65;
+    background: var(--sheet-dim);
 }
 
 .model-card-head,
@@ -698,23 +593,40 @@
 .policy-card-head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
 }
 
 .provider-mark,
 .skill-mark,
 .plugin-mark {
     display: grid;
-    min-width: 34px;
-    height: 28px;
+    min-width: 38px;
+    height: 26px;
     place-items: center;
-    padding: 0 7px;
-    border-radius: 8px;
-    color: var(--teal);
-    background: #e8f1ee;
+    padding: 0 6px;
+    border: 1px solid var(--ink);
+    border-radius: 1px;
     font-family: var(--mono);
-    font-size: 9.5px;
-    font-weight: 600;
+    font-size: 8px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.provider-mark {
+    color: var(--yellow);
+    background: var(--ink);
+}
+
+.skill-mark {
+    border-color: #b9c2ff;
+    color: var(--blue);
+    background: var(--blue-soft);
+}
+
+.plugin-mark {
+    border-color: #a9cdbb;
+    color: var(--green);
+    background: var(--green-soft);
 }
 
 .model-card-title,
@@ -724,7 +636,7 @@
     min-width: 0;
     flex: 1;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
 }
 
 .model-card-title strong,
@@ -732,7 +644,7 @@
 .plugin-card-title strong,
 .policy-card-head strong {
     overflow: hidden;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -744,7 +656,7 @@
     overflow: hidden;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 9px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -759,44 +671,46 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid #ece7dd;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px dashed var(--rule);
 }
 
 .model-card-actions {
     display: flex;
-    gap: 7px;
+    gap: 5px;
     margin-left: auto;
 }
 
-.model-editor {
-    padding: 16px 16px 14px;
-    border: 1px solid #e5d6c6;
-    border-radius: 12px;
-    background: #fffdf9;
+.model-editor,
+.policy-editor {
+    padding: 13px 14px 12px;
+    border: 1px solid var(--rule-strong);
+    border-left: 3px solid var(--blue);
+    border-radius: 1px;
+    background: var(--sheet);
 }
 
 /* ---------- 技能 ---------- */
 
 .skill-path {
-    margin: 9px 0 2px;
+    margin: 8px 0 1px;
     overflow-wrap: anywhere;
-    color: #6f6a60;
+    color: var(--muted);
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1.5;
 }
 
 .skill-source {
-    color: #a19b8f;
-    font-size: 10px;
+    color: var(--muted-2);
+    font-size: 9px;
 }
 
 .skill-content {
     max-height: 280px;
-    margin-top: 10px;
+    margin-top: 9px;
     overflow-y: auto;
 }
 
@@ -807,7 +721,7 @@
 }
 
 .plugin-card.is-failed {
-    border-color: #eec3bc;
+    border-color: var(--red);
 }
 
 /* ---------- 策略 ---------- */
@@ -821,19 +735,15 @@
 }
 
 .policy-workspace {
-    margin-top: 16px;
+    margin-top: 14px;
 }
 
 .policy-editor {
-    margin-top: 16px;
-    padding: 15px 16px 14px;
-    border: 1px solid #e5d6c6;
-    border-radius: 12px;
-    background: #fffdf9;
+    margin-top: 14px;
 }
 
 .policy-block {
-    margin-top: 22px;
+    margin-top: 20px;
 }
 
 /* ---------- 会话设置 ---------- */
@@ -847,37 +757,36 @@
 
 .footer-actions {
     display: flex;
-    gap: 10px;
-}
-
-.dialog-hint {
-    margin: -4px 0 12px;
-    color: #a19b8f;
-    font-size: 10.5px;
-    line-height: 1.6;
-    overflow-wrap: anywhere;
+    gap: 8px;
 }
 
 /* ---------- 窄屏 ---------- */
 
 @media (max-width: 900px) {
-    .settings-entry {
-        flex: 0 0 auto;
-        margin-top: 6px;
-        padding: 7px 9px;
-    }
-
-    .context-label {
-        display: none;
-    }
-
-    .context-track {
-        width: 56px;
-    }
-
     .settings-dialog {
-        width: calc(100vw - 20px);
-        height: calc(100dvh - 20px);
+        width: calc(100vw - 12px);
+        height: calc(100dvh - 12px);
+        border-top-width: 3px;
+        box-shadow: none;
+    }
+
+    .settings-head {
+        gap: 12px;
+        padding: 13px 14px 11px;
+    }
+
+    .settings-head h2 {
+        font-size: 18px;
+    }
+
+    .settings-head p {
+        font-size: 9.5px;
+    }
+
+    .settings-head .icon-button {
+        width: 26px;
+        height: 26px;
+        font-size: 17px;
     }
 
     .settings-layout {
@@ -888,19 +797,39 @@
         width: auto;
         flex: 0 0 auto;
         flex-direction: row;
+        gap: 4px;
         overflow-x: auto;
-        padding: 10px 12px;
-        border-right: none;
-        border-bottom: 1px solid var(--line);
+        padding: 8px 9px;
+        border-right: 0;
+        border-bottom: 1px solid var(--ink);
     }
 
     .settings-tabs button {
-        padding: 7px 11px;
+        width: auto;
+        padding: 6px 9px;
+        font-size: 10px;
         white-space: nowrap;
     }
 
+    .settings-tabs button::before {
+        display: none;
+    }
+
     .settings-panel {
-        padding: 16px 16px 24px;
+        padding: 13px 13px 22px;
+    }
+
+    .settings-section-head {
+        flex-direction: column;
+        gap: 9px;
+    }
+
+    .settings-section-copy h3 {
+        font-size: 17px;
+    }
+
+    .settings-actions {
+        flex-wrap: wrap;
     }
 
     .settings-form-grid,
@@ -916,5 +845,27 @@
 
     .settings-inline-row > .settings-button {
         align-self: flex-start;
+    }
+
+    .settings-inline-actions {
+        flex-wrap: wrap;
+    }
+
+    .model-card-head,
+    .skill-card-head,
+    .plugin-card-head {
+        gap: 7px;
+    }
+
+    .model-card-title strong,
+    .skill-card-title strong,
+    .plugin-card-title strong,
+    .policy-card-head strong {
+        font-size: 11.5px;
+    }
+
+    .model-card-foot,
+    .plugin-card-foot {
+        gap: 5px;
     }
 }

@@ -8,10 +8,11 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M9 Web UI 完善已完成**（2026-10-23）。已具备树形会话日志、
+> 当前状态：**M10 界面重构已完成**（2026-10-23）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理，以及会话设置与上下文用量仪表。
+> Web UI 采用“信号工作台”视觉：纸面、墨黑结构、信号黄主操作与钴蓝焦点，字体本地化离线可用。
 > 602 个测试全绿。下一步：CLI + v0.1.0 发布。
 
 ![聊天与工具审批](docs/images/chat.png)
@@ -126,7 +127,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M9 已验证通过：602 个测试全绿（2 个符号链接用例条件跳过），
+当前 M10 已验证通过：602 个测试全绿（2 个符号链接用例条件跳过），
 Checkstyle/ArchUnit 通过。
 
 ## 文档
@@ -153,6 +154,7 @@ Checkstyle/ArchUnit 通过。
 - [M7 里程碑记录](docs/milestones/M7.md)
 - [M8 里程碑记录](docs/milestones/M8.md)
 - [M9 里程碑记录（Web UI 与开源准备）](docs/milestones/M9.md)
+- [M10 里程碑记录（界面重构 · 信号工作台）](docs/milestones/M10.md)
 
 架构决策：
 

@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>pi-java · coding agent</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314161a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e5654a' font-family='Georgia'%3E%CF%80%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='6' fill='%23101314'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23f4c400' font-family='Arial' font-weight='bold'%3E%CF%80%3C/text%3E%3C/svg%3E">
+    <meta name="theme-color" content="#101314">
+    <link rel="preload" href="/fonts/archivo-700.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/ibm-plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/messages.css">
     <link rel="stylesheet" href="/css/settings.css">
@@ -16,7 +20,7 @@
             <span class="brand-mark">π</span>
             <div class="brand-copy">
                 <strong>pi-java</strong>
-                <span>minimal coding agent</span>
+                <span>local coding agent</span>
             </div>
         </div>
 
@@ -35,16 +39,16 @@
             <span id="server-label">连接中…</span>
             <span id="server-version" class="server-version"></span>
         </div>
-        <button id="open-settings" class="settings-entry" type="button">
-            <span class="settings-entry-mark">S</span>
-            <span>设置 · 模型与密钥</span>
+        <button id="open-settings" class="settings-entry" type="button"
+                title="设置与模型密钥" aria-label="设置与模型密钥">
+            <span class="settings-entry-mark">设</span>
+            <span>设置与模型密钥</span>
         </button>
     </aside>
 
     <main class="main">
         <header class="topbar">
             <div class="session-heading">
-                <span class="eyebrow">AGENT SESSION</span>
                 <h1 id="session-title">选择或新建一个会话</h1>
                 <div id="session-meta" class="session-meta"></div>
             </div>
@@ -66,18 +70,33 @@
 
         <section id="messages" class="messages" aria-live="polite">
             <div class="welcome">
-                <div class="welcome-mark">π</div>
-                <h2>让代码开始流动</h2>
-                <p>Fake 模型离线运行，不需要任何 API Key。新建会话后试试下面的指令，<br>它们会真实调用工作区工具；写操作会先弹出审批。</p>
-                <div class="welcome-actions">
+                <div class="welcome-head">
+                    <span class="welcome-mark" aria-hidden="true">π</span>
+                    <div class="welcome-copy">
+                        <p class="welcome-kicker">本地 agent 工作台 / Fake 模型离线可用</p>
+                        <h2>让代码开始流动</h2>
+                        <p>不需要 API Key。选一条指令开始，它们会真实调用工作区工具；
+                            写操作会先停下来，等你审批。</p>
+                    </div>
+                </div>
+                <div class="welcome-actions" role="group" aria-label="示例指令">
                     <button class="prompt-chip" type="button" data-prompt="/read README.md">
-                        <code>/read README.md</code><span>读取项目说明</span>
+                        <span class="prompt-index">01</span>
+                        <code>/read README.md</code>
+                        <span class="prompt-desc">读取项目说明</span>
+                        <span class="prompt-arrow" aria-hidden="true">→</span>
                     </button>
                     <button class="prompt-chip" type="button" data-prompt="/ls .">
-                        <code>/ls .</code><span>列出工作区</span>
+                        <span class="prompt-index">02</span>
+                        <code>/ls .</code>
+                        <span class="prompt-desc">列出工作区</span>
+                        <span class="prompt-arrow" aria-hidden="true">→</span>
                     </button>
                     <button class="prompt-chip" type="button" data-prompt="你好，简单介绍一下你自己">
-                        <code>你好</code><span>纯文本回复</span>
+                        <span class="prompt-index">03</span>
+                        <code>你好</code>
+                        <span class="prompt-desc">纯文本回复</span>
+                        <span class="prompt-arrow" aria-hidden="true">→</span>
                     </button>
                 </div>
             </div>
@@ -97,16 +116,18 @@
                           placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
                 <div class="composer-side">
                     <span id="composer-model" class="composer-model"></span>
-                    <button id="send-button" class="send-button" type="submit" title="发送">
-                        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                            <path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="currentColor"></path>
+                    <button id="send-button" class="send-button" type="submit" title="发送" aria-label="发送">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                             stroke="currentColor" stroke-width="2.2" stroke-linecap="square"
+                             aria-hidden="true">
+                            <path d="M4 12h15M13 6l6 6-6 6"></path>
                         </svg>
                     </button>
                 </div>
             </form>
             <div class="composer-hint">
-                <span><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span>
-                <span>Demo · 运行在 <code id="workspace-hint">…</code></span>
+                <span><kbd>Enter</kbd> 发送 / <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span>
+                <span>Demo / 运行在 <code id="workspace-hint">…</code></span>
             </div>
         </footer>
     </main>
@@ -116,7 +137,6 @@
     <form id="session-form">
         <header>
             <div>
-                <span class="eyebrow">NEW SESSION</span>
                 <h2>新建会话</h2>
             </div>
             <button id="dialog-close" class="icon-button" type="button" aria-label="关闭">×</button>
@@ -156,7 +176,6 @@
     <div class="approval-body">
         <header>
             <div>
-                <span class="eyebrow">APPROVAL REQUIRED</span>
                 <h2>工具调用需要确认</h2>
             </div>
             <span id="approval-risk" class="risk-badge risk-high">HIGH</span>
@@ -202,7 +221,6 @@
     <form id="session-settings-form">
         <header>
             <div>
-                <span class="eyebrow">SESSION SETTINGS</span>
                 <h2>会话设置</h2>
             </div>
             <button id="session-settings-close" class="icon-button" type="button"
@@ -243,7 +261,6 @@
     <div class="settings-shell">
         <header class="settings-head">
             <div>
-                <span class="eyebrow">CONTROL CENTER</span>
                 <h2>设置</h2>
                 <p>密钥只保存环境变量名；服务端不会接收、存储或返回任何密钥明文。</p>
             </div>
@@ -264,15 +281,26 @@
 
 <template id="empty-template">
     <div class="welcome welcome-compact">
-        <div class="welcome-mark">π</div>
-        <h2>会话已就绪</h2>
-        <p>输入消息，或点击一个示例指令开始。</p>
-        <div class="welcome-actions">
+        <div class="welcome-head">
+            <span class="welcome-mark" aria-hidden="true">π</span>
+            <div class="welcome-copy">
+                <p class="welcome-kicker">会话已就绪</p>
+                <h2>输入一条指令</h2>
+                <p>也可以从下面的示例开始，工具调用会实时出现在对话里。</p>
+            </div>
+        </div>
+        <div class="welcome-actions" role="group" aria-label="示例指令">
             <button class="prompt-chip" type="button" data-prompt="/read README.md">
-                <code>/read README.md</code><span>读取项目说明</span>
+                <span class="prompt-index">01</span>
+                <code>/read README.md</code>
+                <span class="prompt-desc">读取项目说明</span>
+                <span class="prompt-arrow" aria-hidden="true">→</span>
             </button>
             <button class="prompt-chip" type="button" data-prompt="/ls .">
-                <code>/ls .</code><span>列出工作区</span>
+                <span class="prompt-index">02</span>
+                <code>/ls .</code>
+                <span class="prompt-desc">列出工作区</span>
+                <span class="prompt-arrow" aria-hidden="true">→</span>
             </button>
         </div>
     </div>

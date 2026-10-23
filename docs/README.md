@@ -12,7 +12,7 @@
 6. [05 API 与 CLI](05-api-and-cli.md)：REST/SSE 契约、CLI 命令、Web UI
 7. [06 插件 SDK](06-plugin-sdk.md)：插件契约、生命周期、类加载隔离、示例
 8. [07 测试与质量](07-testing-and-quality.md)：测试策略、质量门禁、验收
-9. [08 路线图](08-roadmap.md)：M0–M9、依赖、风险、完成定义
+9. [08 路线图](08-roadmap.md)：M0–M10、依赖、风险、完成定义
 10. [09 快速上手](09-quick-start.md)：启动脚本、接入真实模型、技能与常见问题
 
 ## 架构决策记录
@@ -34,6 +34,7 @@
 - [M7：上下文压缩与 Skills](milestones/M7.md)
 - [M8：同步子智能体](milestones/M8.md)
 - [M9：Web UI 完善与开源准备](milestones/M9.md)
+- [M10：界面重构 · 信号工作台](milestones/M10.md)
 
 ## 模块文档
 

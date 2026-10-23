@@ -103,7 +103,7 @@ function fill(session, models) {
         statusLabel(session.status),
         session.cwd,
         editable ? "" : "当前状态不可修改"
-    ].filter(Boolean).join(" · ");
+    ].filter(Boolean).join(" / ");
 }
 
 async function save(event) {

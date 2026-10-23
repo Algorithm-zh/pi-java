@@ -1,0 +1,314 @@
+/*
+ * pi-java 设计系统。
+ *
+ * 视觉概念：本地 agent 工作台。冷灰纸面、墨黑结构、信号黄表示可执行动作，
+ * 钴蓝表示焦点与信息，绿色/红色只承载完成与危险。组件保持直角与细线，
+ * 不使用装饰性阴影；界面里的结构线都对应真实层级或运行轨迹。
+ */
+
+@font-face {
+    font-family: "Archivo";
+    src: url("/fonts/archivo-400.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Archivo";
+    src: url("/fonts/archivo-600.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Archivo";
+    src: url("/fonts/archivo-700.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "IBM Plex Mono";
+    src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "IBM Plex Mono";
+    src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --ink: #101314;
+    --ink-raised: #181d1e;
+    --ink-line: #2a3233;
+    --paper: #e8eae4;
+    --sheet: #f7f8f3;
+    --sheet-dim: #eef0e9;
+    --rule: #c9cdc5;
+    --rule-strong: #8e968f;
+    --text: #121617;
+    --muted: #5f6862;
+    --muted-2: #7c857f;
+    --blue: #1f3bff;
+    --blue-soft: #e7eaff;
+    --yellow: #f4c400;
+    --yellow-soft: #fbf0b9;
+    --red: #c3301c;
+    --red-soft: #f7e8e3;
+    --green: #116b50;
+    --green-soft: #e1efe8;
+    --sans: "Archivo", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+    --sidebar-w: 268px;
+    --content-w: 900px;
+    --shadow-hard: 6px 6px 0 rgba(16, 19, 20, .14);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    color: var(--text);
+    background: var(--paper);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+button {
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+button:disabled {
+    cursor: not-allowed;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+dl,
+dd,
+dt,
+pre,
+figure {
+    margin: 0;
+}
+
+::selection {
+    color: var(--ink);
+    background: var(--yellow);
+}
+
+:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #aeb5ae transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    background: #b4bbb4;
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: #8f978f;
+    background-clip: content-box;
+}
+
+.sidebar ::selection {
+    color: var(--ink);
+    background: var(--yellow);
+}
+
+/* ---------- 通用按钮 ---------- */
+
+.icon-button {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    color: inherit;
+    font-size: 14px;
+    line-height: 1;
+    opacity: .65;
+    transition: background .14s ease, opacity .14s ease, color .14s ease;
+}
+
+.icon-button:hover {
+    background: rgba(16, 19, 20, .06);
+    opacity: 1;
+}
+
+.ghost-button,
+.primary-button,
+.danger-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 15px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+
+.ghost-button {
+    color: var(--text);
+    background: transparent;
+}
+
+.ghost-button:hover {
+    border-color: var(--ink);
+    background: var(--sheet-dim);
+}
+
+.primary-button {
+    border-color: var(--ink);
+    color: var(--ink);
+    background: var(--yellow);
+}
+
+.primary-button:hover {
+    background: #ffd51f;
+}
+
+.primary-button:disabled {
+    opacity: .55;
+    cursor: wait;
+}
+
+.danger-button {
+    border-color: var(--red);
+    color: var(--red);
+    background: transparent;
+}
+
+.danger-button:hover {
+    border-color: var(--red);
+    background: var(--red-soft);
+}
+
+.ghost-button.danger-button {
+    border-color: var(--red);
+    color: var(--red);
+    background: transparent;
+}
+
+.ghost-button.danger-button:hover {
+    background: var(--red-soft);
+}
+
+.link-button {
+    margin-left: 6px;
+    color: var(--blue);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.link-button:hover {
+    color: var(--ink);
+}
+
+kbd {
+    padding: 1px 4px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--sheet);
+    box-shadow: 0 1px 0 var(--rule);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 9px;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: .25;
+    }
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+    }
+}

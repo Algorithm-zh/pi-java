@@ -122,7 +122,7 @@ export function updateHeader() {
         modelDisplayName(session.modelProfileId),
         session.origin === "SUBAGENT" ? "子会话" : basename(session.cwd)
     ].filter(Boolean);
-    dom.meta.append(document.createTextNode(parts.join(" · ")));
+    dom.meta.append(document.createTextNode(parts.join(" / ")));
     const cwd = document.createElement("code");
     cwd.textContent = session.cwd;
     dom.meta.append(document.createTextNode("  "), cwd);
