@@ -13,6 +13,7 @@ import {
 } from "./session-view.js";
 import * as sessionSettings from "./session-settings.js";
 import * as settings from "./settings.js";
+import * as slash from "./slash.js";
 import { dom, setServer, state, toast } from "./store.js";
 
 async function init() {
@@ -22,6 +23,7 @@ async function init() {
     settings.init();
     sessionSettings.init();
     contextMeter.init({ onReload: reloadSession });
+    slash.init({ onResize: resizeInput });
     wireEvents();
     try {
         const [system, models] = await Promise.all([api.systemInfo(), api.listModels()]);
@@ -59,6 +61,7 @@ function submitComposer() {
         toast("请先新建一个会话", true);
         return;
     }
+    slash.hide();
     dom.input.value = "";
     resizeInput();
     startRun(text);
@@ -81,6 +84,9 @@ function wireEvents() {
     });
     dom.input.addEventListener("input", resizeInput);
     dom.input.addEventListener("keydown", (event) => {
+        if (slash.handleKeydown(event)) {
+            return;
+        }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
             event.preventDefault();
             dom.composerForm.requestSubmit();

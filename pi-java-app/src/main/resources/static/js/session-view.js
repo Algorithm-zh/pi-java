@@ -52,6 +52,7 @@ export async function openSession(sessionId, updateUrl = true) {
         state.session = session;
         state.entries = entries;
         state.controller = null;
+        state.turn = null;
         state.terminalSeen = false;
         state.modelName = session.modelProfileId;
         state.inner = renderEntries(dom.messages, entries);
@@ -89,6 +90,7 @@ export async function reloadSession() {
         state.session = session;
         state.entries = entries;
         state.sessions = sessions;
+        state.turn = null;
         state.inner = renderEntries(dom.messages, entries);
         renderSessions(dom.sessionList, sessions, session.id, openSession);
         updateHeader();

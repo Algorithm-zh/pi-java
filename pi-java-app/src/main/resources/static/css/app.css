@@ -75,8 +75,8 @@
 }
 
 .brand-copy span {
-    color: #8b958e;
-    font-size: 10px;
+    color: var(--on-ink-dim);
+    font-size: 12px;
     letter-spacing: .01em;
 }
 
@@ -91,7 +91,7 @@
     border-radius: 2px;
     color: var(--ink);
     background: var(--yellow);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     text-align: left;
     transition: background .14s ease;
@@ -118,8 +118,8 @@
     align-items: center;
     justify-content: space-between;
     margin: 22px 8px 6px;
-    color: #88928b;
-    font-size: 10px;
+    color: var(--on-ink-muted);
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: .02em;
 }
@@ -145,7 +145,7 @@
     padding: 8px 7px;
     border: 1px solid transparent;
     border-radius: 2px;
-    color: #c2cbc3;
+    color: #c9d2ca;
     background: transparent;
     text-align: left;
     transition: background .14s ease, border-color .14s ease;
@@ -163,11 +163,11 @@
 }
 
 .session-index {
-    flex: 0 0 18px;
+    flex: 0 0 20px;
     margin-top: 1px;
-    color: #6d7871;
+    color: var(--on-ink-dim);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 500;
     line-height: 1.7;
 }
@@ -182,7 +182,7 @@
 
 .session-copy strong {
     overflow: hidden;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -190,9 +190,9 @@
 
 .session-copy small {
     overflow: hidden;
-    color: #7d8880;
+    color: var(--on-ink-dim);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -222,8 +222,8 @@
 
 .session-empty {
     padding: 12px 9px;
-    color: #7d8880;
-    font-size: 11px;
+    color: var(--on-ink-dim);
+    font-size: 12.5px;
     line-height: 1.7;
 }
 
@@ -234,9 +234,9 @@
     margin: 10px 8px 0;
     padding-top: 10px;
     border-top: 1px dashed var(--ink-line);
-    color: #8b958e;
+    color: var(--on-ink-muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 12px;
 }
 
 .dot {
@@ -262,8 +262,8 @@
 
 .server-version {
     margin-left: auto;
-    color: #6f7a73;
-    font-size: 9px;
+    color: var(--on-ink-dim);
+    font-size: 11.5px;
 }
 
 .settings-entry {
@@ -275,9 +275,9 @@
     padding: 8px 9px;
     border: 1px solid var(--ink-line);
     border-radius: 2px;
-    color: #c2cbc3;
+    color: #c9d2ca;
     background: #151a1b;
-    font-size: 10.5px;
+    font-size: 12.5px;
     text-align: left;
     transition: border-color .14s ease, color .14s ease;
 }
@@ -348,16 +348,16 @@
     align-items: baseline;
     gap: 3px 9px;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 12.5px;
 }
 
 .session-meta code {
     display: inline-block;
     max-width: 420px;
     overflow: hidden;
-    color: #6f7872;
+    color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -378,7 +378,7 @@
 
 .context-widget::before {
     color: var(--muted);
-    font-size: 9.5px;
+    font-size: 11.5px;
     content: "上下文";
     white-space: nowrap;
 }
@@ -419,7 +419,7 @@
 .context-label {
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
     white-space: nowrap;
 }
 
@@ -429,7 +429,7 @@
     border-radius: 2px;
     color: var(--text);
     background: var(--sheet);
-    font-size: 9.5px;
+    font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
     transition: background .14s ease, color .14s ease, border-color .14s ease;
@@ -458,7 +458,7 @@
     color: var(--muted);
     background: var(--sheet);
     font-family: var(--mono);
-    font-size: 9.5px;
+    font-size: 12px;
 }
 
 .run-state::before {
@@ -497,7 +497,7 @@
     border-radius: 2px;
     color: var(--red);
     background: var(--sheet);
-    font-size: 10.5px;
+    font-size: 12.5px;
     font-weight: 600;
     transition: background .14s ease, color .14s ease;
 }
@@ -523,7 +523,7 @@
     padding: 0 2px;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
 }
 
 .usage b {
@@ -535,12 +535,18 @@
     white-space: nowrap;
 }
 
+.composer-stack {
+    position: relative;
+    width: min(var(--content-w), 100%);
+    margin: 0 auto;
+}
+
 .composer-box {
     display: flex;
-    width: min(var(--content-w), 100%);
+    width: 100%;
     align-items: flex-end;
     gap: 10px;
-    margin: 0 auto;
+    margin: 0;
     padding: 11px 11px 10px 15px;
     border: 1px solid var(--ink);
     border-radius: 3px;
@@ -564,12 +570,12 @@
     color: #f1f3ed;
     background: transparent;
     caret-color: var(--yellow);
-    font-size: 13.5px;
+    font-size: 15px;
     line-height: 1.65;
 }
 
 #composer-input::placeholder {
-    color: #7f8a83;
+    color: #93a098;
 }
 
 .composer-side {
@@ -582,9 +588,9 @@
 .composer-model {
     max-width: 150px;
     overflow: hidden;
-    color: #97a29b;
+    color: var(--on-ink-dim);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -619,13 +625,88 @@
     margin: 7px auto 0;
     padding: 0 2px;
     color: var(--muted-2);
-    font-size: 9.5px;
+    font-size: 12px;
 }
 
 .composer-hint code {
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
+}
+
+/* ---------- 斜杠命令 ---------- */
+
+.slash-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 30;
+    max-height: min(340px, 50dvh);
+    overflow-y: auto;
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    background: var(--sheet);
+    box-shadow: var(--shadow-hard);
+}
+
+.slash-group {
+    padding: 9px 12px 4px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+}
+
+.slash-group:first-child {
+    padding-top: 8px;
+}
+
+.slash-item {
+    display: flex;
+    width: 100%;
+    align-items: baseline;
+    gap: 12px;
+    padding: 7px 12px 8px;
+    border-left: 3px solid transparent;
+    text-align: left;
+    transition: background .1s ease;
+}
+
+.slash-item:hover {
+    background: var(--sheet-dim);
+}
+
+.slash-item.active {
+    border-left-color: var(--yellow);
+    color: var(--on-ink);
+    background: var(--ink);
+}
+
+.slash-command {
+    flex: 0 0 auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.slash-desc {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.slash-item.active .slash-desc {
+    color: var(--on-ink-muted);
+}
+
+.slash-empty {
+    padding: 10px 12px;
+    color: var(--muted);
+    font-size: 12.5px;
 }
 
 /* ---------- 会话弹窗 ---------- */
@@ -687,20 +768,20 @@
     flex-direction: column;
     gap: 6px;
     margin-bottom: 13px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
 }
 
 .field > span {
     color: #3d4541;
-    font-size: 10.5px;
+    font-size: 12.5px;
     font-weight: 600;
 }
 
 .field em {
     margin-left: 6px;
     color: var(--muted);
-    font-size: 9.5px;
+    font-size: 11.5px;
     font-style: normal;
     font-weight: 400;
 }
@@ -714,7 +795,7 @@
     border-radius: 2px;
     color: var(--text);
     background: var(--sheet-dim);
-    font-size: 12.5px;
+    font-size: 14px;
 }
 
 .field input:focus,
@@ -726,7 +807,7 @@
 .dialog-error {
     margin: 3px 0 9px;
     color: var(--red);
-    font-size: 11px;
+    font-size: 13px;
 }
 
 .session-dialog footer {
@@ -743,7 +824,7 @@
     overflow-wrap: anywhere;
     color: var(--muted-2);
     font-family: var(--mono);
-    font-size: 9.5px;
+    font-size: 11.5px;
     line-height: 1.6;
 }
 
@@ -772,7 +853,7 @@
     border: 1px solid var(--ink);
     border-radius: 2px;
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 500;
     letter-spacing: .04em;
 }
@@ -821,7 +902,7 @@
     color: var(--yellow);
     background: var(--ink);
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
 }
 
@@ -842,7 +923,7 @@
     overflow: hidden;
     color: var(--muted-2);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -872,14 +953,14 @@
     display: block;
     margin-bottom: 5px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: 12.5px;
     font-weight: 600;
 }
 
 .approval-label em {
     margin-left: 6px;
     color: var(--muted-2);
-    font-size: 9.5px;
+    font-size: 11.5px;
     font-style: normal;
     font-weight: 400;
 }
@@ -894,7 +975,7 @@
     color: #dbe1da;
     background: var(--ink);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 12.5px;
     line-height: 1.7;
     white-space: pre-wrap;
     word-break: break-word;
@@ -909,7 +990,7 @@
     color: var(--muted);
     background: var(--sheet-dim);
     font-family: var(--mono);
-    font-size: 9.5px;
+    font-size: 11.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -928,7 +1009,7 @@
     border-radius: 2px;
     color: var(--text);
     background: var(--sheet-dim);
-    font-size: 12.5px;
+    font-size: 14px;
     line-height: 1.6;
 }
 
@@ -946,7 +1027,7 @@
 .approval-queue {
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9.5px;
+    font-size: 12px;
 }
 
 .approval-actions {
@@ -971,9 +1052,9 @@
     border: 1px solid var(--ink);
     border-left: 4px solid var(--yellow);
     border-radius: 2px;
-    color: #eef1ea;
+    color: var(--on-ink);
     background: var(--ink);
-    font-size: 11.5px;
+    font-size: 13px;
     line-height: 1.5;
     box-shadow: var(--shadow-hard);
     animation: toast-in .16s ease;
@@ -1051,7 +1132,7 @@
         gap: 6px;
         margin: 0;
         padding: 6px 9px;
-        font-size: 10.5px;
+        font-size: 12.5px;
     }
 
     .new-session .plus {
@@ -1064,7 +1145,7 @@
     .sidebar-label {
         grid-area: label;
         margin: 2px 2px 0;
-        font-size: 9.5px;
+        font-size: 12px;
     }
 
     .session-list {
@@ -1120,12 +1201,12 @@
 
     .session-meta {
         gap: 2px 7px;
-        font-size: 9.5px;
+        font-size: 11.5px;
     }
 
     .session-meta code {
         max-width: 200px;
-        font-size: 8.5px;
+        font-size: 11px;
     }
 
     .topbar-actions {
@@ -1151,18 +1232,18 @@
     }
 
     .mini-button {
-        padding: 2px 5px;
-        font-size: 8.5px;
+        padding: 3px 6px;
+        font-size: 11.5px;
     }
 
     .run-state {
         padding: 4px 6px;
-        font-size: 8.5px;
+        font-size: 11.5px;
     }
 
     .stop-button {
         padding: 5px 8px;
-        font-size: 9.5px;
+        font-size: 12px;
     }
 
     .topbar-icon {
@@ -1181,8 +1262,18 @@
         border-radius: 2px;
     }
 
+    .slash-menu {
+        bottom: calc(100% + 6px);
+        max-height: min(300px, 46dvh);
+    }
+
+    .slash-item {
+        gap: 8px;
+        padding: 7px 10px;
+    }
+
     #composer-input {
-        font-size: 13px;
+        font-size: 15px;
     }
 
     .composer-model {
@@ -1195,7 +1286,7 @@
 
     .usage {
         margin-bottom: 5px;
-        font-size: 8.5px;
+        font-size: 11.5px;
         gap: 2px 9px;
     }
 

@@ -8,11 +8,10 @@
 import * as api from "./api.js";
 import * as approval from "./approval.js";
 import * as contextMeter from "./context-meter.js";
-import {
-    beginAssistant, resetForConversation, renderUserBubble, stopReasonLabel, upsertToolCard
-} from "./render.js";
+import { resetForConversation, renderUserBubble, stopReasonLabel } from "./render.js";
 import { reloadSession, scrollToBottom, updateHeader } from "./session-view.js";
 import { dom, setRunState, state, toast } from "./store.js";
+import { createStreamingTurn } from "./turn-view.js";
 import * as usage from "./usage.js";
 
 export async function start(text) {
@@ -20,6 +19,7 @@ export async function start(text) {
     const inner = resetForConversation(dom.messages);
     renderUserBubble(inner, text);
     state.inner = inner;
+    state.turn = createStreamingTurn(inner);
     scrollToBottom(true);
     state.terminalSeen = false;
     state.controller = null;
@@ -99,10 +99,11 @@ function handleEvent({ name, payload }) {
             setRunState("生成中");
             break;
         case "turn.started":
+            state.turn?.setTurn(data.turn);
             setRunState(`第 ${data.turn} 轮`);
             break;
         case "message.started":
-            state.controller = beginAssistant(state.inner, state.modelName);
+            state.controller = state.turn?.beginMessage(state.modelName) || null;
             break;
         case "message.delta":
             if (data.kind === "text") {
@@ -117,24 +118,11 @@ function handleEvent({ name, payload }) {
             accumulateUsage(data.usage);
             break;
         case "tool.started":
-            state.controller?.finish();
-            upsertToolCard(state.controller?.body || state.inner, {
-                callId: data.callId,
-                toolName: data.toolName,
-                args: data.arguments,
-                pending: true
-            });
+            state.turn?.toolStarted(data);
             scrollToBottom();
             break;
         case "tool.completed":
-            upsertToolCard(state.inner, {
-                callId: data.callId,
-                toolName: data.toolName,
-                args: null,
-                content: data.content,
-                isError: Boolean(data.isError),
-                pending: false
-            });
+            state.turn?.toolCompleted(data);
             scrollToBottom();
             break;
         case "approval.requested":
@@ -185,6 +173,7 @@ function finishRun(data, failed) {
     state.terminalSeen = true;
     approval.reset();
     state.controller?.finish();
+    state.turn?.complete(data);
     dom.abortButton.classList.add("hidden");
     usage.show(data);
     const status = data.status || (failed ? "FAILED" : "COMPLETED");

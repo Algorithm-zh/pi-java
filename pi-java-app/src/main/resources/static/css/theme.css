@@ -54,10 +54,13 @@
     --sheet: #f7f8f3;
     --sheet-dim: #eef0e9;
     --rule: #c9cdc5;
-    --rule-strong: #8e968f;
+    --rule-strong: #7f877f;
     --text: #121617;
-    --muted: #5f6862;
-    --muted-2: #7c857f;
+    --muted: #4b544e;
+    --muted-2: #5d675f;
+    --on-ink: #eef1ea;
+    --on-ink-muted: #b3bdb5;
+    --on-ink-dim: #97a29b;
     --blue: #1f3bff;
     --blue-soft: #e7eaff;
     --yellow: #f4c400;
@@ -66,7 +69,7 @@
     --red-soft: #f7e8e3;
     --green: #116b50;
     --green-soft: #e1efe8;
-    --sans: "Archivo", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    --sans: "Archivo", "PingFang SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
     --mono: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
     --sidebar-w: 268px;
     --content-w: 900px;
@@ -89,9 +92,8 @@ body {
     color: var(--text);
     background: var(--paper);
     font-family: var(--sans);
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+    line-height: 1.55;
 }
 
 button,
@@ -197,7 +199,7 @@ figure {
     padding: 9px 15px;
     border: 1px solid var(--rule-strong);
     border-radius: 2px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.2;
     transition: background .14s ease, color .14s ease, border-color .14s ease;
@@ -252,7 +254,7 @@ figure {
 .link-button {
     margin-left: 6px;
     color: var(--blue);
-    font-size: 10.5px;
+    font-size: 12px;
     font-weight: 600;
     text-decoration: underline;
     text-underline-offset: 3px;
@@ -270,7 +272,7 @@ kbd {
     box-shadow: 0 1px 0 var(--rule);
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11px;
 }
 
 @keyframes pulse {

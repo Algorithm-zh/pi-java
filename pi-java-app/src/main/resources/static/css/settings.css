@@ -58,7 +58,7 @@
 .settings-head p {
     margin-top: 5px;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 12.5px;
     line-height: 1.6;
 }
 
@@ -103,7 +103,7 @@
     border-radius: 2px;
     color: #b4beb6;
     background: transparent;
-    font-size: 11.5px;
+    font-size: 13px;
     text-align: left;
     transition: background .14s ease, color .14s ease;
 }
@@ -162,7 +162,7 @@
 .settings-section-copy p {
     max-width: 640px;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 12.5px;
     line-height: 1.65;
 }
 
@@ -181,7 +181,7 @@
     border-radius: 2px;
     color: var(--ink);
     background: transparent;
-    font-size: 11px;
+    font-size: 12.5px;
     font-weight: 500;
     white-space: nowrap;
     transition: background .14s ease, border-color .14s ease, color .14s ease;
@@ -215,7 +215,7 @@
 
 .settings-button.is-mini {
     padding: 4px 8px;
-    font-size: 9.5px;
+    font-size: 11.5px;
 }
 
 .settings-button:disabled {
@@ -230,7 +230,7 @@
     border: 1px solid var(--rule-strong);
     border-radius: 1px;
     font-family: var(--mono);
-    font-size: 8.5px;
+    font-size: 11px;
     letter-spacing: .01em;
     white-space: nowrap;
 }
@@ -271,12 +271,12 @@
     display: block;
     margin-bottom: 5px;
     color: var(--text);
-    font-size: 12.5px;
+    font-size: 13.5px;
 }
 
 .settings-empty p {
     margin: 0;
-    font-size: 10.5px;
+    font-size: 12.5px;
     line-height: 1.7;
 }
 
@@ -284,7 +284,7 @@
     padding: 44px 18px;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 12.5px;
     text-align: center;
 }
 
@@ -301,12 +301,12 @@
 .settings-error strong {
     display: block;
     margin-bottom: 3px;
-    font-size: 11.5px;
+    font-size: 13px;
 }
 
 .settings-error p {
     margin: 0 0 9px;
-    font-size: 10.5px;
+    font-size: 12.5px;
     line-height: 1.6;
 }
 
@@ -328,7 +328,7 @@
 
 .settings-meta dt {
     color: var(--muted-2);
-    font-size: 8.5px;
+    font-size: 11.5px;
 }
 
 .settings-meta dd {
@@ -336,7 +336,7 @@
     overflow-wrap: anywhere;
     color: var(--text);
     font-family: var(--mono);
-    font-size: 9.5px;
+    font-size: 12px;
     line-height: 1.55;
 }
 
@@ -357,12 +357,12 @@
 .settings-callout strong {
     display: block;
     margin-bottom: 4px;
-    font-size: 11px;
+    font-size: 13px;
 }
 
 .settings-callout p {
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 12.5px;
     line-height: 1.7;
 }
 
@@ -370,7 +370,7 @@
     display: block;
     margin-top: 7px;
     color: var(--muted-2);
-    font-size: 9.5px;
+    font-size: 12px;
     line-height: 1.6;
 }
 
@@ -378,7 +378,7 @@
     margin-top: 5px;
     padding-left: 16px;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 12.5px;
     line-height: 1.85;
 }
 
@@ -395,7 +395,7 @@
     color: #d8ded7;
     background: var(--ink);
     font-family: var(--mono);
-    font-size: 9.5px;
+    font-size: 12px;
     line-height: 1.65;
     white-space: pre-wrap;
     word-break: break-word;
@@ -420,7 +420,7 @@
     display: block;
     margin-bottom: 2px;
     color: var(--muted-2);
-    font-size: 8.5px;
+    font-size: 11.5px;
 }
 
 .key-command .settings-code {
@@ -429,7 +429,7 @@
     border: 0;
     color: var(--text);
     background: transparent;
-    font-size: 9px;
+    font-size: 12px;
 }
 
 .key-command .settings-button {
@@ -446,7 +446,7 @@
 
 .settings-form-title {
     margin-bottom: 9px;
-    font-size: 11.5px;
+    font-size: 13px;
     font-weight: 600;
 }
 
@@ -461,13 +461,13 @@
     min-width: 0;
     flex-direction: column;
     gap: 4px;
-    font-size: 10.5px;
+    font-size: 12.5px;
     font-weight: 500;
 }
 
 .settings-field-label {
     color: var(--muted);
-    font-size: 9.5px;
+    font-size: 12px;
     font-weight: 600;
 }
 
@@ -480,7 +480,7 @@
     border-radius: 2px;
     color: var(--text);
     background: var(--sheet-dim);
-    font-size: 11.5px;
+    font-size: 13.5px;
 }
 
 .settings-field input:focus,
@@ -497,7 +497,7 @@
 
 .settings-field-hint {
     color: var(--muted-2);
-    font-size: 8.5px;
+    font-size: 11.5px;
     font-weight: 400;
     line-height: 1.5;
 }
@@ -514,7 +514,7 @@
     align-items: center;
     gap: 5px;
     color: var(--muted);
-    font-size: 10.5px;
+    font-size: 12.5px;
 }
 
 .settings-check input {
@@ -524,7 +524,7 @@
 .settings-form-error {
     margin-top: 8px;
     color: var(--red);
-    font-size: 10.5px;
+    font-size: 12.5px;
 }
 
 .settings-form-actions {
@@ -557,7 +557,7 @@
 
 .settings-hint {
     color: var(--muted-2);
-    font-size: 9px;
+    font-size: 12px;
 }
 
 /* ---------- 卡片列表 ---------- */
@@ -607,7 +607,7 @@
     border: 1px solid var(--ink);
     border-radius: 1px;
     font-family: var(--mono);
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 500;
     white-space: nowrap;
 }
@@ -644,7 +644,7 @@
 .plugin-card-title strong,
 .policy-card-head strong {
     overflow: hidden;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -656,7 +656,7 @@
     overflow: hidden;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 12px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -699,13 +699,13 @@
     overflow-wrap: anywhere;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 11.5px;
     line-height: 1.5;
 }
 
 .skill-source {
     color: var(--muted-2);
-    font-size: 9px;
+    font-size: 11.5px;
 }
 
 .skill-content {
@@ -780,7 +780,7 @@
     }
 
     .settings-head p {
-        font-size: 9.5px;
+        font-size: 12px;
     }
 
     .settings-head .icon-button {
@@ -807,7 +807,7 @@
     .settings-tabs button {
         width: auto;
         padding: 6px 9px;
-        font-size: 10px;
+        font-size: 12px;
         white-space: nowrap;
     }
 
@@ -861,7 +861,7 @@
     .skill-card-title strong,
     .plugin-card-title strong,
     .policy-card-head strong {
-        font-size: 11.5px;
+        font-size: 13px;
     }
 
     .model-card-foot,

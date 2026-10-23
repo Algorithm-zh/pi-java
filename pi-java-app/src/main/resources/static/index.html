@@ -111,20 +111,24 @@
                 <span class="usage-item">总计 <b id="usage-total">0</b> tokens</span>
                 <span id="usage-duration" class="usage-item"></span>
             </div>
-            <form id="composer-form" class="composer-box">
-                <textarea id="composer-input" rows="1" maxlength="100000"
-                          placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
-                <div class="composer-side">
-                    <span id="composer-model" class="composer-model"></span>
-                    <button id="send-button" class="send-button" type="submit" title="发送" aria-label="发送">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                             stroke="currentColor" stroke-width="2.2" stroke-linecap="square"
-                             aria-hidden="true">
-                            <path d="M4 12h15M13 6l6 6-6 6"></path>
-                        </svg>
-                    </button>
-                </div>
-            </form>
+            <div class="composer-stack">
+                <div id="slash-menu" class="slash-menu hidden" role="listbox"
+                     aria-label="斜杠命令"></div>
+                <form id="composer-form" class="composer-box">
+                    <textarea id="composer-input" rows="1" maxlength="100000"
+                              placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
+                    <div class="composer-side">
+                        <span id="composer-model" class="composer-model"></span>
+                        <button id="send-button" class="send-button" type="submit" title="发送" aria-label="发送">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                                 stroke="currentColor" stroke-width="2.2" stroke-linecap="square"
+                                 aria-hidden="true">
+                                <path d="M4 12h15M13 6l6 6-6 6"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
             <div class="composer-hint">
                 <span><kbd>Enter</kbd> 发送 / <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span>
                 <span>Demo / 运行在 <code id="workspace-hint">…</code></span>

@@ -13,12 +13,19 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理，以及会话设置与上下文用量仪表。
 > Web UI 采用“信号工作台”视觉：纸面、墨黑结构、信号黄主操作与钴蓝焦点，字体本地化离线可用。
+> 对话区默认折叠思考与工具过程，支持斜杠命令提示与安全 Markdown 渲染，字号与对比度按可读性调整。
 > 602 个测试全绿。下一步：CLI + v0.1.0 发布。
 
 ![聊天与工具审批](docs/images/chat.png)
 
 <details>
-<summary>更多截图：审批弹窗、模型与密钥设置</summary>
+<summary>更多截图：过程折叠、斜杠命令、Markdown、审批弹窗与设置</summary>
+
+![折叠的执行过程](docs/images/process-collapsed.png)
+
+![斜杠命令提示](docs/images/slash.png)
+
+![Markdown 回复](docs/images/markdown.png)
 
 ![审批弹窗](docs/images/approval.png)
 
