@@ -21,6 +21,7 @@ const dom = {
 
 let createHandler = null;
 let manageHandler = null;
+let availableModels = [];
 
 /**
  * 绑定创建回调并注册表单事件。
@@ -34,6 +35,10 @@ export function init(handler, onManageModels) {
     dom.form.addEventListener("submit", submit);
     dom.close.addEventListener("click", () => dom.dialog.close());
     dom.cancel.addEventListener("click", () => dom.dialog.close());
+    dom.model.addEventListener("change", () => {
+        dom.error.classList.add("hidden");
+        syncThinking();
+    });
     dom.manageModels.addEventListener("click", () => {
         dom.dialog.close();
         manageHandler?.();
@@ -53,6 +58,7 @@ export function open(models, system) {
     dom.thinking.value = "OFF";
     dom.model.replaceChildren();
     const enabled = (models || []).filter((model) => model.enabled);
+    availableModels = enabled;
     if (!enabled.length) {
         dom.model.append(new Option("没有启用的模型档案", ""));
         dom.error.textContent = "请先创建或启用一个模型档案（demo profile 会自动创建 fake-demo）。";
@@ -64,9 +70,21 @@ export function open(models, system) {
         }
         dom.model.value = enabled.find((model) => model.id === "fake-demo")?.id || enabled[0].id;
         dom.submit.disabled = false;
+        syncThinking();
     }
     dom.dialog.showModal();
     dom.title.select();
+}
+
+function syncThinking() {
+    const model = availableModels.find((item) => item.id === dom.model.value);
+    const supportsThinking = Boolean(model?.endpoint?.capabilities?.thinking);
+    for (const option of dom.thinking.options) {
+        option.disabled = option.value !== "OFF" && !supportsThinking;
+    }
+    if (!supportsThinking) {
+        dom.thinking.value = "OFF";
+    }
 }
 
 async function submit(event) {

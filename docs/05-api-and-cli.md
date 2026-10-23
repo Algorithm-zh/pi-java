@@ -57,6 +57,8 @@ Content-Type: application/json
 ```
 
 - `thinkingLevel` 可省略，默认 `OFF`；取值 `OFF / LOW / MEDIUM / HIGH`；
+  实际能力在每次 run 启动时校验，模型不支持思考却配置了非 `OFF` 级别会返回
+  400 `MODEL_CAPABILITY_MISSING`；
 - `cwd` 必须存在且为目录，服务端规范化后作为沙箱根；
 - 根会话的 `parentSessionId` 为 null、`rootSessionId` 等于自身、`depth=0`、`origin=USER`。
 
@@ -162,7 +164,7 @@ Content-Type: application/json
 ```http
 POST /api/v1/sessions/{sessionId}/messages/stream
 Content-Type: application/json
-Accept: text/event-stream
+Accept: application/json, text/event-stream
 
 {"text": "读取 pom.xml 并解释依赖"}
 ```
@@ -184,6 +186,12 @@ data: {"seq":2,...,"type":"message.delta","data":{"kind":"text","text":"我先"}
 - 同一会话已有活跃 run 返回 409 `RUN_ALREADY_ACTIVE`；全局并发已满返回 429 `AGENT_BUSY`；
 - `Last-Event-ID` 只对 `GET /runs/{runId}/events` 生效；POST 不能重放已创建的消息，
   断线后用 runId 走重连接口。
+
+> **错误响应协商**：run 启动前的领域错误（如模型能力不匹配、会话已归档）会在
+> emitter 建立之前以 4xx JSON 返回。客户端应同时声明
+> `Accept: application/json, text/event-stream`；若只接受 `text/event-stream`，
+> 框架无法把错误序列化为 JSON，会退化成 406/500。Web UI 的
+> `api.js` 已按此约定发送请求头。
 
 ### 2.7 活跃 run 与断线重连
 
@@ -238,6 +246,8 @@ GET   /api/v1/sessions/{id}/context  # 上下文用量估算
 
 - `thinkingLevel` 可省略，省略时保留当前级别；
 - 目标档案必须存在且启用，否则 404 `MODEL_NOT_FOUND` / 409 `MODEL_DISABLED`；
+- 目标模型不支持思考时，非 `OFF` 级别返回 400 `MODEL_CAPABILITY_MISSING`；
+  省略级别但沿用旧非 `OFF` 级别时同样拒绝，避免保存出无法运行的配置；
 - 只有 `IDLE` 会话可以切换模型；运行中或等待审批返回 409 `INVALID_STATE_TRANSITION`；
 - 切换只影响之后的 run，历史 assistant 消息保留各自实际使用的模型名。
 

@@ -11,6 +11,7 @@ import com.piagent.domain.model.ModelCapabilities;
 import com.piagent.domain.model.ModelEndpoint;
 import com.piagent.domain.model.ModelId;
 import com.piagent.domain.model.ModelProfile;
+import com.piagent.domain.model.service.ModelSelectionPolicy;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionConfig;
 import com.piagent.domain.session.model.SessionId;
@@ -38,12 +39,16 @@ class SessionSettingsApplicationServiceTest {
     void setUp() {
         sessions = new InMemorySessionRepository();
         models = new InMemoryModelProfileRepository();
-        service = new SessionSettingsApplicationService(sessions, models);
+        service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
         session = ChatSession.createRoot(SESSION_ID, "旧标题",
                 SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"));
         sessions.insert(session);
         models.insert(ModelProfile.create(new ModelId("fake-demo"), "Fake Demo",
                 ModelEndpoint.fake("fake")));
+        models.insert(ModelProfile.create(new ModelId("thinker"), "Thinker",
+                new ModelEndpoint(com.piagent.domain.model.ProviderType.FAKE,
+                        "", "", "thinker", 32_000, 4_000,
+                        new ModelCapabilities(true, true, true))));
         models.insert(ModelProfile.create(new ModelId("real"), "Real",
                 new ModelEndpoint(com.piagent.domain.model.ProviderType.OPENAI_COMPATIBLE,
                         "https://api.example.com", "EXAMPLE_API_KEY", "real-model", 32_000, 4_000,
@@ -79,9 +84,27 @@ class SessionSettingsApplicationServiceTest {
     @Test
     void switchesThinkingLevelExplicitly() {
         ChatSession updated = service.changeModel(
-                new ChangeSessionModelCommand(SESSION_ID, "fake-demo", ThinkingLevel.HIGH));
+                new ChangeSessionModelCommand(SESSION_ID, "thinker", ThinkingLevel.HIGH));
 
         assertThat(updated.config().thinkingLevel()).isEqualTo(ThinkingLevel.HIGH);
+    }
+
+    @Test
+    void rejectsThinkingLevelUnsupportedByModel() {
+        assertThatThrownBy(() -> service.changeModel(
+                new ChangeSessionModelCommand(SESSION_ID, "fake-demo", ThinkingLevel.HIGH)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.MODEL_CAPABILITY_MISSING));
+    }
+
+    @Test
+    void rejectsModelSwitchWhenCurrentThinkingLevelIsUnsupported() {
+        service.changeModel(new ChangeSessionModelCommand(SESSION_ID, "thinker", ThinkingLevel.HIGH));
+
+        assertThatThrownBy(() -> service.changeModel(
+                new ChangeSessionModelCommand(SESSION_ID, "fake-demo", null)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.MODEL_CAPABILITY_MISSING));
     }
 
     @Test
@@ -103,7 +126,7 @@ class SessionSettingsApplicationServiceTest {
                 session.config(), SessionStatus.RUNNING, null, session.version());
         sessions = new InMemorySessionRepository();
         sessions.insert(running);
-        service = new SessionSettingsApplicationService(sessions, models);
+        service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
 
         assertThatThrownBy(() -> service.changeModel(
                 new ChangeSessionModelCommand(SESSION_ID, "fake-demo", null)))

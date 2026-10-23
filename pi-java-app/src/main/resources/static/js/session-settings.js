@@ -20,6 +20,7 @@ let meta;
 let error;
 let saveButton;
 let archiveButton;
+let availableModels = [];
 
 /**
  * 绑定静态 DOM。必须在页面加载后调用一次。
@@ -41,6 +42,13 @@ export function init() {
         .addEventListener("click", () => dialog.close());
     form.addEventListener("submit", save);
     archiveButton.addEventListener("click", archive);
+    modelSelect.addEventListener("change", () => {
+        error.classList.add("hidden");
+        if (syncThinking(true)) {
+            error.textContent = "当前模型不支持思考输出，已将思考级别重置为关闭。";
+            error.classList.remove("hidden");
+        }
+    });
 }
 
 /**
@@ -62,6 +70,7 @@ export async function open() {
         }
         state.session = session;
         state.models = models;
+        availableModels = models;
         updateHeader();
         fill(session, models);
         if (!dialog.open) {
@@ -98,12 +107,29 @@ function fill(session, models) {
     archiveButton.textContent = session.status === "ARCHIVED" ? "已归档" : "归档会话";
     saveButton.disabled = !editable;
     error.classList.add("hidden");
+    if (syncThinking(editable)) {
+        error.textContent = "当前模型不支持思考输出，已将思考级别重置为关闭；保存后生效。";
+        error.classList.remove("hidden");
+    }
     meta.textContent = [
         session.id,
         statusLabel(session.status),
         session.cwd,
         editable ? "" : "当前状态不可修改"
     ].filter(Boolean).join(" / ");
+}
+
+function syncThinking(allowReset) {
+    const model = availableModels.find((item) => item.id === modelSelect.value);
+    const supportsThinking = Boolean(model?.endpoint?.capabilities?.thinking);
+    for (const option of thinkingSelect.options) {
+        option.disabled = option.value !== "OFF" && !supportsThinking;
+    }
+    if (!supportsThinking && allowReset && thinkingSelect.value !== "OFF") {
+        thinkingSelect.value = "OFF";
+        return true;
+    }
+    return false;
 }
 
 async function save(event) {

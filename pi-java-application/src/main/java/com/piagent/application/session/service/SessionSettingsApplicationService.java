@@ -5,38 +5,41 @@ import com.piagent.application.session.command.RenameSessionCommand;
 import com.piagent.domain.model.ModelId;
 import com.piagent.domain.model.ModelProfile;
 import com.piagent.domain.model.port.ModelProfileRepository;
+import com.piagent.domain.model.service.ModelSelectionPolicy;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
-import com.piagent.domain.shared.Guard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 会话设置用例：重命名、切换模型与归档。
  *
- * <p>与 {@link SessionApplicationService} 分开，避免核心消息用例依赖模型档案仓储；
- * 当前分支的 entry 日志不受这些操作影响，因此事务都只更新会话元数据一行。</p>
+ * <p>会话管理操作保持独立事务；当前分支的 entry 日志不受这些操作影响，
+ * 因此事务都只更新会话元数据一行。</p>
  */
 @Service
 public class SessionSettingsApplicationService {
 
     private final SessionRepository sessions;
     private final ModelProfileRepository models;
+    private final ModelSelectionPolicy selectionPolicy;
 
     /**
      * 创建设置用例服务。
      *
      * @param sessions 会话仓储
      * @param models 模型档案仓储
+     * @param selectionPolicy 模型选择策略
      */
     public SessionSettingsApplicationService(SessionRepository sessions,
-            ModelProfileRepository models) {
+            ModelProfileRepository models, ModelSelectionPolicy selectionPolicy) {
         this.sessions = sessions;
         this.models = models;
+        this.selectionPolicy = selectionPolicy;
     }
 
     /**
@@ -66,10 +69,9 @@ public class SessionSettingsApplicationService {
         ModelProfile profile = models.findById(new ModelId(command.modelProfileId()))
                 .orElseThrow(() -> new DomainException(DomainErrorCode.MODEL_NOT_FOUND,
                         "模型档案不存在: " + command.modelProfileId()));
-        Guard.require(profile.enabled(), DomainErrorCode.MODEL_DISABLED,
-                "模型档案已停用: " + command.modelProfileId());
         ThinkingLevel level = command.thinkingLevel() == null
                 ? current.config().thinkingLevel() : command.thinkingLevel();
+        selectionPolicy.requireCompatible(profile, false, level);
         return save(current.changeModel(command.modelProfileId(), level));
     }
 

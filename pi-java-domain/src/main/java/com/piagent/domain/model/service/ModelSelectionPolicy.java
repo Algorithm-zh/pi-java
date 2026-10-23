@@ -45,6 +45,7 @@ public final class ModelSelectionPolicy {
                 "模型不支持工具调用: " + profile.id());
         boolean needsThinking = thinkingLevel != null && thinkingLevel != ThinkingLevel.OFF;
         Guard.require(!needsThinking || capabilities.thinking(), DomainErrorCode.MODEL_CAPABILITY_MISSING,
-                "模型不支持思考内容: " + profile.id());
+                "模型 " + profile.id() + " 不支持思考输出（当前 " + thinkingLevel
+                        + "），请将思考级别设为关闭或切换模型");
     }
 }

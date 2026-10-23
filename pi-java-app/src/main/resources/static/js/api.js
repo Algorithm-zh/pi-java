@@ -301,11 +301,15 @@ export function decideApproval(approvalId, decision, reason) {
  * @param {AbortSignal} signal 取消信号
  */
 export async function streamMessage(sessionId, text, onEvent, signal) {
+    // 同时接受 JSON：run 启动前的领域错误会以 4xx JSON 返回，而不是 406。
     const response = await fetch(
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/messages/stream`,
         {
             method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json, text/event-stream"
+            },
             body: JSON.stringify({ text }),
             signal
         });
@@ -325,7 +329,10 @@ export async function streamMessage(sessionId, text, onEvent, signal) {
 export async function attachRun(runId, onEvent, signal) {
     const response = await fetch(`/api/v1/runs/${encodeURIComponent(runId)}/events`, {
         method: "GET",
-        headers: { Accept: "text/event-stream", "Last-Event-ID": `${runId}:0` },
+        headers: {
+            Accept: "application/json, text/event-stream",
+            "Last-Event-ID": `${runId}:0`
+        },
         signal
     });
     if (!response.ok) {
