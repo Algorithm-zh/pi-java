@@ -52,6 +52,23 @@ public final class CliText {
     }
 
     /**
+     * 把风险等级翻译成普通用户能看懂的中文。
+     *
+     * @param riskLevel 领域风险等级，例如 HIGH
+     * @return 中文标签；未知等级原样返回
+     */
+    public static String riskLabel(String riskLevel) {
+        String level = riskLevel == null ? "" : riskLevel;
+        return switch (level) {
+            case "LOW" -> "低风险";
+            case "MEDIUM" -> "中风险";
+            case "HIGH" -> "高风险";
+            case "CRITICAL" -> "极高风险";
+            default -> level;
+        };
+    }
+
+    /**
      * 提取内容块里的纯文本。
      *
      * @param blocks 内容块

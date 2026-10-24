@@ -21,6 +21,7 @@ const dom = {
 
 let createHandler = null;
 let manageHandler = null;
+let dismissHandler = null;
 let availableModels = [];
 
 /**
@@ -28,13 +29,16 @@ let availableModels = [];
  *
  * @param {(payload: object) => Promise<void>} handler 创建会话回调
  * @param {() => void} onManageModels 打开模型管理回调
+ * @param {() => void} onDismiss 关闭对话框回调，用于丢弃未发送的草稿
  */
-export function init(handler, onManageModels) {
+export function init(handler, onManageModels, onDismiss) {
     createHandler = handler;
     manageHandler = onManageModels;
+    dismissHandler = onDismiss;
     dom.form.addEventListener("submit", submit);
     dom.close.addEventListener("click", () => dom.dialog.close());
     dom.cancel.addEventListener("click", () => dom.dialog.close());
+    dom.dialog.addEventListener("close", () => dismissHandler?.());
     dom.model.addEventListener("change", () => {
         dom.error.classList.add("hidden");
         syncThinking();

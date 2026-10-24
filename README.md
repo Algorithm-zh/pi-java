@@ -12,19 +12,25 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理，以及会话设置与上下文用量仪表。
-> Web UI 采用“信号工作台”视觉：纸面、墨黑结构、信号黄主操作与钴蓝焦点，字体本地化离线可用。
-> 对话区默认折叠思考与工具过程，支持斜杠命令提示与安全 Markdown 渲染，字号与对比度按可读性调整。
+> Web UI 采用“纸面工作室”视觉：暖纸底色、苔绿主操作与圆角卡片，内置浅色/深色主题，
+> 字体离线可用；侧栏支持搜索与窄屏抽屉，对话区默认折叠思考与工具过程，
+> 支持斜杠命令提示、安全 Markdown 渲染、一键复制与回到底部。终端 TUI 使用同一套配色，
+> 提供圆角输入框、中文风险标签与安全默认的审批面板。设计细节见 [界面设计](docs/11-interface-design.md)。
 > 同一个 jar 既是 Web 服务也是 CLI：`pi run`、`pi chat`、`pi sessions/models/tools`、
 > `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
 > v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具，
 > 下一步是 Git 检查点、计划与自动验证。
 
+![欢迎页与示例任务](docs/images/welcome.png)
+
 ![聊天与工具审批](docs/images/chat.png)
 
 <details>
-<summary>更多截图：过程折叠、斜杠命令、Markdown、审批弹窗与设置</summary>
+<summary>更多截图：过程折叠、斜杠命令、Markdown、深色主题、审批弹窗与设置</summary>
 
 ![折叠的执行过程](docs/images/process-collapsed.png)
+
+![深色主题](docs/images/theme-dark.png)
 
 ![斜杠命令提示](docs/images/slash.png)
 
@@ -54,8 +60,8 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 
 打开 <http://127.0.0.1:8080>，新建会话后输入 `/read README.md`、`/ls .` 或
 `/write notes.txt 你好`。写工具会弹出审批框，批准后才真正落盘；也可以在弹窗中拒绝。
-右上角齿轮进入设置中心，可管理模型档案与密钥环境变量、技能、插件、工具策略；
-顶栏仪表显示上下文用量，空闲时可手动压缩。默认 demo profile 使用 H2 文件库与 Fake LLM，
+侧栏可搜索历史会话，底部可切换浅色/深色主题或进入设置中心（模型档案与密钥环境变量、
+技能、插件、工具策略）；顶栏仪表显示上下文用量，空闲时可手动压缩。默认 demo profile 使用 H2 文件库与 Fake LLM，
 **不需要任何 API Key**。服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
 
 接入真实模型、技能配置与常见问题见 [快速上手](docs/09-quick-start.md)。

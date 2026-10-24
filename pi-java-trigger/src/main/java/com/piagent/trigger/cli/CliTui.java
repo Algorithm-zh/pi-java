@@ -166,25 +166,33 @@ public class CliTui {
 
     private static void printBanner(ChatSession session, CliTerminal cli, Ansi ansi,
             Terminal terminal) {
+        int width = width(terminal);
         cli.println(" ");
-        cli.println("  " + ansi.bold("π pi-java") + ansi.dim(" · "
-                + session.config().modelProfileId() + " · " + CliText.oneLine(
-                        String.valueOf(session.config().cwd()), width(terminal) - 30)));
-        cli.println(ansi.dim("  " + CliText.oneLine(session.title(), 60)
-                + " · " + session.identity().id()));
-        cli.println(ansi.dim("  /help 命令 · Tab 补全 · Ctrl+C 取消/退出 · Ctrl+D 退出"));
+        cli.println("  " + ansi.accent("π") + "  " + ansi.bold("pi-java")
+                + ansi.dim("  ·  " + session.config().modelProfileId()));
+        cli.println(ansi.dim("  " + "─".repeat(Math.min(width - 4, 46))));
+        cli.println("  " + Ansi.truncate("读代码、跑命令、改文件。需要动手时，我会先问你。",
+                width - 4));
+        cli.println(ansi.dim("  " + Ansi.truncate(
+                String.valueOf(session.config().cwd()), width - 4)));
+        cli.println(ansi.dim("  " + Ansi.truncate("会话 " + session.identity().id()
+                + " · /help 命令 · Tab 补全 · Ctrl+C 取消 · Ctrl+D 退出", width - 4)));
+        cli.println(" ");
     }
 
     private static String composerTop(Ansi ansi, Terminal terminal) {
-        return ansi.dim("┌─ pi " + "─".repeat(Math.max(4, width(terminal) - 8))) + "\n";
+        int box = Math.max(20, width(terminal) - 4);
+        String label = " 想做什么？ ";
+        int filler = Math.max(2, box - 2 - Ansi.width(label));
+        return "  " + ansi.accent("╭─") + ansi.dim(label + "─".repeat(filler)) + "\n";
     }
 
     private static String composerPrompt(Ansi ansi) {
-        return ansi.cyan("│ ") + ansi.bold("> ");
+        return "  " + ansi.accent("│› ");
     }
 
     private static String composerBottom(Terminal terminal) {
-        return "└" + "─".repeat(Math.max(4, width(terminal) - 2));
+        return "  ╰" + "─".repeat(Math.max(10, width(terminal) - 5));
     }
 
     private static int width(Terminal terminal) {

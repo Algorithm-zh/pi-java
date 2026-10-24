@@ -109,11 +109,11 @@ public class CliRunExecutor {
             noInput = answer.noInput();
         } else {
             target.println();
-            target.println("[审批] " + text(data, "toolName") + " · 风险 "
-                    + text(data, "riskLevel"));
-            target.println("  参数: " + CliText.oneLine(text(data, "arguments"),
+            target.println("[审批] " + text(data, "toolName") + " · "
+                    + CliText.riskLabel(text(data, "riskLevel")));
+            target.println("  它准备这样做: " + CliText.oneLine(text(data, "arguments"),
                     APPROVAL_ARG_LIMIT));
-            String line = terminal.readLine(target, "批准执行? [y/N] ");
+            String line = terminal.readLine(target, "批准执行? [y/N]（y = 允许 · 回车 = 拒绝）");
             approved = "y".equalsIgnoreCase(line) || "yes".equalsIgnoreCase(line);
             noInput = line == null;
             if (noInput) {

@@ -6,6 +6,13 @@
  */
 
 export const dom = {
+    sidebar: document.getElementById("sidebar"),
+    sidebarBackdrop: document.getElementById("sidebar-backdrop"),
+    sidebarToggle: document.getElementById("sidebar-toggle"),
+    sidebarClose: document.getElementById("sidebar-close"),
+    sessionSearch: document.getElementById("session-search"),
+    themeToggle: document.getElementById("theme-toggle"),
+    scrollBottom: document.getElementById("scroll-bottom"),
     sessionList: document.getElementById("session-list"),
     newSession: document.getElementById("new-session"),
     refreshSessions: document.getElementById("refresh-sessions"),

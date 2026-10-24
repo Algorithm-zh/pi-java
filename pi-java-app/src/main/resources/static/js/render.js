@@ -14,31 +14,60 @@ export {
     basename, el, formatDuration, formatNumber, glyphOf, statusLabel, stopReasonLabel
 };
 
-export function renderSessions(container, sessions, activeId, onSelect) {
+export function renderSessions(container, sessions, activeId, onSelect, emptyText) {
     container.replaceChildren();
     if (!sessions.length) {
-        container.append(el("div", "session-empty", "还没有会话。点击上方按钮创建第一个。"));
+        container.append(el("div", "session-empty",
+            emptyText || "还没有会话。点上面的「新建会话」开始吧。"));
         return;
     }
-    for (const [index, session] of sessions.entries()) {
+    for (const session of sessions) {
         const archived = session.status === "ARCHIVED";
         const button = el("button", "session-item"
             + (session.id === activeId ? " active" : "")
             + (archived ? " is-archived" : ""));
         button.type = "button";
         button.dataset.id = session.id;
-        button.append(el("span", "session-index", String(index + 1).padStart(2, "0")));
+        button.append(el("span", "session-badge",
+            session.origin === "SUBAGENT" ? "↳" : "π"));
         const copy = el("span", "session-copy");
         copy.append(el("strong", "", session.title));
-        copy.append(el("small", "", [
-            session.origin === "SUBAGENT" ? "子会话" : "",
-            statusLabel(session.status),
-            basename(session.cwd)
-        ].filter(Boolean).join(" / ")));
+        const meta = el("span", "session-meta-line");
+        appendStatus(meta, session);
+        if (session.origin !== "SUBAGENT") {
+            meta.append(el("span", "session-cwd", basename(session.cwd)));
+        }
+        copy.append(meta);
         button.append(copy);
         button.addEventListener("click", () => onSelect(session.id));
         container.append(button);
     }
+}
+
+function appendStatus(meta, session) {
+    if (session.origin === "SUBAGENT") {
+        meta.append(el("span", `session-dot is-${statusKey(session.status)}`),
+            el("span", "", "子会话"));
+        return;
+    }
+    if (session.status === "RUNNING" || session.status === "WAITING_APPROVAL"
+        || session.status === "ARCHIVED") {
+        meta.append(el("span", `session-dot is-${statusKey(session.status)}`),
+            el("span", "", statusLabel(session.status)));
+    }
+}
+
+function statusKey(status) {
+    if (status === "RUNNING") {
+        return "running";
+    }
+    if (status === "WAITING_APPROVAL") {
+        return "waiting";
+    }
+    if (status === "ARCHIVED") {
+        return "archived";
+    }
+    return "idle";
 }
 
 /**

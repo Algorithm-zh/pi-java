@@ -5,7 +5,7 @@
 import * as api from "./api.js";
 import * as approval from "./approval.js";
 import * as contextMeter from "./context-meter.js";
-import { basename, renderEntries, renderSessions, statusLabel } from "./render.js";
+import { el, renderEntries, renderSessions, statusLabel } from "./render.js";
 import { dom, modelDisplayName, setRunState, state, toast } from "./store.js";
 import * as usage from "./usage.js";
 
@@ -23,19 +23,33 @@ export function bindReconnect(handler) {
 export async function refreshSessions(redraw = true) {
     state.sessions = await api.listSessions();
     if (redraw) {
-        renderSessions(dom.sessionList, state.sessions, state.session?.id, openSession);
+        renderSessionList();
     }
+}
+
+/**
+ * 按搜索框过滤后重绘侧栏会话列表。
+ */
+export function renderSessionList() {
+    const query = (dom.sessionSearch?.value || "").trim().toLowerCase();
+    const sessions = query
+        ? state.sessions.filter((session) => [
+            session.title, session.cwd, statusLabel(session.status)
+        ].join(" ").toLowerCase().includes(query))
+        : state.sessions;
+    renderSessions(dom.sessionList, sessions, state.session?.id, openSession,
+        query ? "没有找到匹配的会话，换个关键词试试。" : undefined);
 }
 
 export function setComposerEnabled(enabled) {
     dom.input.disabled = !enabled;
     dom.sendButton.disabled = !enabled || state.streaming;
     if (enabled) {
-        dom.input.placeholder = "输入消息，Enter 发送，Shift + Enter 换行";
+        dom.input.placeholder = "问点什么，或者粘贴一段代码…";
     } else {
         dom.input.placeholder = state.session?.status === "ARCHIVED"
-            ? "会话已归档，只读查看"
-            : "请先新建或选择会话";
+            ? "会话已归档，只能查看"
+            : "先新建或选择一个会话";
     }
 }
 
@@ -57,7 +71,7 @@ export async function openSession(sessionId, updateUrl = true) {
         state.modelName = session.modelProfileId;
         state.inner = renderEntries(dom.messages, entries);
         approval.reset();
-        renderSessions(dom.sessionList, state.sessions, session.id, openSession);
+        renderSessionList();
         updateHeader();
         usage.restore(entries);
         setComposerEnabled(session.status !== "ARCHIVED");
@@ -92,7 +106,7 @@ export async function reloadSession() {
         state.sessions = sessions;
         state.turn = null;
         state.inner = renderEntries(dom.messages, entries);
-        renderSessions(dom.sessionList, sessions, session.id, openSession);
+        renderSessionList();
         updateHeader();
         usage.restore(entries);
         setComposerEnabled(session.status !== "ARCHIVED");
@@ -106,7 +120,7 @@ export async function reloadSession() {
 
 export function updateHeader() {
     if (!state.session) {
-        dom.title.textContent = "选择或新建一个会话";
+        dom.title.textContent = "开始一段新对话";
         dom.meta.replaceChildren();
         dom.composerModel.textContent = "";
         dom.abortButton.classList.add("hidden");
@@ -119,16 +133,24 @@ export function updateHeader() {
     dom.sessionSettingsOpen.classList.remove("hidden");
     dom.title.textContent = session.title;
     dom.meta.replaceChildren();
-    const parts = [
-        statusLabel(session.status),
-        modelDisplayName(session.modelProfileId),
-        session.origin === "SUBAGENT" ? "子会话" : basename(session.cwd)
-    ].filter(Boolean);
-    dom.meta.append(document.createTextNode(parts.join(" / ")));
-    const cwd = document.createElement("code");
-    cwd.textContent = session.cwd;
-    dom.meta.append(document.createTextNode("  "), cwd);
-    dom.composerModel.textContent = modelDisplayName(session.modelProfileId);
+    const status = el("span", "meta-pill");
+    status.append(el("span", `meta-dot is-${statusKey(session.status)}`),
+        document.createTextNode(statusLabel(session.status)));
+    dom.meta.append(status);
+    const model = modelDisplayName(session.modelProfileId);
+    if (model) {
+        dom.meta.append(el("span", "meta-pill meta-model", model));
+    }
+    if (session.origin === "SUBAGENT") {
+        dom.meta.append(el("span", "meta-pill", "子会话"));
+    } else if (session.cwd) {
+        const path = el("span", "meta-pill meta-path");
+        const code = document.createElement("code");
+        code.textContent = session.cwd;
+        path.append(code);
+        dom.meta.append(path);
+    }
+    dom.composerModel.textContent = model;
     if (state.streaming) {
         return;
     }
@@ -140,6 +162,19 @@ export function updateHeader() {
     } else {
         dom.runState.classList.add("hidden");
     }
+}
+
+function statusKey(status) {
+    if (status === "RUNNING") {
+        return "running";
+    }
+    if (status === "WAITING_APPROVAL") {
+        return "waiting";
+    }
+    if (status === "ARCHIVED") {
+        return "archived";
+    }
+    return "idle";
 }
 
 export function scrollToBottom(force = false) {

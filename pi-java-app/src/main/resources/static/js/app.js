@@ -8,17 +8,23 @@ import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
 import { start as startRun, reconnectRun, abort as abortRun } from "./run.js";
 import {
-    bindReconnect, openSession, refreshSessions, reloadSession, scrollToBottom,
-    setComposerEnabled
+    bindReconnect, openSession, refreshSessions, reloadSession, renderSessionList,
+    scrollToBottom, setComposerEnabled
 } from "./session-view.js";
 import * as sessionSettings from "./session-settings.js";
 import * as settings from "./settings.js";
 import * as slash from "./slash.js";
 import { dom, setServer, state, toast } from "./store.js";
 
+const THEME_KEY = "pi-java-theme";
+let pendingPrompt = "";
+
 async function init() {
+    initTheme();
     bindReconnect(reconnectRun);
-    dialog.init(createSession, () => settings.open("models"));
+    dialog.init(createSession, () => settings.open("models"), () => {
+        pendingPrompt = "";
+    });
     approval.init();
     settings.init();
     sessionSettings.init();
@@ -37,7 +43,8 @@ async function init() {
         if (target) {
             await openSession(target.id, false);
         } else {
-            setComposerEnabled(false);
+            // 还没会话时也允许输入：提交后会引导创建，草稿不会丢。
+            setComposerEnabled(true);
         }
     } catch (error) {
         setServer(false);
@@ -49,6 +56,14 @@ async function createSession(payload) {
     const session = await api.createSession(payload);
     await refreshSessions();
     await openSession(session.id);
+    closeSidebar();
+    if (pendingPrompt) {
+        const text = pendingPrompt;
+        pendingPrompt = "";
+        dom.input.value = "";
+        resizeInput();
+        startRun(text);
+    }
 }
 
 function submitComposer() {
@@ -57,8 +72,8 @@ function submitComposer() {
         return;
     }
     if (!state.session) {
+        pendingPrompt = text;
         dialog.open(state.models, state.system);
-        toast("请先新建一个会话", true);
         return;
     }
     slash.hide();
@@ -74,10 +89,37 @@ function resizeInput() {
 
 function wireEvents() {
     dom.newSession.addEventListener("click", () => dialog.open(state.models, state.system));
-    dom.openSettings.addEventListener("click", () => settings.open("models"));
+    dom.openSettings.addEventListener("click", () => {
+        closeSidebar();
+        settings.open("models");
+    });
     dom.refreshSessions.addEventListener("click", () => refreshSessions().catch((error) => {
         toast(error.message, true);
     }));
+    dom.sidebarToggle.addEventListener("click", openSidebar);
+    dom.sidebarClose.addEventListener("click", closeSidebar);
+    dom.sidebarBackdrop.addEventListener("click", closeSidebar);
+    dom.sessionSearch.addEventListener("input", renderSessionList);
+    dom.sessionSearch.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            dom.sessionSearch.value = "";
+            renderSessionList();
+            dom.sessionSearch.blur();
+        }
+    });
+    dom.sessionList.addEventListener("click", (event) => {
+        if (event.target.closest(".session-item")) {
+            closeSidebar();
+        }
+    });
+    dom.scrollBottom.addEventListener("click", () => {
+        state.stick = true;
+        scrollToBottom(true);
+        dom.scrollBottom.classList.add("hidden");
+    });
+    dom.themeToggle.addEventListener("click", () => {
+        applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    });
     dom.composerForm.addEventListener("submit", (event) => {
         event.preventDefault();
         submitComposer();
@@ -93,17 +135,14 @@ function wireEvents() {
         }
     });
     dom.abortButton.addEventListener("click", abortRun);
-    dom.messages.addEventListener("scroll", () => {
-        const remaining = dom.messages.scrollHeight - dom.messages.scrollTop
-            - dom.messages.clientHeight;
-        state.stick = remaining < 90;
-    });
+    dom.messages.addEventListener("scroll", updateScrollButton);
     dom.messages.addEventListener("click", (event) => {
         const chip = event.target.closest("[data-prompt]");
         if (!chip) {
             return;
         }
         if (!state.session) {
+            pendingPrompt = chip.dataset.prompt || "";
             dialog.open(state.models, state.system);
             return;
         }
@@ -111,9 +150,71 @@ function wireEvents() {
         resizeInput();
         submitComposer();
     });
+    document.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+            event.preventDefault();
+            if (isMobile()) {
+                openSidebar();
+            }
+            dom.sessionSearch.focus();
+            dom.sessionSearch.select();
+        }
+        if (event.key === "Escape" && dom.sidebar.classList.contains("open")) {
+            closeSidebar();
+        }
+    });
+    window.addEventListener("resize", () => {
+        if (!isMobile()) {
+            closeSidebar();
+        }
+        updateScrollButton();
+    });
     window.addEventListener("beforeunload", () => {
         state.abortController?.abort();
     });
+}
+
+function updateScrollButton() {
+    const remaining = dom.messages.scrollHeight - dom.messages.scrollTop
+        - dom.messages.clientHeight;
+    state.stick = remaining < 90;
+    dom.scrollBottom.classList.toggle("hidden", state.stick);
+}
+
+function isMobile() {
+    return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function openSidebar() {
+    dom.sidebar.classList.add("open");
+    dom.sidebarBackdrop.classList.remove("hidden");
+    dom.sidebarToggle.setAttribute("aria-expanded", "true");
+}
+
+function closeSidebar() {
+    dom.sidebar.classList.remove("open");
+    dom.sidebarBackdrop.classList.add("hidden");
+    dom.sidebarToggle.setAttribute("aria-expanded", "false");
+}
+
+function initTheme() {
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light", false);
+}
+
+function applyTheme(theme, persist = true) {
+    document.documentElement.dataset.theme = theme;
+    if (persist) {
+        try {
+            localStorage.setItem(THEME_KEY, theme);
+        } catch (error) {
+            // 隐私模式下写不了 localStorage，主题仍应在本次会话内生效。
+        }
+    }
+    document.getElementById("meta-theme-color")?.setAttribute(
+        "content", theme === "dark" ? "#121613" : "#f3efe3");
+    const label = theme === "dark" ? "切换到浅色主题" : "切换到深色主题";
+    dom.themeToggle.title = label;
+    dom.themeToggle.setAttribute("aria-label", label);
 }
 
 init();

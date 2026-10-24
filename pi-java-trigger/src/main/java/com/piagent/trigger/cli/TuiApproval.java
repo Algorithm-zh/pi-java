@@ -32,19 +32,21 @@ final class TuiApproval implements ApprovalPrompt {
     public Answer ask(Map<String, Object> data) {
         interrupts.pause();
         try {
+            String risk = text(data, "riskLevel");
+            String title = " 需要你确认 ";
+            int boxWidth = 2 + Ansi.width(title) + 28;
             out.println();
-            out.println("  " + ansi.yellow("┌─ 需要审批 ") + ansi.dim("─".repeat(20)));
+            out.println("  " + ansi.amber("╭─") + ansi.dim(title + "─".repeat(28)));
             out.println(ansi.dim("  │ ") + ansi.bold(text(data, "toolName"))
-                    + ansi.dim(" · 风险 " + text(data, "riskLevel")));
+                    + ansi.dim("  ·  ") + riskMark(risk));
+            out.println(ansi.dim("  │ ") + "它准备这样做");
             out.println(ansi.dim("  │ ") + CliText.oneLine(text(data, "arguments"), ARG_LIMIT));
-            out.println("  " + ansi.dim("└ ") + "批准执行? " + ansi.dim("[y/N]"));
+            out.println("  " + ansi.dim("╰" + "─".repeat(boxWidth - 1)));
+            out.println("  " + ansi.bold("允许执行？")
+                    + ansi.dim("  y = 允许 · 直接回车 = 拒绝"));
             out.flush();
-            String line = reader.readLine(ansi.cyan("  │ ")).strip();
-            if (line.isEmpty()) {
-                return Answer.deny();
-            }
-            return "y".equalsIgnoreCase(line) || "yes".equalsIgnoreCase(line)
-                    ? Answer.approve() : Answer.deny();
+            String line = reader.readLine(ansi.accent("  │› ")).strip();
+            return isApprove(line) ? Answer.approve() : Answer.deny();
         } catch (UserInterruptException | EndOfFileException stop) {
             out.println(ansi.dim("  未输入，按拒绝处理"));
             out.flush();
@@ -52,6 +54,17 @@ final class TuiApproval implements ApprovalPrompt {
         } finally {
             interrupts.resume();
         }
+    }
+
+    private String riskMark(String risk) {
+        String label = CliText.riskLabel(risk);
+        return "HIGH".equals(risk) || "CRITICAL".equals(risk)
+                ? ansi.red(label) : ansi.amber(label);
+    }
+
+    private static boolean isApprove(String line) {
+        return "y".equalsIgnoreCase(line) || "yes".equalsIgnoreCase(line)
+                || "是".equals(line) || "好".equals(line);
     }
 
     private static String text(Map<String, Object> data, String key) {

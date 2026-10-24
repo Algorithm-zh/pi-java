@@ -86,6 +86,26 @@ final class Ansi {
     }
 
     /**
+     * 品牌绿：用于提示符、助手正文标记与成功状态。
+     *
+     * @param text 文本
+     * @return 带样式的文本
+     */
+    String accent(String text) {
+        return style("\u001B[38;5;78m", text);
+    }
+
+    /**
+     * 暖琥珀：用于工具调用与压缩过程，和正文区分。
+     *
+     * @param text 文本
+     * @return 带样式的文本
+     */
+    String amber(String text) {
+        return style("\u001B[38;5;179m", text);
+    }
+
+    /**
      * 计算可见宽度，跳过 ANSI 转义序列。
      *
      * @param text 文本

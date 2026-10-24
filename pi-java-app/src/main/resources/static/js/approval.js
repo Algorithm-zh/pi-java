@@ -10,6 +10,12 @@ import * as api from "./api.js";
 import { glyphOf } from "./render.js";
 import { dom, state, toast } from "./store.js";
 
+const RISK_LABELS = {
+    LOW: "低风险",
+    MEDIUM: "中风险",
+    HIGH: "高风险",
+    CRITICAL: "极高风险"
+};
 const queue = [];
 let current = null;
 let deciding = false;
@@ -131,7 +137,8 @@ function renderCurrent(resetReason) {
         return;
     }
     const risk = String(current.riskLevel || "HIGH");
-    dom.approvalRisk.textContent = risk;
+    dom.approvalRisk.textContent = RISK_LABELS[risk] || risk;
+    dom.approvalRisk.title = "风险等级由工具类型和参数自动评估";
     dom.approvalRisk.className = `risk-badge risk-${risk.toLowerCase()}`;
     dom.approvalToolName.textContent = current.toolName || "tool";
     dom.approvalGlyph.textContent = glyphOf(current.toolName);
@@ -146,6 +153,8 @@ function renderCurrent(resetReason) {
     scheduleCountdown();
     if (!dom.approvalDialog.open) {
         dom.approvalDialog.showModal();
+        // 默认焦点放在“先不要”，避免误按回车直接批准。
+        dom.approvalDeny.focus();
     }
 }
 

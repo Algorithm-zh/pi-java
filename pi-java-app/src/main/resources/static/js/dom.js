@@ -16,7 +16,7 @@ export function el(tag, className, text) {
 }
 
 const STATUS_LABELS = {
-    IDLE: "空闲",
+    IDLE: "就绪",
     RUNNING: "运行中",
     WAITING_APPROVAL: "等待审批",
     ARCHIVED: "已归档"

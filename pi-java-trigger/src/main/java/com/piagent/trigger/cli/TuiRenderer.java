@@ -71,7 +71,7 @@ final class TuiRenderer implements RunRenderer {
             return;
         }
         if ("text".equals(kind)) {
-            open(kind, ansi.cyan("● "));
+            open(kind, ansi.accent("● "));
             current.append(value);
             out.print(value);
         } else if ("thinking".equals(kind)) {
@@ -102,7 +102,7 @@ final class TuiRenderer implements RunRenderer {
         finishLine();
         String arguments = Ansi.truncate(
                 CliText.oneLine(text(data, "arguments"), 200), TOOL_ARG_LIMIT);
-        out.println("  " + ansi.green("● ") + ansi.bold(text(data, "toolName"))
+        out.println("  " + ansi.amber("● ") + ansi.bold(text(data, "toolName"))
                 + (arguments.isBlank() ? "" : " " + ansi.dim(arguments)));
         out.flush();
     }
@@ -119,7 +119,7 @@ final class TuiRenderer implements RunRenderer {
     private void compactionStarted(Map<String, Object> data) {
         finishLine();
         String reason = CliText.oneLine(text(data, "reason"), NOTE_LIMIT);
-        out.println("  " + ansi.yellow("◆ 压缩") + ansi.dim(" " + text(data, "mode")
+        out.println("  " + ansi.amber("◆ 压缩") + ansi.dim(" " + text(data, "mode")
                 + " · " + text(data, "tokensBefore") + " token"
                 + (reason.isBlank() ? "" : " · " + reason)));
         out.flush();
@@ -139,7 +139,7 @@ final class TuiRenderer implements RunRenderer {
         finishLine();
         boolean approved = "APPROVED".equals(text(data, "status"));
         String reason = CliText.oneLine(text(data, "reason"), NOTE_LIMIT);
-        String mark = approved ? ansi.green("√ 已批准") : ansi.red("× 已拒绝");
+        String mark = approved ? ansi.accent("√ 已批准") : ansi.red("× 已拒绝");
         out.println("    " + mark + " " + ansi.dim(text(data, "toolName")
                 + (reason.isBlank() ? "" : " · " + reason)));
         out.flush();

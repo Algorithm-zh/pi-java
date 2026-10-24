@@ -91,9 +91,9 @@ function renderMeter(status) {
     dom.contextFill.style.width = `${Math.max(percent, 1)}%`;
     dom.contextFill.classList.toggle("is-warn", percent >= 70 && percent < 88);
     dom.contextFill.classList.toggle("is-hot", percent >= 88);
-    dom.contextLabel.textContent =
-        `${formatNumber(tokens)} / ${formatNumber(windowSize)} (${percent}%)`;
+    dom.contextLabel.textContent = `${percent}%`;
     dom.contextWidget.title = [
+        `已用 ${formatNumber(tokens)} / ${formatNumber(windowSize)} tokens（${percent}%）`,
         `模型：${status.modelName || status.modelProfileId || "未知"}`,
         `Provider：${status.provider || "未知"}`,
         `预留输出：${formatNumber(status.maxOutputTokens)} tokens`,

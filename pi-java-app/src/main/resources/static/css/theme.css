@@ -1,9 +1,8 @@
 /*
- * pi-java 设计系统。
+ * pi-java 设计系统：苔纸工作室。
  *
- * 视觉概念：本地 agent 工作台。冷灰纸面、墨黑结构、信号黄表示可执行动作，
- * 钴蓝表示焦点与信息，绿色/红色只承载完成与危险。组件保持直角与细线，
- * 不使用装饰性阴影；界面里的结构线都对应真实层级或运行轨迹。
+ * 暖纸底色 + 苔绿主操作 + 陶土色点缀。界面尽量少用边框，靠柔和表面、
+ * 圆角和留白建立层级；深色模式使用同一组语义变量，组件无需单独适配。
  */
 
 @font-face {
@@ -47,33 +46,100 @@
 }
 
 :root {
-    --ink: #101314;
-    --ink-raised: #181d1e;
-    --ink-line: #2a3233;
-    --paper: #e8eae4;
-    --sheet: #f7f8f3;
-    --sheet-dim: #eef0e9;
-    --rule: #c9cdc5;
-    --rule-strong: #7f877f;
-    --text: #121617;
-    --muted: #4b544e;
-    --muted-2: #5d675f;
-    --on-ink: #eef1ea;
-    --on-ink-muted: #b3bdb5;
-    --on-ink-dim: #97a29b;
-    --blue: #1f3bff;
-    --blue-soft: #e7eaff;
-    --yellow: #f4c400;
-    --yellow-soft: #fbf0b9;
-    --red: #c3301c;
-    --red-soft: #f7e8e3;
-    --green: #116b50;
-    --green-soft: #e1efe8;
-    --sans: "Archivo", "PingFang SC", "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    color-scheme: light;
+
+    --canvas: #f3efe3;
+    --canvas-tint: #ece6d6;
+    --surface: #fffdf7;
+    --surface-soft: #f8f3e7;
+    --surface-sunken: #ebe4d3;
+
+    --ink: #26312b;
+    --text: #2b352e;
+    --muted: #68736a;
+    --muted-2: #8b948a;
+    --line: #e2dac7;
+    --line-strong: #cec4ad;
+
+    --accent: #2f5d50;
+    --accent-strong: #234b40;
+    --accent-soft: #e2ece4;
+    --accent-ink: #f7fbf5;
+
+    --apricot: #b96845;
+    --apricot-soft: #f7e7dc;
+    --amber: #a97a25;
+    --amber-soft: #f7edd5;
+    --danger: #b0472f;
+    --danger-soft: #f8e5de;
+    --success: #3f7a5f;
+    --success-soft: #e2eee6;
+
+    --code-bg: #202a23;
+    --code-bg-soft: #28342b;
+    --code-text: #e6eadf;
+    --code-muted: #a5b1a4;
+    --on-dark: #f4f1e6;
+    --on-dark-muted: #c2cabb;
+
+    --shadow-sm: 0 1px 2px rgba(38, 49, 43, .06);
+    --shadow-md: 0 12px 30px -14px rgba(38, 49, 43, .28);
+    --shadow-lg: 0 28px 70px -28px rgba(38, 49, 43, .42);
+
+    --radius-xs: 8px;
+    --radius-sm: 12px;
+    --radius-md: 16px;
+    --radius-lg: 22px;
+    --radius-xl: 28px;
+
+    --sans: "Archivo", "PingFang SC", "Noto Sans SC", "Microsoft YaHei UI",
+        "Microsoft YaHei", system-ui, sans-serif;
     --mono: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
-    --sidebar-w: 268px;
-    --content-w: 900px;
-    --shadow-hard: 6px 6px 0 rgba(16, 19, 20, .14);
+
+    --sidebar-w: 284px;
+    --content-w: 880px;
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --canvas: #121613;
+    --canvas-tint: #171c18;
+    --surface: #1c231e;
+    --surface-soft: #222b25;
+    --surface-sunken: #161c18;
+
+    --ink: #eef1e6;
+    --text: #e5e9df;
+    --muted: #a2aca1;
+    --muted-2: #7d887f;
+    --line: #2e3831;
+    --line-strong: #425046;
+
+    --accent: #9cc8ae;
+    --accent-strong: #b7dcc4;
+    --accent-soft: #24362e;
+    --accent-ink: #10201a;
+
+    --apricot: #e0a07f;
+    --apricot-soft: #3a2821;
+    --amber: #e2b968;
+    --amber-soft: #382f1d;
+    --danger: #ec9d8b;
+    --danger-soft: #3b241f;
+    --success: #9cc8ae;
+    --success-soft: #22342b;
+
+    --code-bg: #0d110e;
+    --code-bg-soft: #141a15;
+    --code-text: #e3e8dd;
+    --code-muted: #8e9b8e;
+    --on-dark: #f1eee2;
+    --on-dark-muted: #b8c1b3;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow-md: 0 14px 34px -16px rgba(0, 0, 0, .7);
+    --shadow-lg: 0 30px 80px -28px rgba(0, 0, 0, .8);
 }
 
 *,
@@ -89,11 +155,32 @@ body {
 }
 
 body {
+    position: relative;
     color: var(--text);
-    background: var(--paper);
+    background-color: var(--canvas);
+    background-image:
+        radial-gradient(circle at 8% -8%, rgba(185, 104, 69, .09), transparent 42%),
+        radial-gradient(circle at 96% 2%, rgba(47, 93, 80, .1), transparent 40%);
     font-family: var(--sans);
     font-size: 15px;
-    line-height: 1.55;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* 极淡的纸纹，只在浅色模式下出现，避免大块纯色显得单调。 */
+body::before {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+    content: "";
+    opacity: .5;
+    pointer-events: none;
+}
+
+[data-theme="dark"] body::before {
+    opacity: .28;
 }
 
 button,
@@ -128,14 +215,29 @@ figure {
     margin: 0;
 }
 
+code,
+kbd,
+pre {
+    font-family: var(--mono);
+}
+
 ::selection {
     color: var(--ink);
-    background: var(--yellow);
+    background: #f0d6a6;
+}
+
+[data-theme="dark"] ::selection {
+    color: #101512;
+    background: #a9cdb2;
 }
 
 :focus-visible {
-    outline: 2px solid var(--blue);
+    outline: 3px solid rgba(47, 93, 80, .28);
     outline-offset: 2px;
+}
+
+[data-theme="dark"] :focus-visible {
+    outline-color: rgba(156, 200, 174, .35);
 }
 
 .hidden {
@@ -144,65 +246,68 @@ figure {
 
 * {
     scrollbar-width: thin;
-    scrollbar-color: #aeb5ae transparent;
+    scrollbar-color: var(--line-strong) transparent;
 }
 
 *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
 }
 
 *::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    background: #b4bbb4;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: var(--line-strong);
     background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-    background: #8f978f;
+    background: var(--muted-2);
     background-clip: content-box;
-}
-
-.sidebar ::selection {
-    color: var(--ink);
-    background: var(--yellow);
 }
 
 /* ---------- 通用按钮 ---------- */
 
 .icon-button {
     display: grid;
-    width: 26px;
-    height: 26px;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
     place-items: center;
     border: 1px solid transparent;
-    border-radius: 2px;
-    color: inherit;
-    font-size: 14px;
+    border-radius: 999px;
+    color: var(--muted);
     line-height: 1;
-    opacity: .65;
-    transition: background .14s ease, opacity .14s ease, color .14s ease;
+    transition: background .16s ease, color .16s ease, border-color .16s ease,
+        transform .16s ease;
 }
 
 .icon-button:hover {
-    background: rgba(16, 19, 20, .06);
-    opacity: 1;
+    color: var(--ink);
+    background: var(--surface-soft);
+}
+
+.icon-button:active {
+    transform: scale(.96);
 }
 
 .ghost-button,
 .primary-button,
 .danger-button {
     display: inline-flex;
+    min-height: 40px;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 9px 15px;
-    border: 1px solid var(--rule-strong);
-    border-radius: 2px;
-    font-size: 13px;
+    padding: 9px 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 13.5px;
     font-weight: 600;
     line-height: 1.2;
-    transition: background .14s ease, color .14s ease, border-color .14s ease;
+    white-space: nowrap;
+    transition: background .16s ease, color .16s ease, border-color .16s ease,
+        transform .16s ease, box-shadow .16s ease;
 }
 
 .ghost-button {
@@ -211,78 +316,95 @@ figure {
 }
 
 .ghost-button:hover {
-    border-color: var(--ink);
-    background: var(--sheet-dim);
+    border-color: var(--muted-2);
+    background: var(--surface-soft);
 }
 
 .primary-button {
-    border-color: var(--ink);
-    color: var(--ink);
-    background: var(--yellow);
+    border-color: transparent;
+    color: var(--accent-ink);
+    background: var(--accent);
+    box-shadow: var(--shadow-sm);
 }
 
 .primary-button:hover {
-    background: #ffd51f;
+    background: var(--accent-strong);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
 }
 
 .primary-button:disabled {
-    opacity: .55;
+    opacity: .5;
+    box-shadow: none;
+    transform: none;
     cursor: wait;
 }
 
 .danger-button {
-    border-color: var(--red);
-    color: var(--red);
-    background: transparent;
+    border-color: transparent;
+    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .danger-button:hover {
-    border-color: var(--red);
-    background: var(--red-soft);
+    border-color: rgba(176, 71, 47, .35);
+    background: var(--danger-soft);
 }
 
 .ghost-button.danger-button {
-    border-color: var(--red);
-    color: var(--red);
+    border-color: var(--line);
+    color: var(--danger);
     background: transparent;
 }
 
 .ghost-button.danger-button:hover {
-    background: var(--red-soft);
+    border-color: rgba(176, 71, 47, .4);
+    background: var(--danger-soft);
 }
 
 .link-button {
     margin-left: 6px;
-    color: var(--blue);
+    color: var(--accent);
     font-size: 12px;
     font-weight: 600;
     text-decoration: underline;
+    text-decoration-thickness: 1px;
     text-underline-offset: 3px;
 }
 
 .link-button:hover {
-    color: var(--ink);
+    color: var(--accent-strong);
 }
 
 kbd {
-    padding: 1px 4px;
-    border: 1px solid var(--rule);
-    border-radius: 2px;
-    background: var(--sheet);
-    box-shadow: 0 1px 0 var(--rule);
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
     color: var(--muted);
+    background: var(--surface);
+    box-shadow: 0 1px 0 var(--line-strong);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 10.5px;
+}
+
+button,
+.suggestion,
+.session-item,
+.tool-head,
+.agent-process > summary {
+    -webkit-tap-highlight-color: transparent;
 }
 
 @keyframes pulse {
     0%,
     100% {
         opacity: 1;
+        transform: scale(1);
     }
 
     50% {
-        opacity: .25;
+        opacity: .35;
+        transform: scale(.82);
     }
 }
 
@@ -292,15 +414,37 @@ kbd {
     }
 }
 
-@keyframes toast-in {
+@keyframes rise {
     from {
         opacity: 0;
-        transform: translateY(6px);
+        transform: translateY(10px);
     }
 
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 150% 0;
+    }
+
+    to {
+        background-position: -50% 0;
     }
 }
 

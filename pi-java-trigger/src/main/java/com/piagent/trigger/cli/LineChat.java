@@ -42,8 +42,9 @@ public class LineChat {
      */
     public int run(ChatSession initial, CliTerminal terminal) {
         ChatSession session = initial;
-        terminal.println("[会话] " + session.identity().id() + " · "
-                + session.config().modelProfileId() + " · " + session.config().cwd());
+        terminal.println("π pi-java · " + session.config().modelProfileId()
+                + " · " + session.config().cwd());
+        terminal.println("读代码、跑命令、改文件。需要动手时，我会先问你。");
         terminal.println("输入 /help 查看命令，/exit 退出。");
         while (true) {
             String line = terminal.readLine("你> ");

@@ -1,30 +1,29 @@
 /*
- * 设置中心与设置类弹窗。
+ * 设置中心：浅色分类栏 + 纸面内容区。
  *
- * 设置中心是一块控制台：深色分类栏、纸面内容区。卡片只用结构线分隔，
- * 状态用方块标签表达；密钥指引与代码示例使用深色代码井。
+ * 复用全局的苔绿、圆角与表面变量。卡片靠底色和留白分组，
+ * 不再用深色控制台与硬边方框制造“技术感”。
  */
 
 /* ---------- 弹窗外壳 ---------- */
 
 .settings-dialog {
-    width: min(1000px, calc(100vw - 40px));
-    height: min(740px, calc(100dvh - 40px));
+    width: min(1020px, calc(100vw - 40px));
+    height: min(760px, calc(100dvh - 40px));
     max-width: none;
     max-height: none;
     padding: 0;
     overflow: hidden;
-    border: 1px solid var(--ink);
-    border-top: 4px solid var(--yellow);
-    border-radius: 3px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
     color: var(--text);
-    background: var(--sheet);
-    box-shadow: 8px 8px 0 rgba(16, 19, 20, .16);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
 }
 
 .settings-dialog::backdrop {
-    background: rgba(10, 13, 13, .66);
-    backdrop-filter: blur(3px);
+    background: rgba(20, 27, 22, .5);
+    backdrop-filter: blur(6px);
 }
 
 .settings-dialog[open] {
@@ -43,13 +42,14 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 24px;
-    padding: 18px 24px 15px;
-    border-bottom: 1px solid var(--ink);
-    background: var(--sheet);
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
 }
 
 .settings-head h2 {
-    font-size: 22px;
+    color: var(--ink);
+    font-size: 21px;
     font-weight: 700;
     letter-spacing: -.03em;
     line-height: 1.2;
@@ -58,22 +58,23 @@
 .settings-head p {
     margin-top: 5px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.6;
 }
 
 .settings-head .icon-button {
-    width: 30px;
-    height: 30px;
-    border: 1px solid var(--rule-strong);
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-color: var(--line);
     color: var(--muted);
+    background: var(--surface-soft);
     font-size: 19px;
 }
 
 .settings-head .icon-button:hover {
-    border-color: var(--ink);
-    color: var(--sheet);
-    background: var(--ink);
+    color: var(--ink);
+    background: var(--surface-sunken);
 }
 
 .settings-layout {
@@ -84,24 +85,23 @@
 
 .settings-tabs {
     display: flex;
-    width: 196px;
-    flex: 0 0 196px;
+    width: 200px;
+    flex: 0 0 200px;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     padding: 14px 10px;
-    border-right: 1px solid var(--ink);
-    background: var(--ink);
+    border-right: 1px solid var(--line);
+    background: var(--surface-soft);
 }
 
 .settings-tabs button {
     display: flex;
     width: 100%;
     align-items: center;
-    gap: 8px;
-    padding: 9px 10px;
-    border: 1px solid transparent;
-    border-radius: 2px;
-    color: #b4beb6;
+    gap: 9px;
+    padding: 9px 11px;
+    border-radius: 11px;
+    color: var(--muted);
     background: transparent;
     font-size: 13px;
     text-align: left;
@@ -112,32 +112,32 @@
     width: 5px;
     height: 5px;
     flex: 0 0 5px;
-    background: #4d5852;
+    border-radius: 999px;
+    background: var(--line-strong);
     content: "";
 }
 
 .settings-tabs button:hover {
-    color: #f0f2ec;
-    background: #1a2021;
+    color: var(--ink);
+    background: var(--surface);
 }
 
 .settings-tabs button.active {
-    border-color: #000;
-    color: var(--ink);
-    background: var(--yellow);
+    color: var(--accent-strong);
+    background: var(--accent-soft);
     font-weight: 600;
 }
 
 .settings-tabs button.active::before {
-    background: var(--ink);
+    background: var(--accent);
 }
 
 .settings-panel {
     min-width: 0;
     flex: 1;
     overflow-y: auto;
-    padding: 21px 26px 30px;
-    background: var(--sheet);
+    padding: 22px 26px 32px;
+    background: var(--surface);
 }
 
 /* ---------- 区块与通用构件 ---------- */
@@ -147,22 +147,23 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 18px;
-    margin-bottom: 13px;
+    margin-bottom: 14px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--line);
 }
 
 .settings-section-copy h3 {
     margin-bottom: 4px;
-    font-size: 19px;
+    color: var(--ink);
+    font-size: 18px;
     font-weight: 700;
     letter-spacing: -.025em;
 }
 
 .settings-section-copy p {
-    max-width: 640px;
+    max-width: 660px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.65;
 }
 
@@ -176,93 +177,88 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 6px 11px;
-    border: 1px solid var(--rule-strong);
-    border-radius: 2px;
-    color: var(--ink);
+    padding: 6px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    color: var(--text);
     background: transparent;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
     transition: background .14s ease, border-color .14s ease, color .14s ease;
 }
 
 .settings-button:hover {
-    border-color: var(--ink);
-    background: var(--sheet-dim);
+    border-color: var(--muted-2);
+    background: var(--surface-soft);
 }
 
 .settings-button.is-primary {
-    border-color: var(--ink);
-    color: var(--ink);
-    background: var(--yellow);
+    border-color: transparent;
+    color: var(--accent-ink);
+    background: var(--accent);
     font-weight: 600;
 }
 
 .settings-button.is-primary:hover {
-    background: #ffd51f;
+    background: var(--accent-strong);
 }
 
 .settings-button.is-danger {
-    border-color: var(--red);
-    color: var(--red);
-    background: transparent;
+    border-color: transparent;
+    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .settings-button.is-danger:hover {
-    background: var(--red-soft);
+    border-color: rgba(176, 71, 47, .35);
 }
 
 .settings-button.is-mini {
-    padding: 4px 8px;
-    font-size: 11.5px;
+    padding: 3px 9px;
+    font-size: 10.5px;
 }
 
 .settings-button:disabled {
-    opacity: .55;
+    opacity: .5;
     cursor: not-allowed;
 }
 
 .settings-pill {
     display: inline-flex;
     align-items: center;
-    padding: 2px 6px;
-    border: 1px solid var(--rule-strong);
-    border-radius: 1px;
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: .01em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    font-size: 10.5px;
     white-space: nowrap;
 }
 
 .settings-pill.is-ok {
-    border-color: #a9cdbb;
-    color: var(--green);
-    background: var(--green-soft);
+    color: var(--success);
+    background: var(--success-soft);
 }
 
 .settings-pill.is-warn {
-    border-color: #ded08a;
-    color: #6f5900;
-    background: var(--yellow-soft);
+    color: var(--amber);
+    background: var(--amber-soft);
 }
 
 .settings-pill.is-danger {
-    border-color: #e4b3a9;
-    color: var(--red);
-    background: var(--red-soft);
+    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .settings-pill.is-muted {
     color: var(--muted);
-    background: var(--sheet-dim);
+    background: var(--surface-sunken);
 }
 
 .settings-empty {
     margin-top: 12px;
-    padding: 24px 18px;
-    border: 1px dashed var(--rule-strong);
-    border-radius: 1px;
+    padding: 26px 18px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 14px;
     color: var(--muted);
     text-align: center;
 }
@@ -271,52 +267,52 @@
     display: block;
     margin-bottom: 5px;
     color: var(--text);
-    font-size: 13.5px;
+    font-size: 13px;
 }
 
 .settings-empty p {
     margin: 0;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.7;
 }
 
 .settings-loading {
-    padding: 44px 18px;
+    padding: 46px 18px;
     color: var(--muted);
-    font-family: var(--mono);
-    font-size: 12.5px;
+    font-size: 12px;
     text-align: center;
 }
 
 .settings-error {
     margin-top: 10px;
-    padding: 14px 15px;
-    border: 1px solid var(--red);
-    border-left-width: 3px;
-    border-radius: 1px;
-    color: var(--red);
-    background: var(--red-soft);
+    padding: 13px 15px;
+    border: 1px solid rgba(176, 71, 47, .25);
+    border-left: 3px solid var(--danger);
+    border-radius: 12px;
+    color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .settings-error strong {
     display: block;
     margin-bottom: 3px;
-    font-size: 13px;
+    font-size: 12.5px;
 }
 
 .settings-error p {
     margin: 0 0 9px;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.6;
 }
 
 .settings-meta {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px 20px;
+    gap: 8px 20px;
     margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--rule);
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--surface-soft);
 }
 
 .settings-meta > div {
@@ -328,7 +324,7 @@
 
 .settings-meta dt {
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: 10.5px;
 }
 
 .settings-meta dd {
@@ -336,33 +332,34 @@
     overflow-wrap: anywhere;
     color: var(--text);
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11.5px;
     line-height: 1.55;
 }
 
 .settings-callout {
     margin: 12px 0;
-    padding: 11px 13px;
-    border: 1px solid var(--rule);
-    border-left: 3px solid var(--yellow);
-    border-radius: 1px;
-    background: var(--sheet-dim);
+    padding: 11px 14px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--amber);
+    border-radius: 12px;
+    background: var(--surface-soft);
 }
 
 .settings-callout.is-danger {
-    border-left-color: var(--red);
-    background: var(--red-soft);
+    border-left-color: var(--danger);
+    background: var(--danger-soft);
 }
 
 .settings-callout strong {
     display: block;
     margin-bottom: 4px;
-    font-size: 13px;
+    color: var(--ink);
+    font-size: 12.5px;
 }
 
 .settings-callout p {
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.7;
 }
 
@@ -370,7 +367,7 @@
     display: block;
     margin-top: 7px;
     color: var(--muted-2);
-    font-size: 12px;
+    font-size: 11.5px;
     line-height: 1.6;
 }
 
@@ -378,24 +375,23 @@
     margin-top: 5px;
     padding-left: 16px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.85;
 }
 
 .settings-note-list li::marker {
-    color: var(--rule-strong);
+    color: var(--line-strong);
 }
 
 .settings-code {
     margin-top: 7px;
     overflow-x: auto;
-    padding: 8px 10px;
-    border: 1px solid var(--ink);
-    border-radius: 1px;
-    color: #d8ded7;
-    background: var(--ink);
+    padding: 9px 11px;
+    border-radius: 10px;
+    color: var(--code-text);
+    background: var(--code-bg);
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11.5px;
     line-height: 1.65;
     white-space: pre-wrap;
     word-break: break-word;
@@ -410,17 +406,17 @@
 
 .key-command {
     position: relative;
-    padding: 8px 9px;
-    border: 1px solid var(--rule);
-    border-radius: 1px;
-    background: var(--sheet);
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-soft);
 }
 
 .key-command > span {
     display: block;
     margin-bottom: 2px;
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: 11px;
 }
 
 .key-command .settings-code {
@@ -429,7 +425,7 @@
     border: 0;
     color: var(--text);
     background: transparent;
-    font-size: 12px;
+    font-size: 11.5px;
 }
 
 .key-command .settings-button {
@@ -446,6 +442,7 @@
 
 .settings-form-title {
     margin-bottom: 9px;
+    color: var(--ink);
     font-size: 13px;
     font-weight: 600;
 }
@@ -461,43 +458,45 @@
     min-width: 0;
     flex-direction: column;
     gap: 4px;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 500;
 }
 
 .settings-field-label {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 600;
 }
 
 .settings-field input,
 .settings-field select {
     width: 100%;
-    padding: 7px 9px;
+    padding: 8px 10px;
     outline: none;
-    border: 1px solid var(--rule-strong);
-    border-radius: 2px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
     color: var(--text);
-    background: var(--sheet-dim);
-    font-size: 13.5px;
+    background: var(--surface-soft);
+    font-size: 13px;
+    transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
 }
 
 .settings-field input:focus,
 .settings-field select:focus {
-    border-color: var(--blue);
-    background: #fff;
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .settings-field input:disabled,
 .settings-field select:disabled {
     color: var(--muted-2);
-    background: #e5e7e0;
+    background: var(--surface-sunken);
 }
 
 .settings-field-hint {
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 400;
     line-height: 1.5;
 }
@@ -514,17 +513,17 @@
     align-items: center;
     gap: 5px;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: 12px;
 }
 
 .settings-check input {
-    accent-color: var(--blue);
+    accent-color: var(--accent);
 }
 
 .settings-form-error {
     margin-top: 8px;
-    color: var(--red);
-    font-size: 12.5px;
+    color: var(--danger);
+    font-size: 12px;
 }
 
 .settings-form-actions {
@@ -557,7 +556,7 @@
 
 .settings-hint {
     color: var(--muted-2);
-    font-size: 12px;
+    font-size: 11.5px;
 }
 
 /* ---------- 卡片列表 ---------- */
@@ -577,14 +576,13 @@
 .plugin-card,
 .policy-card {
     padding: 12px 14px;
-    border: 1px solid var(--rule-strong);
-    border-radius: 2px;
-    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface-soft);
 }
 
 .model-card.is-disabled {
-    opacity: .65;
-    background: var(--sheet-dim);
+    opacity: .62;
 }
 
 .model-card-head,
@@ -601,32 +599,29 @@
 .plugin-mark {
     display: grid;
     min-width: 38px;
-    height: 26px;
+    height: 28px;
     place-items: center;
-    padding: 0 6px;
-    border: 1px solid var(--ink);
-    border-radius: 1px;
+    padding: 0 7px;
+    border-radius: 9px;
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 500;
     white-space: nowrap;
 }
 
 .provider-mark {
-    color: var(--yellow);
-    background: var(--ink);
+    color: var(--accent-ink);
+    background: var(--accent);
 }
 
 .skill-mark {
-    border-color: #b9c2ff;
-    color: var(--blue);
-    background: var(--blue-soft);
+    color: var(--apricot);
+    background: var(--apricot-soft);
 }
 
 .plugin-mark {
-    border-color: #a9cdbb;
-    color: var(--green);
-    background: var(--green-soft);
+    color: var(--success);
+    background: var(--success-soft);
 }
 
 .model-card-title,
@@ -644,7 +639,8 @@
 .plugin-card-title strong,
 .policy-card-head strong {
     overflow: hidden;
-    font-size: 13.5px;
+    color: var(--ink);
+    font-size: 13px;
     font-weight: 600;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -656,7 +652,7 @@
     overflow: hidden;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -674,7 +670,7 @@
     gap: 6px;
     margin-top: 10px;
     padding-top: 9px;
-    border-top: 1px dashed var(--rule);
+    border-top: 1px solid var(--line);
 }
 
 .model-card-actions {
@@ -686,10 +682,10 @@
 .model-editor,
 .policy-editor {
     padding: 13px 14px 12px;
-    border: 1px solid var(--rule-strong);
-    border-left: 3px solid var(--blue);
-    border-radius: 1px;
-    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px;
+    background: var(--surface-soft);
 }
 
 /* ---------- 技能 ---------- */
@@ -699,13 +695,13 @@
     overflow-wrap: anywhere;
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 11.5px;
+    font-size: 11px;
     line-height: 1.5;
 }
 
 .skill-source {
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: 11px;
 }
 
 .skill-content {
@@ -721,7 +717,7 @@
 }
 
 .plugin-card.is-failed {
-    border-color: var(--red);
+    border-color: rgba(176, 71, 47, .45);
 }
 
 /* ---------- 策略 ---------- */
@@ -766,13 +762,13 @@
     .settings-dialog {
         width: calc(100vw - 12px);
         height: calc(100dvh - 12px);
-        border-top-width: 3px;
+        border-radius: 20px;
         box-shadow: none;
     }
 
     .settings-head {
         gap: 12px;
-        padding: 13px 14px 11px;
+        padding: 14px 15px 12px;
     }
 
     .settings-head h2 {
@@ -780,12 +776,13 @@
     }
 
     .settings-head p {
-        font-size: 12px;
+        font-size: 11.5px;
     }
 
     .settings-head .icon-button {
-        width: 26px;
-        height: 26px;
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
         font-size: 17px;
     }
 
@@ -801,12 +798,12 @@
         overflow-x: auto;
         padding: 8px 9px;
         border-right: 0;
-        border-bottom: 1px solid var(--ink);
+        border-bottom: 1px solid var(--line);
     }
 
     .settings-tabs button {
         width: auto;
-        padding: 6px 9px;
+        padding: 6px 10px;
         font-size: 12px;
         white-space: nowrap;
     }
@@ -816,7 +813,7 @@
     }
 
     .settings-panel {
-        padding: 13px 13px 22px;
+        padding: 14px 14px 24px;
     }
 
     .settings-section-head {
@@ -861,11 +858,20 @@
     .skill-card-title strong,
     .plugin-card-title strong,
     .policy-card-head strong {
-        font-size: 13px;
+        font-size: 12.5px;
     }
 
     .model-card-foot,
     .plugin-card-foot {
         gap: 5px;
+    }
+
+    .session-settings-footer {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+
+    .footer-actions {
+        justify-content: flex-end;
     }
 }

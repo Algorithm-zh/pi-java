@@ -10,6 +10,7 @@ import {
     summarizeArgs, timeOf
 } from "./dom.js";
 import { renderMarkdownInto } from "./markdown.js";
+import { toast } from "./store.js";
 
 const APPROVAL_LABELS = {
     APPROVED: "已批准",
@@ -316,12 +317,63 @@ function assistantRow(modelName, time) {
     row.append(el("span", "avatar", "π"));
     const body = el("div", "assistant-body");
     const label = el("div", "message-label");
-    label.append(document.createTextNode("pi-java"),
-        el("span", "", [modelName, time].filter(Boolean).join(" / ")));
+    label.append(el("span", "message-name", "pi-java"));
+    const meta = [modelName, time].filter(Boolean).join(" · ");
+    if (meta) {
+        label.append(el("span", "message-meta", meta));
+    }
+    const copy = el("button", "copy-button", "复制");
+    copy.type = "button";
+    copy.title = "复制这条回复";
+    copy.addEventListener("click", () => copyAnswer(textHost, copy));
+    label.append(copy);
     const textHost = el("div", "text-block");
     body.append(label, textHost);
     row.append(body);
     return {row, body, label, textHost, raw: "", finalized: false};
+}
+
+async function copyAnswer(host, button) {
+    const text = (host.innerText || host.textContent || "").trim();
+    if (!text) {
+        return;
+    }
+    if (await writeClipboard(text)) {
+        button.textContent = "已复制";
+        toast("回复已复制");
+        setTimeout(() => {
+            button.textContent = "复制";
+        }, 1600);
+    } else {
+        toast("复制失败，请手动选择文本", true);
+    }
+}
+
+async function writeClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (error) {
+        // 部分浏览器在非安全上下文或权限受限时拒绝 Clipboard API。
+        return legacyCopy(text);
+    }
+}
+
+function legacyCopy(text) {
+    const area = el("textarea", "clipboard-buffer");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    document.body.append(area);
+    area.select();
+    let copied = false;
+    try {
+        copied = document.execCommand("copy");
+    } catch (error) {
+        copied = false;
+    } finally {
+        area.remove();
+    }
+    return copied;
 }
 
 function buildProcess() {

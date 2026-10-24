@@ -3,9 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>pi-java · coding agent</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='6' fill='%23101314'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23f4c400' font-family='Arial' font-weight='bold'%3E%CF%80%3C/text%3E%3C/svg%3E">
-    <meta name="theme-color" content="#101314">
+    <title>pi-java · 你的本地编程搭档</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%232f5d50'/%3E%3Ctext x='32' y='46' font-size='38' text-anchor='middle' fill='%23fffdf7' font-family='Georgia,serif'%3E%CF%80%3C/text%3E%3C/svg%3E">
+    <meta id="meta-theme-color" name="theme-color" content="#f3efe3">
+    <script>
+        (() => {
+            try {
+                const saved = localStorage.getItem("pi-java-theme");
+                const theme = saved
+                    || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                document.documentElement.dataset.theme = theme;
+                document.getElementById("meta-theme-color")?.setAttribute(
+                    "content", theme === "dark" ? "#121613" : "#f3efe3");
+            } catch (error) {
+                document.documentElement.dataset.theme = "light";
+            }
+        })();
+    </script>
     <link rel="preload" href="/fonts/archivo-700.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/fonts/ibm-plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/css/theme.css">
@@ -15,46 +29,109 @@
 </head>
 <body>
 <div class="app">
-    <aside class="sidebar">
-        <div class="brand">
-            <span class="brand-mark">π</span>
-            <div class="brand-copy">
-                <strong>pi-java</strong>
-                <span>local coding agent</span>
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-head">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">π</span>
+                <div class="brand-copy">
+                    <strong>pi-java</strong>
+                    <span>你的本地编程搭档</span>
+                </div>
             </div>
+            <button id="sidebar-close" class="icon-button sidebar-close" type="button"
+                    title="收起会话列表" aria-label="收起会话列表">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6L6 18"></path>
+                </svg>
+            </button>
         </div>
 
         <button id="new-session" class="new-session" type="button">
-            <span class="plus">+</span> 新建会话
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"></path>
+            </svg>
+            <span>新建会话</span>
         </button>
 
+        <label class="session-search">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5"></circle>
+                <path d="M16 16l4.5 4.5"></path>
+            </svg>
+            <input id="session-search" type="search" placeholder="搜索会话"
+                   autocomplete="off" aria-label="搜索会话">
+        </label>
+
         <div class="sidebar-label">
-            <span>会话</span>
-            <button id="refresh-sessions" class="icon-button" type="button" title="刷新会话">↻</button>
+            <span>最近会话</span>
+            <button id="refresh-sessions" class="icon-button mini-icon" type="button"
+                    title="刷新会话" aria-label="刷新会话">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 11a8 8 0 1 0-2.4 5.7"></path>
+                    <path d="M20 5v6h-6"></path>
+                </svg>
+            </button>
         </div>
         <nav id="session-list" class="session-list" aria-label="会话列表"></nav>
 
         <div class="sidebar-footer">
-            <span id="server-dot" class="dot dot-waiting"></span>
-            <span id="server-label">连接中…</span>
-            <span id="server-version" class="server-version"></span>
+            <div class="server-status">
+                <span id="server-dot" class="dot dot-waiting"></span>
+                <span id="server-label">连接中…</span>
+                <span id="server-version" class="server-version"></span>
+            </div>
+            <div class="sidebar-footer-actions">
+                <button id="theme-toggle" class="icon-button theme-toggle" type="button"
+                        title="切换明暗主题" aria-label="切换明暗主题">
+                    <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                         stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4"></circle>
+                        <path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"></path>
+                    </svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none"
+                         stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                         stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"></path>
+                    </svg>
+                </button>
+                <button id="open-settings" class="settings-entry" type="button"
+                        title="设置与模型密钥" aria-label="设置与模型密钥">
+                    <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                         stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                        <path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path>
+                        <circle cx="15" cy="7" r="2"></circle>
+                        <circle cx="9" cy="17" r="2"></circle>
+                    </svg>
+                    <span>设置</span>
+                </button>
+            </div>
         </div>
-        <button id="open-settings" class="settings-entry" type="button"
-                title="设置与模型密钥" aria-label="设置与模型密钥">
-            <span class="settings-entry-mark">设</span>
-            <span>设置与模型密钥</span>
-        </button>
     </aside>
 
     <main class="main">
         <header class="topbar">
+            <button id="sidebar-toggle" class="icon-button menu-button" type="button"
+                    title="打开会话列表" aria-label="打开会话列表"
+                    aria-controls="sidebar" aria-expanded="false">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                    <path d="M4 7h16M4 12h16M4 17h10"></path>
+                </svg>
+            </button>
             <div class="session-heading">
-                <h1 id="session-title">选择或新建一个会话</h1>
+                <h1 id="session-title">开始一段新对话</h1>
                 <div id="session-meta" class="session-meta"></div>
             </div>
             <div class="topbar-actions">
-                <div id="context-widget" class="context-widget hidden">
-                    <div class="context-track" title="当前上下文估算用量">
+                <div id="context-widget" class="context-widget hidden" title="当前上下文估算用量">
+                    <span class="context-name">上下文</span>
+                    <div class="context-track">
                         <span id="context-fill" class="context-fill"></span>
                     </div>
                     <span id="context-label" class="context-label">—</span>
@@ -63,44 +140,90 @@
                 </div>
                 <span id="run-state" class="run-state hidden"></span>
                 <button id="session-settings-open" class="icon-button topbar-icon hidden"
-                        type="button" title="会话设置" aria-label="会话设置">⋯</button>
+                        type="button" title="会话设置" aria-label="会话设置">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                         stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                        <circle cx="5" cy="12" r="1"></circle>
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="19" cy="12" r="1"></circle>
+                    </svg>
+                </button>
                 <button id="abort-button" class="stop-button hidden" type="button">停止生成</button>
             </div>
         </header>
 
-        <section id="messages" class="messages" aria-live="polite">
-            <div class="welcome">
-                <div class="welcome-head">
-                    <span class="welcome-mark" aria-hidden="true">π</span>
-                    <div class="welcome-copy">
-                        <p class="welcome-kicker">本地 agent 工作台 / Fake 模型离线可用</p>
-                        <h2>让代码开始流动</h2>
-                        <p>不需要 API Key。选一条指令开始，它们会真实调用工作区工具；
-                            写操作会先停下来，等你审批。</p>
+        <div class="thread">
+            <section id="messages" class="messages" aria-live="polite">
+                <div class="welcome">
+                    <div class="welcome-orb" aria-hidden="true">π</div>
+                    <p class="welcome-kicker">你的本地编程搭档</p>
+                    <h2>今天想一起做点什么？</h2>
+                    <p class="welcome-lead">
+                        我能读代码、跑命令、改文件。动手之前，我会先把要做什么讲清楚，
+                        等你点头。
+                    </p>
+                    <div class="suggestion-grid" role="group" aria-label="示例任务">
+                        <button class="suggestion" type="button" data-prompt="/read README.md">
+                            <span class="suggestion-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                     stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                                     stroke-linejoin="round">
+                                    <path d="M4 6a2 2 0 0 1 2-2h6v16H6a2 2 0 0 1-2-2z"></path>
+                                    <path d="M12 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+                                </svg>
+                            </span>
+                            <span class="suggestion-copy">
+                                <strong>先看看这个项目</strong>
+                                <small>读取 README，讲讲它是做什么的</small>
+                            </span>
+                            <span class="suggestion-cmd">/read README.md</span>
+                        </button>
+                        <button class="suggestion" type="button" data-prompt="/ls .">
+                            <span class="suggestion-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                     stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                                     stroke-linejoin="round">
+                                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                </svg>
+                            </span>
+                            <span class="suggestion-copy">
+                                <strong>逛逛工作区</strong>
+                                <small>看看当前目录里都有什么</small>
+                            </span>
+                            <span class="suggestion-cmd">/ls .</span>
+                        </button>
+                        <button class="suggestion" type="button" data-prompt="你好，简单介绍一下你自己">
+                            <span class="suggestion-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                     stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                                     stroke-linejoin="round">
+                                    <path d="M12 3l1.7 4.8L18.5 9.5l-4.8 1.7L12 16l-1.7-4.8L5.5 9.5l4.8-1.7z"></path>
+                                    <path d="M18 16l.8 2.2L21 19l-2.2.8L18 22l-.8-2.2L15 19l2.2-.8z"></path>
+                                </svg>
+                            </span>
+                            <span class="suggestion-copy">
+                                <strong>认识一下</strong>
+                                <small>用一个例子介绍自己的能力</small>
+                            </span>
+                            <span class="suggestion-cmd">你好</span>
+                        </button>
                     </div>
+                    <p class="welcome-foot">
+                        Demo 使用本地 Fake 模型，不需要 API Key
+                        <span aria-hidden="true">·</span>
+                        写操作会先停下来等你确认
+                    </p>
                 </div>
-                <div class="welcome-actions" role="group" aria-label="示例指令">
-                    <button class="prompt-chip" type="button" data-prompt="/read README.md">
-                        <span class="prompt-index">01</span>
-                        <code>/read README.md</code>
-                        <span class="prompt-desc">读取项目说明</span>
-                        <span class="prompt-arrow" aria-hidden="true">→</span>
-                    </button>
-                    <button class="prompt-chip" type="button" data-prompt="/ls .">
-                        <span class="prompt-index">02</span>
-                        <code>/ls .</code>
-                        <span class="prompt-desc">列出工作区</span>
-                        <span class="prompt-arrow" aria-hidden="true">→</span>
-                    </button>
-                    <button class="prompt-chip" type="button" data-prompt="你好，简单介绍一下你自己">
-                        <span class="prompt-index">03</span>
-                        <code>你好</code>
-                        <span class="prompt-desc">纯文本回复</span>
-                        <span class="prompt-arrow" aria-hidden="true">→</span>
-                    </button>
-                </div>
-            </div>
-        </section>
+            </section>
+            <button id="scroll-bottom" class="scroll-bottom hidden" type="button"
+                    title="回到最新消息" aria-label="回到最新消息">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                     stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 5v14M6 13l6 6 6-6"></path>
+                </svg>
+            </button>
+        </div>
 
         <footer class="composer">
             <div id="usage" class="usage hidden">
@@ -116,22 +239,26 @@
                      aria-label="斜杠命令"></div>
                 <form id="composer-form" class="composer-box">
                     <textarea id="composer-input" rows="1" maxlength="100000"
-                              placeholder="输入消息，Enter 发送，Shift + Enter 换行"></textarea>
+                              aria-label="消息"
+                              placeholder="问点什么，或者粘贴一段代码…"></textarea>
                     <div class="composer-side">
                         <span id="composer-model" class="composer-model"></span>
-                        <button id="send-button" class="send-button" type="submit" title="发送" aria-label="发送">
+                        <button id="send-button" class="send-button" type="submit"
+                                title="发送" aria-label="发送">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                                 stroke="currentColor" stroke-width="2.2" stroke-linecap="square"
-                                 aria-hidden="true">
-                                <path d="M4 12h15M13 6l6 6-6 6"></path>
+                                 stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                 stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 19V5M6 11l6-6 6 6"></path>
                             </svg>
                         </button>
                     </div>
                 </form>
             </div>
             <div class="composer-hint">
-                <span><kbd>Enter</kbd> 发送 / <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span>
-                <span>Demo / 运行在 <code id="workspace-hint">…</code></span>
+                <span><kbd>Enter</kbd> 发送 <span class="hint-sep">·</span>
+                    <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行 <span class="hint-sep">·</span>
+                    <kbd>/</kbd> 查看命令</span>
+                <span class="workspace-hint">工作区 <code id="workspace-hint">…</code></span>
             </div>
         </footer>
     </main>
@@ -142,15 +269,16 @@
         <header>
             <div>
                 <h2>新建会话</h2>
+                <p class="dialog-lead">选一个工作目录，我只会在这个目录里操作。</p>
             </div>
             <button id="dialog-close" class="icon-button" type="button" aria-label="关闭">×</button>
         </header>
         <label class="field">
-            <span>标题</span>
+            <span>会话名称</span>
             <input id="field-title" type="text" maxlength="255" value="新会话" required>
         </label>
         <label class="field">
-            <span>工作目录 <em>同时作为工具沙箱根</em></span>
+            <span>工作目录 <em>也是我的操作边界</em></span>
             <input id="field-cwd" type="text" required>
         </label>
         <label class="field">
@@ -160,7 +288,7 @@
             <select id="field-model"></select>
         </label>
         <label class="field">
-            <span>思考级别 <em>仅支持思考的模型可选</em></span>
+            <span>思考深度 <em>仅支持思考的模型可选</em></span>
             <select id="field-thinking">
                 <option value="OFF">关闭</option>
                 <option value="LOW">低</option>
@@ -178,11 +306,22 @@
 
 <dialog id="approval-dialog" class="session-dialog approval-dialog">
     <div class="approval-body">
-        <header>
-            <div>
-                <h2>工具调用需要确认</h2>
+        <header class="approval-head">
+            <div class="approval-head-main">
+                <span class="approval-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                         stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <path d="M12 3l7 3v5c0 4.4-2.9 7.6-7 9-4.1-1.4-7-4.6-7-9V6z"></path>
+                        <path d="M9 12l2 2 4-4"></path>
+                    </svg>
+                </span>
+                <div class="approval-head-copy">
+                    <h2>这里需要你确认一下</h2>
+                    <p>pi-java 准备执行一个工具调用。看清楚它要做什么，再决定。</p>
+                </div>
             </div>
-            <span id="approval-risk" class="risk-badge risk-high">HIGH</span>
+            <span id="approval-risk" class="risk-badge risk-high">高风险</span>
         </header>
         <div class="approval-tool">
             <span id="approval-glyph" class="approval-glyph">WR</span>
@@ -193,26 +332,28 @@
             <span id="approval-countdown" class="approval-countdown"></span>
         </div>
         <div class="approval-section">
-            <span class="approval-label">参数（已脱敏）</span>
+            <span class="approval-label">它准备这样做
+                <em title="键名包含 key、token、secret 等字段的值会显示为 ***">参数已脱敏</em>
+            </span>
             <pre id="approval-arguments" class="approval-arguments"></pre>
         </div>
-        <div class="approval-section">
-            <span class="approval-label">参数摘要 <em>原始参数的 SHA-256</em></span>
+        <details class="approval-tech">
+            <summary>查看技术校验信息</summary>
             <code id="approval-digest" class="approval-digest"></code>
-        </div>
+        </details>
         <label class="field approval-reason">
-            <span>意见 <em>可选，拒绝时建议说明原因</em></span>
+            <span>想留句话吗？ <em>可选，拒绝时说明原因会更有帮助</em></span>
             <textarea id="approval-reason" rows="2" maxlength="1024"
-                      placeholder="例如：这个命令会修改工作区之外的文件"></textarea>
+                      placeholder="例如：先别改这个文件，我想自己来"></textarea>
         </label>
         <footer>
             <span id="approval-queue" class="approval-queue"></span>
             <div class="approval-actions">
-                <button id="approval-deny" class="ghost-button danger-button" type="button">
-                    拒绝
+                <button id="approval-deny" class="ghost-button" type="button">
+                    先不要
                 </button>
                 <button id="approval-approve" class="primary-button" type="button">
-                    批准执行
+                    允许执行
                 </button>
             </div>
         </footer>
@@ -226,12 +367,13 @@
         <header>
             <div>
                 <h2>会话设置</h2>
+                <p class="dialog-lead">改个名字，或者换一个模型继续聊。</p>
             </div>
             <button id="session-settings-close" class="icon-button" type="button"
                     aria-label="关闭">×</button>
         </header>
         <label class="field">
-            <span>标题</span>
+            <span>会话名称</span>
             <input id="session-settings-title" type="text" maxlength="255" required>
         </label>
         <label class="field">
@@ -239,7 +381,7 @@
             <select id="session-settings-model"></select>
         </label>
         <label class="field">
-            <span>思考级别 <em>仅支持思考的模型可选</em></span>
+            <span>思考深度 <em>仅支持思考的模型可选</em></span>
             <select id="session-settings-thinking">
                 <option value="OFF">关闭</option>
                 <option value="LOW">低</option>
@@ -285,26 +427,39 @@
 
 <template id="empty-template">
     <div class="welcome welcome-compact">
-        <div class="welcome-head">
-            <span class="welcome-mark" aria-hidden="true">π</span>
-            <div class="welcome-copy">
-                <p class="welcome-kicker">会话已就绪</p>
-                <h2>输入一条指令</h2>
-                <p>也可以从下面的示例开始，工具调用会实时出现在对话里。</p>
-            </div>
-        </div>
-        <div class="welcome-actions" role="group" aria-label="示例指令">
-            <button class="prompt-chip" type="button" data-prompt="/read README.md">
-                <span class="prompt-index">01</span>
-                <code>/read README.md</code>
-                <span class="prompt-desc">读取项目说明</span>
-                <span class="prompt-arrow" aria-hidden="true">→</span>
+        <div class="welcome-mini-orb" aria-hidden="true">π</div>
+        <p class="welcome-kicker">会话准备好了</p>
+        <h2>说点什么，或者从这里开始</h2>
+        <p class="welcome-lead">工具调用会实时出现在对话里，写操作会先征求你的同意。</p>
+        <div class="suggestion-grid" role="group" aria-label="示例任务">
+            <button class="suggestion" type="button" data-prompt="/read README.md">
+                <span class="suggestion-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                         stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <path d="M4 6a2 2 0 0 1 2-2h6v16H6a2 2 0 0 1-2-2z"></path>
+                        <path d="M12 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+                    </svg>
+                </span>
+                <span class="suggestion-copy">
+                    <strong>先看看这个项目</strong>
+                    <small>读取 README，讲讲它是做什么的</small>
+                </span>
+                <span class="suggestion-cmd">/read README.md</span>
             </button>
-            <button class="prompt-chip" type="button" data-prompt="/ls .">
-                <span class="prompt-index">02</span>
-                <code>/ls .</code>
-                <span class="prompt-desc">列出工作区</span>
-                <span class="prompt-arrow" aria-hidden="true">→</span>
+            <button class="suggestion" type="button" data-prompt="/ls .">
+                <span class="suggestion-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+                         stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    </svg>
+                </span>
+                <span class="suggestion-copy">
+                    <strong>逛逛工作区</strong>
+                    <small>看看当前目录里都有什么</small>
+                </span>
+                <span class="suggestion-cmd">/ls .</span>
             </button>
         </div>
     </div>

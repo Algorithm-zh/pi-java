@@ -20,6 +20,13 @@ class AnsiTest {
     }
 
     @Test
+    void brandColorsUse256Palette() {
+        Ansi ansi = new Ansi(true);
+        assertThat(ansi.accent("π")).isEqualTo("\u001B[38;5;78mπ\u001B[0m");
+        assertThat(ansi.amber("●")).isEqualTo("\u001B[38;5;179m●\u001B[0m");
+    }
+
+    @Test
     void widthCountsCjkAsTwoAndSkipsAnsi() {
         assertThat(Ansi.width("abc")).isEqualTo(3);
         assertThat(Ansi.width("你好")).isEqualTo(4);
