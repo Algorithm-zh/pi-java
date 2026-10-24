@@ -61,8 +61,8 @@ pi serve    [--port PORT] [--profile demo|mysql]
 - 命令 Bean 使用 prototype 作用域，保证多次 `CommandLine.execute` 之间不残留上次参数；
 - 输入流通过 `CliTerminal` 的 ThreadLocal 绑定注入（picocli 4.7 只管理 out/err）；
 - run 事件由主线程轮询队列消费，审批提问与 `/abort` 读取也只在主线程进行；
-- `chat` 在真实终端走 JLine 交互界面（`CliTui`：方框输入区、Tab 补全、彩色流式、
-  信号式 Ctrl+C），管道/重定向/`--plain` 退回 `LineChat` 逐行模式；
+- `chat` 在真实终端走 JLine 交互界面（`CliTui`：方框输入区、输入 `/` 实时列出命令、
+  Tab 补全、彩色流式、信号式 Ctrl+C），管道/重定向/`--plain` 退回 `LineChat` 逐行模式；
 - 输出编码跟随原生控制台，Git Bash 等 UTF-8 环境自动切换，可用 `PI_CLI_ENCODING` 覆盖；
 - 退出码：`0` 成功、`1` 失败/超时、`2` 参数错误、`3` 审批拒绝、`4` 取消；
 - CLI 与 Web 共享同一个 Spring 容器、数据库与全部应用用例，不直接操作 Mapper。

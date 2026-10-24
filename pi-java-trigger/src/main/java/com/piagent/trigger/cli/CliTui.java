@@ -93,6 +93,7 @@ public class CliTui {
                 .appName("pi-java")
                 .history(new DefaultHistory())
                 .completer(new SlashCompleter())
+                .highlighter(new SlashHighlighter())
                 .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)
                 .build();
         CliTerminal cli = CliTerminal.forTui(terminal.writer());

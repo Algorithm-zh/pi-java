@@ -351,7 +351,7 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 - Web 启动方式与 M10 完全兼容，`mvn -q verify` 全绿；
 - 验收清单（见 [00 愿景与范围](00-vision-and-scope.md) §7）逐项通过。
 
-实测（2026-10-24）：637 个测试全绿；jar 冒烟覆盖帮助、只读命令、批准/拒绝/EOF、
+实测（2026-10-24）：643 个测试全绿；jar 冒烟覆盖帮助、只读命令、批准/拒绝/EOF、
 `--json`、`chat`、错误退出码与 `serve --port 9099`；ConPTY 下验证交互界面的
 横幅、Tab 补全、流式对话、审批落盘、`/exit` 与 Ctrl+D，Ctrl+C 因 pty 无法注入
 改由信号单元测试覆盖。MySQL smoke 与 tag 待确认。
