@@ -96,6 +96,11 @@ public class ContextConfiguration {
     /**
      * 文件系统 skill 源。
      *
+     * <p>除了配置里的绝对/用户目录，还会解析 <b>classpath:</b> 前缀的根目录，
+     * 用于随 jar 分发内置技能（如 {@code classpath:skills}）。classpath 根在启动时
+     * 解包到用户目录下的稳定路径，因此仍可复用「目录 mtime + TTL」缓存策略，
+     * 不需要为 classpath 单独实现一套扫描逻辑。</p>
+     *
      * @param settings 运行时配置
      * @param clock 时钟
      * @return skill 源

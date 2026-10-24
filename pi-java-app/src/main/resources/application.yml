@@ -61,7 +61,9 @@ pi:
       reserve-tokens: 16384
       keep-recent-tokens: 20000
     skills:
+      # 用户目录优先（同名覆盖内置版本），内置目录兜底随 jar 分发。
       - "~/.pi-java/skills"
+      - "classpath:skills"
 
 logging:
   level:
