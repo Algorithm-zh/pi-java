@@ -83,4 +83,19 @@ public class MyBatisSessionRepository implements SessionRepository {
                 .map(converter::toDomain)
                 .toList();
     }
+
+    @Override
+    public List<ChatSession> findStuck(int limit) {
+        if (limit <= 0) {
+            throw new DomainException(DomainErrorCode.INVALID_ARGUMENT, "limit 必须大于 0");
+        }
+        return mapper.findStuck(limit).stream()
+                .map(converter::toDomain)
+                .toList();
+    }
+
+    @Override
+    public void delete(SessionId id) {
+        mapper.delete(id.toString());
+    }
 }
