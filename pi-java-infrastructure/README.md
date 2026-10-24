@@ -16,6 +16,7 @@ com.piagent.infrastructure
 ├── llm           Fake / OpenAI-compatible provider，SSE 解析
 ├── tool          read/ls/grep/glob/write/edit/bash、RealPathResolver、ProcessRunner
 ├── plugin        manifest、ClassLoader、注册表、插件运行时
+├── mcp           stdio/HTTP 传输、JSON-RPC 客户端、命名空间、风险映射、MCP 宿主
 ├── context       skill 目录扫描、frontmatter 缓存、AGENTS.md 读取
 ├── config        Spring 装配
 └── ...
@@ -27,13 +28,16 @@ com.piagent.infrastructure
 - 模型密钥只从环境变量读取，不落库、不进日志；
 - SSH/文件/进程访问都通过端口注入，便于测试；
 - LLM 重试只在 adapter 内，且首个 delta 后不重试；
-- 插件停用立即移出实时目录；已开始的 run 使用旧快照，插件实例与类加载器保留到进程退出。
+- 插件停用立即移出实时目录；已开始的 run 使用旧快照，插件实例与类加载器保留到进程退出；
+- MCP 服务器只由配置驱动，不落库；远程工具统一映射为 `ToolDescriptor`，
+  连接/超时/远端错误都转成 `isError` 结果，不向应用层抛异常。
 
 ## 测试
 
 - H2 集成测试验证 SQL、唯一键、CAS、级联；
 - WireMock 验证流式、重试、取消、畸形响应；
 - 临时目录验证路径穿越、符号链接、输出截断；
+- 真实子进程与本地 HTTP 服务验证 MCP 传输、分页发现、超时与重连；
 - Windows/Unix 差异用条件测试覆盖。
 
 ## 当前状态
@@ -52,4 +56,8 @@ M3 完成 `tool`（RealPathResolver、read/ls/grep/glob、虚拟线程超时调�
 （`FileSystemSkillSource` 多根扫描 + TTL/mtime/正文缓存、`AgentsDocumentSource`）、
 `ContextConfiguration`、`CompactionConfiguration`、`AgentSettings`（`pi.agent.context` /
 `pi.agent.skills`），并为 Fake demo 增加 `/skill:` 响应。M7 **没有新增数据库迁移**。
-详见 [M7 记录](../docs/milestones/M7.md)。
+M12 增加 `mcp`（`McpSettings`、stdio/Streamable HTTP 传输、`McpServerConnection`、
+`McpToolNamespace`、`McpRiskMapper`、`McpToolAdapter`、`McpHost`），
+`RuntimeToolRegistry` 支持 MCP 目录，`RuntimeToolInvoker` 按 MCP → 插件 → 内置分派；
+**同样没有新增数据库迁移**。
+详见 [M12 记录](../docs/milestones/M12.md) 与 [MCP 客户端](../docs/10-mcp.md)。

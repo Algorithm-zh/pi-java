@@ -111,5 +111,8 @@ public enum DomainErrorCode {
     APPROVAL_INVALID_STATE,
 
     /** 技能不存在或未被发现。 */
-    SKILL_NOT_FOUND
+    SKILL_NOT_FOUND,
+
+    /** MCP 服务器工具名与内置工具、插件或其他 MCP 服务器冲突。 */
+    MCP_TOOL_CONFLICT
 }

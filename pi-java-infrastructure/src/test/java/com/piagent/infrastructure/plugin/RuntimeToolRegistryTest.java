@@ -69,6 +69,44 @@ class RuntimeToolRegistryTest {
                                 .isEqualTo(DomainErrorCode.PLUGIN_TOOL_CONFLICT));
     }
 
+    @Test
+    void mergesAndRemovesMcpTools() {
+        RuntimeToolRegistry registry = new RuntimeToolRegistry(List.of(descriptor("read")));
+        registry.replaceMcp("fs", List.of(descriptor("fs.echo")));
+
+        ToolRegistry snapshot = registry.snapshot();
+        assertThat(registry.descriptors()).extracting(item -> item.name().value())
+                .containsExactly("read", "fs.echo");
+
+        registry.removeMcp("fs");
+
+        assertThat(registry.find(new ToolName("fs.echo"))).isEmpty();
+        assertThat(snapshot.find(new ToolName("fs.echo"))).isPresent();
+    }
+
+    @Test
+    void rejectsMcpToolsOutsideServerNamespace() {
+        RuntimeToolRegistry registry = new RuntimeToolRegistry(List.of(descriptor("read")));
+
+        assertThatThrownBy(() -> registry.replaceMcp("fs", List.of(descriptor("other.echo"))))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.MCP_TOOL_CONFLICT));
+        assertThat(registry.descriptors()).hasSize(1);
+    }
+
+    @Test
+    void rejectsMcpToolThatCollidesWithBuiltIn() {
+        RuntimeToolRegistry registry = new RuntimeToolRegistry(List.of(descriptor("fs.echo")));
+
+        assertThatThrownBy(() -> registry.replaceMcp("fs", List.of(descriptor("fs.echo"))))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.MCP_TOOL_CONFLICT));
+        assertThat(registry.descriptors()).extracting(item -> item.name().value())
+                .containsExactly("fs.echo");
+    }
+
     private ToolDescriptor descriptor(String name) {
         return new ToolDescriptor(new ToolName(name), name + " description",
                 "{\"type\":\"object\"}", ToolRisk.LOW, ExecutionMode.PARALLEL,

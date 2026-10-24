@@ -8,6 +8,7 @@ import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.model.ToolName;
 import com.piagent.domain.tool.port.ToolRegistry;
 import com.piagent.domain.tool.service.ToolCatalog;
+import com.piagent.infrastructure.mcp.McpToolNamespace;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ public final class RuntimeToolRegistry implements ToolRegistry {
 
     private final List<ToolDescriptor> builtIns;
     private final Map<PluginId, List<ToolDescriptor>> pluginTools = new LinkedHashMap<>();
+    private final Map<String, List<ToolDescriptor>> mcpTools = new LinkedHashMap<>();
     private volatile ToolCatalog catalog;
 
     /**
@@ -49,7 +51,7 @@ public final class RuntimeToolRegistry implements ToolRegistry {
     public synchronized void replace(PluginId pluginId, List<ToolDescriptor> tools) {
         Map<PluginId, List<ToolDescriptor>> candidate = new LinkedHashMap<>(pluginTools);
         candidate.put(pluginId, List.copyOf(tools));
-        this.catalog = buildCatalog(candidate);
+        this.catalog = buildCatalog(candidate, mcpTools);
         this.pluginTools.put(pluginId, List.copyOf(tools));
     }
 
@@ -64,8 +66,43 @@ public final class RuntimeToolRegistry implements ToolRegistry {
         }
         Map<PluginId, List<ToolDescriptor>> candidate = new LinkedHashMap<>(pluginTools);
         candidate.remove(pluginId);
-        this.catalog = buildCatalog(candidate);
+        this.catalog = buildCatalog(candidate, mcpTools);
         this.pluginTools.remove(pluginId);
+    }
+
+    /**
+     * 替换某个 MCP 服务器的工具集合。
+     *
+     * <p>名称必须带 {@code <server>.} 前缀；与内置工具、插件工具或其他服务器
+     * 冲突时整体拒绝，不破坏现有目录。</p>
+     *
+     * @param server 服务器名
+     * @param tools 工具定义
+     */
+    public synchronized void replaceMcp(String server, List<ToolDescriptor> tools) {
+        if (server == null || server.isBlank()) {
+            throw new DomainException(DomainErrorCode.INVALID_ARGUMENT, "MCP 服务器名不能为空");
+        }
+        List<ToolDescriptor> frozen = List.copyOf(tools);
+        Map<String, List<ToolDescriptor>> candidate = new LinkedHashMap<>(mcpTools);
+        candidate.put(server, frozen);
+        this.catalog = buildCatalog(pluginTools, candidate);
+        this.mcpTools.put(server, frozen);
+    }
+
+    /**
+     * 移除某个 MCP 服务器的工具。
+     *
+     * @param server 服务器名
+     */
+    public synchronized void removeMcp(String server) {
+        if (!mcpTools.containsKey(server)) {
+            return;
+        }
+        Map<String, List<ToolDescriptor>> candidate = new LinkedHashMap<>(mcpTools);
+        candidate.remove(server);
+        this.catalog = buildCatalog(pluginTools, candidate);
+        this.mcpTools.remove(server);
     }
 
     /**
@@ -93,7 +130,8 @@ public final class RuntimeToolRegistry implements ToolRegistry {
         return catalog.require(name);
     }
 
-    private ToolCatalog buildCatalog(Map<PluginId, List<ToolDescriptor>> plugins) {
+    private ToolCatalog buildCatalog(Map<PluginId, List<ToolDescriptor>> plugins,
+            Map<String, List<ToolDescriptor>> mcpServers) {
         List<ToolDescriptor> merged = new ArrayList<>(builtIns);
         Set<ToolName> names = new HashSet<>();
         builtIns.forEach(tool -> names.add(tool.name()));
@@ -105,11 +143,16 @@ public final class RuntimeToolRegistry implements ToolRegistry {
                 merged.add(tool);
             }
         }
-        try {
-            return new ToolCatalog(merged);
-        } catch (DomainException error) {
-            throw new DomainException(DomainErrorCode.PLUGIN_TOOL_CONFLICT,
-                    "插件工具与现有目录冲突: " + error.getMessage(), error);
+        for (Map.Entry<String, List<ToolDescriptor>> entry : mcpServers.entrySet()) {
+            for (ToolDescriptor tool : entry.getValue()) {
+                McpToolNamespace.requireOwned(entry.getKey(), tool.name());
+                if (!names.add(tool.name())) {
+                    throw new DomainException(DomainErrorCode.MCP_TOOL_CONFLICT,
+                            "MCP 工具名已被占用: " + tool.name());
+                }
+                merged.add(tool);
+            }
         }
+        return new ToolCatalog(merged);
     }
 }

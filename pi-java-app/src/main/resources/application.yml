@@ -43,6 +43,9 @@ pi:
   fake:
     # 默认回声；demo profile 下开启确定性指令脚本（/read、/ls）。
     demo-mode: false
+  mcp:
+    # MCP 服务器默认不启用；配置与示例见 docs/10-mcp.md。
+    servers: []
   agent:
     max-concurrent-runs: 4
     tool-parallelism: 4

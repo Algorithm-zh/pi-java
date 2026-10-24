@@ -8,7 +8,7 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M11 CLI 已完成**（2026-10-24）。已具备树形会话日志、
+> 当前状态：**M12 MCP 客户端已完成**（2026-10-24）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理，以及会话设置与上下文用量仪表。
@@ -16,7 +16,8 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > 对话区默认折叠思考与工具过程，支持斜杠命令提示与安全 Markdown 渲染，字号与对比度按可读性调整。
 > 同一个 jar 既是 Web 服务也是 CLI：`pi run`、`pi chat`、`pi sessions/models/tools`、
 > `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
-> 下一步：v0.2（MCP、Git 检查点、计划与自动验证）。
+> v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具，
+> 下一步是 Git 检查点、计划与自动验证。
 
 ![聊天与工具审批](docs/images/chat.png)
 
@@ -134,6 +135,9 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 - **安全默认**：只读工具放行；`write/edit` 默认询问并阻塞等待人工审批，批准后才执行；
   `bash` 默认拒绝，需要显式策略放行；路径沙箱对所有文件工具生效。
 - **插件化**：零依赖 `plugin-api`，每个插件独立 ClassLoader，工具带插件前缀。
+- **MCP 动态工具**：配置 `pi.mcp.servers` 即可接入 stdio 或 Streamable HTTP 服务器，
+  工具自动带 `<server>.` 前缀进入目录、策略与审批管线；超时/断线转为工具错误，
+  不打断 run。
 - **子代理受限**：`subagent` 工具同步委派子任务；工具子集只能收紧、深度有上限、
   失败/超时都以结构化结果回写，父循环不中断。
 - **上下文有界**：接近窗口时结构化压缩（目标/约束/进展/决策/下一步/关键上下文），
@@ -150,7 +154,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 | `pi-java-domain` | 纯领域：7 个限界上下文、聚合、值对象、领域服务、仓储/端口 |
 | `pi-java-application` | 用例编排、Agent Loop、事务边界、读模型 |
 | `pi-java-plugin-api` | 零依赖的第三方插件契约 |
-| `pi-java-infrastructure` | LLM 接入、MyBatis 仓储、内置工具、插件加载、缓存 |
+| `pi-java-infrastructure` | LLM 接入、MyBatis 仓储、内置工具、插件加载、MCP 客户端、缓存 |
 | `pi-java-trigger` | HTTP/SSE 接口与 picocli CLI 命令 |
 | `pi-java-app` | Spring Boot 装配、Flyway、Web UI、架构测试 |
 | `examples/pi-plugin-example` | 示例插件，验证契约纯度 |
@@ -166,8 +170,9 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M11 已验证通过：643 个测试全绿（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 通过。
+当前 M12 已验证通过：671 个测试全绿（2 个符号链接用例条件跳过），
+Checkstyle/ArchUnit 与覆盖率门槛通过。打包 repackage 需要先停止正在运行的实例
+（Windows 会锁住 jar），或在测试阶段加 `-Dspring-boot.repackage.skip=true`。
 
 ## 文档
 
@@ -183,6 +188,7 @@ Checkstyle/ArchUnit 通过。
 - [测试与质量](docs/07-testing-and-quality.md)
 - [路线图](docs/08-roadmap.md)
 - [快速上手](docs/09-quick-start.md)
+- [MCP 客户端](docs/10-mcp.md)
 - [M0 里程碑记录](docs/milestones/M0.md)
 - [M1 里程碑记录](docs/milestones/M1.md)
 - [M2 里程碑记录](docs/milestones/M2.md)
@@ -195,6 +201,7 @@ Checkstyle/ArchUnit 通过。
 - [M9 里程碑记录（Web UI 与开源准备）](docs/milestones/M9.md)
 - [M10 里程碑记录（界面重构 · 信号工作台）](docs/milestones/M10.md)
 - [M11 里程碑记录（CLI 与 v0.1.0 收尾）](docs/milestones/M11.md)
+- [M12 里程碑记录（MCP 客户端）](docs/milestones/M12.md)
 
 架构决策：
 
@@ -208,6 +215,7 @@ Checkstyle/ArchUnit 通过。
 - v0.1 默认只监听 `127.0.0.1`，无鉴权，禁止直接暴露公网；
 - 模型密钥只从环境变量读取，数据库只保存环境变量名；
 - 插件类加载隔离不是安全沙箱，只安装可信来源；
+- MCP 工具由外部服务器执行，路径沙箱不覆盖其内部行为；token 只写 `${ENV_VAR}`。
 - `bash` 无法做路径级沙箱，只能限制 cwd、审批、超时与输出，文档与 UI 会明确提示。
 
 ## 开发约定

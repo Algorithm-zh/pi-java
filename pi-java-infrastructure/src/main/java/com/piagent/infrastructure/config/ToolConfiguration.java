@@ -4,6 +4,7 @@ import com.piagent.application.subagent.SubagentRegistry;
 import com.piagent.domain.governance.service.PathSandbox;
 import com.piagent.domain.tool.model.ToolDescriptor;
 import com.piagent.domain.tool.port.ToolInvoker;
+import com.piagent.infrastructure.mcp.McpHost;
 import com.piagent.infrastructure.plugin.PluginHost;
 import com.piagent.infrastructure.plugin.RuntimeToolInvoker;
 import com.piagent.infrastructure.plugin.RuntimeToolRegistry;
@@ -76,7 +77,7 @@ public class ToolConfiguration {
     }
 
     /**
-     * 统一工具调用入口：插件优先，其余走内置实现。
+     * 统一工具调用入口：MCP 优先，其次插件，其余走内置实现。
      *
      * <p>不再标注 {@code @Primary}：应用层的 {@code SubagentToolInvoker} 才是最终注入点，
      * 它会在调用真正的执行器之前截获 {@code subagent} 并转发其余工具。这里保留具体类型，
@@ -84,10 +85,12 @@ public class ToolConfiguration {
      *
      * @param builtIn 内置调用器
      * @param plugins 插件宿主
+     * @param mcp MCP 宿主
      * @return 调用器
      */
     @Bean
-    public ToolInvoker runtimeToolInvoker(BuiltInToolInvoker builtIn, PluginHost plugins) {
-        return new RuntimeToolInvoker(builtIn, plugins);
+    public ToolInvoker runtimeToolInvoker(BuiltInToolInvoker builtIn, PluginHost plugins,
+            McpHost mcp) {
+        return new RuntimeToolInvoker(builtIn, plugins, mcp);
     }
 }

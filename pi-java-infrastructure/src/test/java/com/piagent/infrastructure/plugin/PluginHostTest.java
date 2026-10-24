@@ -20,6 +20,8 @@ import com.piagent.domain.tool.model.ToolInvocation;
 import com.piagent.domain.tool.model.ToolName;
 import com.piagent.domain.tool.model.ToolResult;
 import com.piagent.domain.tool.model.ToolRisk;
+import com.piagent.infrastructure.config.McpSettings;
+import com.piagent.infrastructure.mcp.McpHost;
 import com.piagent.infrastructure.plugin.support.PluginJarFixture;
 import com.piagent.infrastructure.tool.BuiltInToolInvoker;
 import java.io.IOException;
@@ -84,7 +86,11 @@ class PluginHostTest {
     void runtimeInvokerPrefersPluginTool() throws IOException {
         host.load(installation(PluginJarFixture.hello(tempDir.resolve("hello"))));
         try (BuiltInToolInvoker builtIn = new BuiltInToolInvoker(registry, Map.of())) {
-            RuntimeToolInvoker invoker = new RuntimeToolInvoker(builtIn, host);
+            McpHost mcp = new McpHost(McpSettings.empty(), registry,
+                    server -> {
+                        throw new IllegalStateException("未配置 MCP 服务器");
+                    }, mapper);
+            RuntimeToolInvoker invoker = new RuntimeToolInvoker(builtIn, host, mcp);
 
             ToolResult result = invoker.invoke(invocation("call-2", ECHO, Map.of("text", "route")));
 

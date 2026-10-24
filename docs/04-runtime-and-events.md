@@ -162,6 +162,7 @@ M5 已把插件工具接入这条管线，但**没有**插件拦截器或观察�
 
 ```text
   -> 插件工具与内置工具同样经过策略、审批与沙箱（M5/M6）
+  -> MCP 工具同样经过策略、审批与超时（M12），但沙箱由外部服务器负责
   -> [未实现] 插件 ToolInterceptor / ToolResultObserver（M6/M7 评估）
 ```
 
@@ -244,6 +245,28 @@ create PENDING -> publish approval.requested
 
 `bash`（M6）无法做路径级沙箱：它在 `cwd` 下启动子进程，通过审批、超时、输出截断和
 “默认禁用危险命令模式”降低风险。文档与 UI 必须明确这一限制，不能宣称 bash 被完全沙箱化。
+
+### 4.6 MCP 远程工具（M12 已实现）
+
+```text
+启动 -> McpHost.start()
+    -> 逐服务器 initialize + notifications/initialized + tools/list（分页）
+    -> 远程工具 -> <server>.<sanitized-tool> -> ToolDescriptor
+    -> RuntimeToolRegistry.replaceMcp(server, descriptors)
+调用 -> RuntimeToolInvoker：McpHost（MCP）-> PluginHost -> 内置
+    -> McpToolAdapter -> McpServerRuntime.clientForCall()
+    -> tools/call（descriptor.timeout）
+```
+
+- 所有 MCP 工具声明为 `SEQUENTIAL`，不参与同批并行；
+- 远程错误、超时、断线都转为 `isError=true` 的 `toolResult`，带 `errorCode`、
+  `server`、`mcpTool`；`structuredContent` 放入 `details`；
+- 传输明确关闭（典型为 stdio 子进程退出）时，下一次调用前重建客户端并重新握手；
+  已发出的调用不自动重试，避免重复副作用；
+- 工具目录在启动时冻结，远程新增/删除工具需要重启；run 快照语义不变；
+- 单个服务器连接或注册失败只告警，不影响其他服务器与应用启动。
+
+详见 [MCP 客户端](10-mcp.md)。
 
 ## 5. 取消
 
@@ -506,6 +529,7 @@ M8 追加：`subagent.*`。
 | 审批超时（M6） | 按 DENY 处理，继续循环 |
 | 持久化失败 | 立即终止 run，标记 FAILED，记录高优先级日志 |
 | 插件工具抛异常 | 转为 `isError=true` 结果；插件计数失败，不重试 |
+| MCP 工具超时/断线/远端报错 | 转为 `isError=true` 结果（带 `errorCode`）；不自动重试；传输关闭时下次调用前重连 |
 | 子代理失败/超时 | 返回结构化结果；父 run 继续 |
 
 禁止双层重试：application 不重试 LLM 调用，只有 adapter 做传输级重试。
@@ -568,3 +592,4 @@ M6 加入审批、M8 加入子代理后，再补充“补写 RUN_SUMMARY / 过�
 - [领域模型](02-domain-model.md)
 - [API 与 CLI](05-api-and-cli.md)
 - [插件 SDK](06-plugin-sdk.md)
+- [MCP 客户端](10-mcp.md)

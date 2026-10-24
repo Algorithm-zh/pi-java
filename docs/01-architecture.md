@@ -59,7 +59,7 @@ plugin-api     -> JDK
 | `pi-java-domain` | 仅 JDK | 7 个上下文的聚合、实体、值对象、领域服务、仓储/端口接口、共享内核 | Spring、Jackson、MyBatis、Web、插件 API |
 | `pi-java-plugin-api` | 仅 JDK | 第三方插件稳定契约：入口、描述、工具注册、执行上下文、日志 | Spring、Jackson、domain/application 类型 |
 | `pi-java-application` | domain、Spring stereotype/tx | 用例编排、Agent Loop、上下文组装、事务边界、读模型 | MyBatis、Jackson、Web、插件 API、基础设施实现 |
-| `pi-java-infrastructure` | domain、application、plugin-api、驱动库 | LLM 适配器、MyBatis 仓储、内置工具、路径解析、插件加载、Caffeine 缓存 | trigger |
+| `pi-java-infrastructure` | domain、application、plugin-api、驱动库 | LLM 适配器、MyBatis 仓储、内置工具、路径解析、插件加载、MCP 客户端、Caffeine 缓存 | trigger |
 | `pi-java-trigger` | application、Spring MVC、picocli | Controller、SSE、DTO 映射、CLI 命令、参数校验 | 基础设施、Mapper、领域仓储实现 |
 | `pi-java-app` | 全部 | 唯一装配点、启动类、Flyway、`application.yml`、静态 UI、ArchUnit | 业务逻辑 |
 | `examples/pi-plugin-example` | plugin-api（provided） | 示例插件与契约纯度验证 | 其他内部模块 |
@@ -137,6 +137,9 @@ tool    ◄──── extension      （插件工具映射为 ToolDescriptor�
 - MyBatis PO 与领域对象分离；PO 只存在于 `infrastructure.persistence.po`。
 - JSON payload 编解码集中在 `session.payload`，不让 Jackson 注解进入 domain。
 - 插件 ClassLoader、内置工具、LLM HTTP 客户端、Caffeine 缓存都在这里。
+- MCP 客户端（`infrastructure.mcp`）也在这里：连接外部服务器、发现工具、映射为
+  `ToolDescriptor` 并注册进 `RuntimeToolRegistry`；配置驱动、不落库，
+  领域层不出现 MCP/JSON-RPC 类型。
 - 对外提供 Spring `@Configuration`，由 app 扫描装配。
 
 ### 4.4 trigger
@@ -244,3 +247,4 @@ com.piagent.app
 - [插件 SDK](06-plugin-sdk.md)
 - [测试与质量](07-testing-and-quality.md)
 - [路线图](08-roadmap.md)
+- [MCP 客户端](10-mcp.md)

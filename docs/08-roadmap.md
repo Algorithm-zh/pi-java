@@ -1,8 +1,9 @@
 # 08 路线图
 
-> 状态：M0–M11 已完成（M11 CLI 于 2026-10-24），详见 [M11 记录](milestones/M11.md)；
+> 状态：M0–M11 已完成（M11 CLI 于 2026-10-24），M12 MCP 客户端于 2026-10-24 完成，
+> 详见 [M11 记录](milestones/M11.md) 与 [M12 记录](milestones/M12.md)；
 > `v0.1.0` tag 与 MySQL smoke 待用户环境确认。
-> v0.2 从 M12 起按“MCP → Git/检查点 → 计划与验证 → 工程化”推进。
+> v0.2 接下来的顺序是“Git/检查点 → 计划与验证 → 工程化”。
 > 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
@@ -356,10 +357,43 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 横幅、Tab 补全、流式对话、审批落盘、`/exit` 与 Ctrl+D，Ctrl+C 因 pty 无法注入
 改由信号单元测试覆盖。MySQL smoke 与 tag 待确认。
 
+### M12 MCP 客户端
+
+状态：已完成（2026-10-24），详见 [M12 记录](milestones/M12.md)。
+配置与使用说明见 [10 MCP 客户端](10-mcp.md)。
+
+范围（实际交付）：
+
+- 配置驱动：`pi.mcp.servers`（`McpSettings`），无数据库迁移，默认空列表；
+- stdio 传输：换行分隔 JSON-RPC、stderr 排水、Windows `.cmd/.bat` 包装、进程树终止；
+- Streamable HTTP 传输：JSON/SSE 响应、`Mcp-Session-Id`、关闭时 DELETE；
+- `initialize`（`2025-06-18`）+ `notifications/initialized` + 分页 `tools/list`；
+- 命名空间 `<server>.<sanitized-tool>`，与内置/插件/其他服务器冲突检查；
+- 风险映射：显式覆盖 → 服务器默认 → 名称启发式，随后进入既有审批管线；
+- 所有 MCP 工具串行执行，超时、断线、远端错误转为 `isError` 工具结果；
+- 传输明确关闭时下一次调用前重连；不自动重试已发出的工具调用；
+- `McpStartupRunner` 启动连接，单服务器失败只告警。
+
+验收结果：
+
+- 假 stdio 服务器端到端：Spring + Fake 模型 `/tool echo.echo` 得到 `echo:你好` 与
+  `tool.completed`，`/api/v1/tools` 可见带前缀工具；
+- 真实子进程覆盖发现、调用、远端错误、超时与关闭；本地 HTTP 服务覆盖 JSON/SSE、
+  会话头、DELETE 与 HTTP 500；
+- 冲突工具不注册且不影响其他服务器；断线后重连一次，工具定义保持启动时快照；
+- `mvn verify -Dspring-boot.repackage.skip=true` 通过，671 个测试（2 跳过），
+  Checkstyle/ArchUnit 与覆盖率门槛全绿；repackage 因本机运行中的旧 jar 占用未执行。
+
+未包含（按计划后移）：
+
+- MCP resources/prompts/sampling、服务端通知与目录热刷新；
+- OAuth 授权、MCP 管理 API/UI、服务器配置持久化；
+- 远程工具级别的沙箱隔离（仍由外部服务器自行负责）。
+
 ## 4. 关键依赖
 
 ```text
-M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► M8 ─► M9 ─► M10 ─► M11
+M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► M8 ─► M9 ─► M10 ─► M11 ─► M12
                   │           │
                   └─ 只读工具  └─ 插件必须先有稳定工具目录
 ```
@@ -369,7 +403,9 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 - M6 依赖 M3 的沙箱与 M5 的插件工具生命周期；插件拦截器不是 M5 的交付物，
   如需要应在 M6 以新契约引入；
 - M7 依赖 M4 的上下文组装；
-- M8 依赖 M4 的 run 生命周期与 M6 的审批。
+- M8 依赖 M4 的 run 生命周期与 M6 的审批；
+- M12 依赖 M3 的工具目录、M6 的审批与 M5 建立的运行时来源模型；
+  M13 在此基础上增加 Git 快照与撤销。
 
 ## 5. 发布与版本
 
@@ -382,8 +418,9 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 
 对照成熟编码代理的差距，v0.2 按以下顺序交付；每项独立成里程碑，不合并发布：
 
-1. **M12 MCP 客户端**：stdio 与 Streamable HTTP 传输、`tools/list` 动态发现、
-   服务名命名空间、工具风险映射、断线与超时处理。这是补齐外部能力面的最高杠杆项。
+1. **M12 MCP 客户端**（已完成 2026-10-24）：stdio 与 Streamable HTTP 传输、
+   `tools/list` 动态发现、服务名命名空间、工具风险映射、断线与超时处理。
+   这是补齐外部能力面的最高杠杆项。
 2. **M13 Git 感知与检查点**：run 前快照、turn 前后 diff、撤销上一轮、
    未跟踪文件处理与提交建议；变更展示同时进入 Web 与 CLI。
 3. **M14 计划、待办与自动验证**：计划/待办条目与工具、验证命令自动执行、

@@ -14,6 +14,7 @@
 8. [07 测试与质量](07-testing-and-quality.md)：测试策略、质量门禁、验收
 9. [08 路线图](08-roadmap.md)：M0–M11 与 v0.2 规划、依赖、风险、完成定义
 10. [09 快速上手](09-quick-start.md)：启动脚本、接入真实模型、技能与常见问题
+11. [10 MCP 客户端](10-mcp.md)：配置、传输、命名空间、风险映射、断线与超时
 
 ## 架构决策记录
 
@@ -36,6 +37,7 @@
 - [M9：Web UI 完善与开源准备](milestones/M9.md)
 - [M10：界面重构 · 信号工作台](milestones/M10.md)
 - [M11：CLI 与 v0.1.0 收尾](milestones/M11.md)
+- [M12：MCP 客户端](milestones/M12.md)
 
 ## 模块文档
 
