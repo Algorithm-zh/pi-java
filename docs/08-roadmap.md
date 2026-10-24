@@ -1,6 +1,8 @@
 # 08 路线图
 
-> 状态：M0–M10 已完成（M10 界面重构于 2026-10-23），下一步 M11 CLI + 打磨 + v0.1.0。
+> 状态：M0–M11 已完成（M11 CLI 于 2026-10-24），详见 [M11 记录](milestones/M11.md)；
+> `v0.1.0` tag 与 MySQL smoke 待用户环境确认。
+> v0.2 从 M12 起按“MCP → Git/检查点 → 计划与验证 → 工程化”推进。
 > 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
 
 ## 1. 交付策略
@@ -26,7 +28,11 @@
 | **M8** | 子智能体 | SubagentPolicy、subagent 工具、SPAWN/FORK、子会话树、SSE/UI | 深度上限、工具子集、审批不继承、取消级联、结果 stopReason | `feat(agent): synchronous subagents` |
 | **M9** | Web UI 完善与开源准备 | 设置中心、会话设置、上下文仪表、README/截图/许可证 | 浏览器走查、602 测试、公开仓库 | `feat(web): settings center, session settings and context meter` |
 | **M10** | 界面重构 | 信号工作台设计系统、本地字体、外壳/对话/设置全面重做 | 1440×900 与 531×553 实测、截图更新、602 测试 | `feat(web): redesign interface with signal workbench design system` |
-| **M11** | CLI + 打磨 + v0.1.0 | picocli 命令、MySQL smoke、demo 脚本、用户手册、tag | CLI 冒烟、Fake E2E、本机 MySQL 启动、完整走查 | `feat(cli): picocli entry and v0.1.0 demo`，tag `v0.1.0` |
+| **M11** | CLI + 打磨 + v0.1.0 | picocli 命令、CLI 流式与审批、MySQL smoke、用户手册、tag | CLI 冒烟、Fake E2E、本机 MySQL 启动、完整走查 | `feat(cli): picocli entry and v0.1.0 demo`，tag `v0.1.0` |
+| **M12** | MCP 客户端 | stdio/HTTP 传输、工具动态发现、命名空间与审批策略 | 假 MCP 服务器端到端、超时/崩溃/重连 | `feat(mcp): mcp client and dynamic tools` |
+| **M13** | Git 感知与检查点 | 启动快照、turn 前后 diff、撤销上一轮、提交建议 | 临时仓库回滚/冲突/未跟踪文件 | `feat(git): git-aware checkpoints and diff` |
+| **M14** | 计划、待办与自动验证 | 计划条目、todo 工具、验证命令自动执行与回写 | 计划推进、验证失败重试、UI/CLI 展示 | `feat(agent): plans, todos and verification loop` |
+| **M15** | 工程化与 v0.2.0 | GitHub Actions、Dockerfile、OpenAPI、发布说明与 tag | CI 全绿、容器启动、OpenAPI 校验 | `chore(release): ci, docker and v0.2.0` |
 
 ## 3. 各里程碑详情
 
@@ -323,19 +329,29 @@ demo profile 启动后 `/api/v1/models` 全链路 curl 验证通过。
 - 1440×900 与 531×553 完成新建会话、`/read`、审批批准/拒绝、设置五个标签走查；
 - 控制台 0 错误，字体与静态资源全部 200。
 
-### M11 CLI + 打磨 + v0.1.0（下一里程碑）
+### M11 CLI + 打磨 + v0.1.0
 
-范围：
+状态：已完成（2026-10-24），详见 [M11 记录](milestones/M11.md)。
+CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 
-- picocli 全部命令；
-- 用户手册、demo 脚本、截图；
-- MySQL 本机 smoke；
-- 依赖清理、覆盖率复核、tag。
+范围（v0.1 CLI 子集）：
+
+- 同一可执行 jar 双模式启动：无参数 / `pi serve` 启动 Web，其余首参进入 CLI；
+- `pi run` 单次执行：流式文本、工具摘要、交互审批、`--json`、退出码；
+- `pi chat` 交互 REPL：多轮对话、`/abort`、`/compact`、`/model`、`/tree`；
+- 只读命令：`pi sessions list|show`、`pi models list`、`pi tools list`；
+- CLI 与 Web 共用 Spring 容器、数据库、Flyway 与全部应用用例，不新增持久化路径；
+- 用户手册、demo 脚本、MySQL 本机 smoke、依赖清理与 `v0.1.0` tag（tag 需用户确认）。
 
 验收：
 
-- 验收清单（见 [00 愿景与范围](00-vision-and-scope.md) §7）逐项通过；
-- `v0.1.0` tag 指向最终提交。
+- `pi run` 在 Fake demo 下完成只读工具与写工具审批（批准/拒绝）各一次，输出与退出码正确；
+- 非交互环境默认拒绝审批，且错误信息说明如何显式放行；
+- Web 启动方式与 M10 完全兼容，`mvn -q verify` 全绿；
+- 验收清单（见 [00 愿景与范围](00-vision-and-scope.md) §7）逐项通过。
+
+实测（2026-10-24）：627 个测试全绿；jar 冒烟覆盖帮助、只读命令、批准/拒绝/EOF、
+`--json`、`chat`、错误退出码与 `serve --port 9099`。MySQL smoke 与 tag 待确认。
 
 ## 4. 关键依赖
 
@@ -359,16 +375,26 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 - 每次里程碑提交使用 Conventional Commits；
 - 发布说明包含：新增能力、已知限制、启动方式、验收结果。
 
-## 6. v0.2 候选
+## 6. v0.2 路线（2026-10-23 确认）
 
-- MCP 客户端与工具动态发现；
-- Anthropic 原生 provider；
-- 异步/并行子代理与远程执行；
-- 插件热重载、签名与权限声明；
-- 多实例部署、Redis 事件总线与缓存；
-- 图片/多模态输入、TUI；
-- OpenAPI 生成与更完整的契约测试；
-- 会话归档、配额与成本统计。
+对照成熟编码代理的差距，v0.2 按以下顺序交付；每项独立成里程碑，不合并发布：
+
+1. **M12 MCP 客户端**：stdio 与 Streamable HTTP 传输、`tools/list` 动态发现、
+   服务名命名空间、工具风险映射、断线与超时处理。这是补齐外部能力面的最高杠杆项。
+2. **M13 Git 感知与检查点**：run 前快照、turn 前后 diff、撤销上一轮、
+   未跟踪文件处理与提交建议；变更展示同时进入 Web 与 CLI。
+3. **M14 计划、待办与自动验证**：计划/待办条目与工具、验证命令自动执行、
+   失败后带上下文重试；避免代理“改完不验”。
+4. **M15 工程化与 v0.2.0**：GitHub Actions、Docker 镜像、OpenAPI 生成、
+   发布说明与 tag。
+
+明确推迟到 v0.3：
+
+- Anthropic 原生 provider（当前 OpenAI-compatible 已覆盖主流网关）；
+- 图片/多模态输入与 TUI；
+- 并行子代理与远程执行；
+- 仓库地图/LSP 索引；
+- 多实例部署、Redis 事件总线、配额与成本中心。
 
 ## 7. 风险与应对
 

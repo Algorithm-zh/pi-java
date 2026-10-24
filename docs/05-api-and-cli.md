@@ -2,7 +2,7 @@
 
 > 状态：M9 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理、
 > Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
-> 设置中心；CLI 尚未实现，命令契约保留在第 8 节。
+> 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -588,75 +588,125 @@ GET /api/v1/health
 
 计划返回数据库、Flyway、插件快照与活跃 run 数；尚未实现。
 
-## 8. CLI（M9）
+## 8. CLI（M11）
 
-M4 只能通过 Java 进程启动服务：
+同一个可执行 jar 同时提供 Web 与 CLI，按首个参数分派：
 
-```bash
-java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
-```
+| 启动方式 | 模式 |
+|---|---|
+| `java -jar pi-java-app.jar` | Web |
+| `java -jar pi-java-app.jar serve ...` | Web |
+| `java -jar pi-java-app.jar run\|chat\|sessions\|models\|tools ...` | CLI |
 
-picocli 命令在 M9 实现；以下为已冻结的规划契约。
+CLI 以 `WebApplicationType.NONE` 启动同一个 Spring 容器：不监听端口、不注册
+Controller，但数据库、Flyway、demo 初始化、插件、Skills、模型与工具装配与 Web
+完全一致。CLI 只调用应用层用例，不直接访问 Mapper，也不新增持久化路径。
 
 ### 8.1 命令总览
 
 ```text
-pi chat   [--cwd PATH] [--model ID] [--session ID] [--profile demo|mysql]
-pi run    "任务描述" [--cwd PATH] [--model ID] [--json] [--session ID]
-pi sessions list|show|resume|fork [--cwd PATH]
-pi plugins list|install|enable|disable
-pi models list|add
+pi run      [MESSAGE] [--cwd PATH] [--model ID] [--thinking LEVEL]
+            [--title TITLE] [--session ID] [--json] [--timeout SECONDS] [--approve]
+pi chat     [--cwd PATH] [--model ID] [--thinking LEVEL] [--session ID] [--title TITLE]
+pi sessions list [--cwd PATH] [--limit N]
+pi sessions show ID
+pi models list
 pi tools list [--cwd PATH]
-pi serve  [--port 8080] [--profile demo|mysql]
+pi serve    [--port 8080] [--profile demo|mysql] [其他 Spring 参数]
 ```
 
-### 8.2 `pi chat`
+- `--thinking` 取值 `OFF / LOW / MEDIUM / HIGH`，默认 `OFF`，大小写不敏感；
+- `--cwd` 默认进程当前目录，必须是已存在目录；
+- 新会话未指定 `--model` 时使用第一个启用档案；指定 `--session` 时沿用会话模型；
+- `pi --help` 与各子命令 `--help` 输出用法；`pi --version` 输出版本。
 
-交互式 REPL：
+### 8.2 `pi run`
 
-- 输入普通文本 → 创建/继续会话并发起 run；
-- `/exit`、`/quit` 退出；
-- `/abort` 取消当前 run；
-- `/compact [说明]` 手动压缩；
-- `/skill:name [args]` 强制加载 skill 正文并发送；
-- `/tree` 显示当前分支节点摘要；
-- `/model <id>` 切换模型（写 `MODEL_CHANGE` entry）；
-- `/help` 命令帮助；
-- Ctrl+C 第一次取消当前 run，第二次退出。
-
-渲染：流式文本、工具调用卡片（名称/参数摘要/结果摘要）、审批提示（y/n/a，
-a = 本会话后续允许）、token 使用量、上下文占用百分比。
-
-### 8.3 `pi run`
-
-非交互单次执行：
+非交互单次执行，适合脚本与 CI：
 
 ```bash
-pi run "读取 pom.xml 并总结依赖" --cwd D:/code/demo --json
+pi run "读取 pom.xml 并总结依赖" --cwd D:/code/demo
+pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 ```
 
-- 默认流式打印文本与工具摘要；
-- `--json` 输出结构化结果：`runId/sessionId/stopReason/usage/turns/toolCalls/finalText`；
-- 退出码：`0` 成功，`1` 运行失败，`2` 参数错误，`3` 审批被拒绝/超时，`4` 取消。
+- `MESSAGE` 省略时从 stdin 读取全部内容，空白按参数错误处理；
+- 默认流式打印助手文本、思考增量（`[思考]` 前缀）、工具开始/结束摘要与压缩提示；
+- 审批事件在终端提示 `批准执行? [y/N]`，只接受 `y` 为批准，其他输入均为拒绝并附带
+  原因 `cli-denied`；输入结束（EOF）时以 `no-input` 默认拒绝，并说明可加
+  `--approve` 自动批准；
+- `--approve` 显式放行本次 run 的全部审批，等价于 `decidedBy=cli-approve`；
+- `--json` 抑制流式输出，只向 stdout 打印一个 JSON 对象：
 
-### 8.4 其他命令
+  ```json
+  {
+    "sessionId": "01J...",
+    "runId": "01J...",
+    "status": "COMPLETED",
+    "stopReason": "STOP",
+    "turns": 1,
+    "toolCalls": 0,
+    "usage": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "totalTokens": 0},
+    "durationMs": 1234,
+    "finalText": "……"
+  }
+  ```
+
+  失败时额外带 `errorMessage`；审批提示与诊断信息只写 stderr，保证 stdout 可被 jq 解析；
+- `--timeout` 为等待 run 结束的秒数，默认 600；
+- 退出码：`0` 正常完成，`1` 运行失败/超时，`2` 参数或启动错误，
+  `3` 至少一次审批被拒绝，`4` 被取消。审批拒绝优先于完成码，取消优先于拒绝。
+
+### 8.3 `pi chat`
+
+交互式 REPL，一次进程内多轮对话：
+
+- 普通文本 → 发起 run 并流式渲染，等待结束后回到提示符；
+- `/exit`、`/quit` → 退出；
+- `/help` → 命令帮助；
+- `/abort` → 取消当前 run；运行中仍可输入该命令（其他输入提示运行中）；
+- `/compact` → 手动压缩当前空闲会话；
+- `/model <id>` → 切换会话模型并写 `MODEL_CHANGE` entry；
+- `/tree` → 打印当前分支 entry 摘要；
+- `/session` → 打印会话 id、模型、思考级别与状态；
+- `/skill:name [args]` → 作为普通消息交给 Agent Loop 的技能解析器；
+- EOF（Ctrl+D/Ctrl+Z）退出。
+
+渲染与 `pi run` 一致；审批提示同样使用 `y/N`。v0.1 不支持 `/abort` 以外的
+运行中交互，Ctrl+C 直接终止进程，不保证取消正在执行的 run。
+
+### 8.4 只读命令
 
 ```bash
 pi sessions list --cwd D:/code/demo --limit 20
 pi sessions show 01J...
-pi sessions resume 01J...          # 进入 chat，继续该会话
-pi sessions fork 01J... --entry 01J...
-pi plugins install ./hello-plugin.jar
-pi plugins enable hello-plugin
-pi plugins disable hello-plugin
 pi models list
-pi models add --id deepseek-chat --provider OPENAI_COMPATIBLE \
-  --base-url https://api.deepseek.com/v1 --api-key-env DEEPSEEK_API_KEY \
-  --model-name deepseek-chat --context-window 65536
 pi tools list --cwd D:/code/demo
 ```
 
-CLI 与 Web 使用同一个数据库与同一套用例；CLI 不直接操作 Mapper。
+- `sessions list` 按更新时间倒序，输出 id、状态、模型、标题与工作目录；
+- `sessions show` 输出会话头与当前分支每个 entry 的序号、类型、角色与内容摘要，
+  工具条目带名称与成功/失败，审批条目带决策状态；
+- `models list` 输出 id、启用状态、provider、model 与密钥环境变量名；
+  **只显示变量名和是否已设置，绝不输出值**；
+- `tools list` 输出工具名、风险、策略效果（ALLOW/ASK/DENY）、执行模式与超时，
+  `ASK` 额外标记需审批。
+
+### 8.5 `pi serve`
+
+Web 模式兼容入口，等价于无参数启动：
+
+```bash
+pi serve --port 8080 --profile demo
+```
+
+`--port` 映射为 `--server.port`，`--profile` 映射为 `--spring.profiles.active`，
+其余参数原样交给 Spring Boot。默认绑定 `127.0.0.1`，不提供认证。
+
+### 8.6 未提供命令
+
+`plugins *`、`models add`、`sessions fork/resume` 仍通过 Web 设置中心或 HTTP API
+完成；`sessions resume` 由 `pi chat --session ID` 覆盖。这些子命令不承诺兼容性，
+v0.2 再评估是否加入。
 
 ## 9. Web UI
 

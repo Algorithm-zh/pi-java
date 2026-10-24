@@ -68,6 +68,58 @@ $env:PI_DEEPSEEK_KEY = "sk-你的key"
 模型会自主调用工具：`read` / `ls` / `grep` / `glob` 读代码；`write` / `edit` 改文件
 （需审批）；`bash` 执行命令（默认拒绝，需在策略里放行）。
 
+## 二点五、命令行（CLI）
+
+同一个 jar 不带参数时启动 Web 服务；带子命令时进入 CLI，退出后进程结束。
+CLI 与 Web 共用同一个 Spring 容器、数据库、工作目录校验与审批管线。
+
+```powershell
+$Jar = "pi-java-app\target\pi-java-app-0.1.0-SNAPSHOT.jar"
+
+# 单次执行：默认流式输出
+& $Java $Jar run "读取 pom.xml 并总结依赖" --cwd D:\code\demo
+
+# 脚本友好的 JSON 输出（stdout 只有一个 JSON，提示走 stderr）
+& $Java $Jar run "跑一遍测试并总结失败" --cwd D:\code\demo --json --timeout 900
+
+# 交互式对话
+& $Java $Jar chat --cwd D:\code\demo
+& $Java $Jar chat --session 01J...
+
+# 只读查询
+& $Java $Jar sessions list --cwd D:\code\demo --limit 20
+& $Java $Jar sessions show 01J...
+& $Java $Jar models list
+& $Java $Jar tools list --cwd D:\code\demo
+
+# 显式启动 Web
+& $Java $Jar serve --port 8081
+```
+
+执行 `run` 时：
+
+- 写工具（`write`/`edit`/`bash` 等按策略需要审批的工具）会在终端询问审批，
+  输入 `y` 批准、其它输入或直接回车拒绝；
+- stdin 已结束（EOF）时一律按拒绝处理，适合无人值守脚本；
+- `--approve` 自动批准本次 run 的全部审批，仅建议在可信工作区使用；
+- 退出码：`0` 成功、`1` 运行失败或超时、`2` 参数错误、`3` 审批被拒绝、`4` 取消。
+
+`chat` 支持：
+
+| 命令 | 说明 |
+|---|---|
+| `/help` | 显示帮助 |
+| `/exit`、`/quit` | 退出 |
+| `/abort` | 取消运行中的任务（运行期间输入） |
+| `/compact` | 手动压缩当前上下文 |
+| `/model [ID]` | 查看或切换模型 |
+| `/tree` | 查看当前分支 entry |
+| `/session` | 查看会话信息 |
+| `/skill:名称 任务` | 以技能方式发送消息 |
+
+> 本机 PATH 上的 `java` 可能不是 JDK 21，请先确认 `java -version`；
+> 或把 `$Java` 换成 JDK 21 的绝对路径（`scripts\start.ps1` 里的探测逻辑可参考）。
+
 ## 三、脚本参数
 
 ```powershell

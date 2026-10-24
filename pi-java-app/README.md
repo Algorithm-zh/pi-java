@@ -5,6 +5,7 @@
 ## 职责
 
 - `PiJavaApplication`：Spring Boot 启动、组件扫描 `com.piagent`；
+- `cli.CliLauncher`：`WebApplicationType.NONE` 启动同一容器，消费命令行参数后退出；
 - `application.yml`：demo / mysql profile，密钥只来自环境变量；
 - Flyway 分厂商迁移目录：`db/migration/h2` 与 `db/migration/mysql`；
 - 静态 Web UI：`src/main/resources/static/`；
@@ -16,6 +17,9 @@
 mvn -q -DskipTests package
 java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 ```
+
+同一个 jar 也提供 CLI：`java -jar ... run "任务"`、`chat`、`sessions`、`models`、
+`tools`、`serve`。CLI 模式不启动 Web 服务器，退出后进程结束。
 
 开发期可用 `mvn -q -pl pi-java-app spring-boot:run`（需先执行一次
 `mvn -q -DskipTests install`，让依赖模块进入本地仓库）。
@@ -38,7 +42,9 @@ MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 
 - `ApprovalEndToEndIntegrationTest`：`/write` → SSE `approval.requested` → HTTP 决策 →
   `approval.resolved` → 工具执行/拒绝的完整链路（H2 + 真实 Spring MVC）；
 - `ContextEndToEndIntegrationTest`：技能来自配置目录、`/skill:` 落库展开、
-  `/compact` 业务结论与 `SKILL_NOT_FOUND` 映射（M7）。
+  `/compact` 业务结论与 `SKILL_NOT_FOUND` 映射（M7）；
+- `CliEndToEndIntegrationTest`：`run` 的 JSON 输出、写工具审批批准/拒绝/EOF 默认拒绝、
+  只读命令、`chat` 多轮与 `/tree`、参数错误与根帮助（M11）。
 
 测试 profile 位于 `src/test/resources/application-test.yml`，使用内存 H2 与
 `db/migration/h2`；测试之间直接清理业务表，保证可重复执行。

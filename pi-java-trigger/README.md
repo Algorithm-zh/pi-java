@@ -45,13 +45,25 @@ GET  /system/info                      版本与默认工作目录
 
 fork/branch 与 `/health` 随后续里程碑加入。详见 [API 与 CLI](../docs/05-api-and-cli.md)。
 
-## CLI
+## CLI（M11）
 
 ```text
-pi chat / pi run / pi sessions / pi plugins / pi models / pi tools / pi serve
+pi run      [MESSAGE] [--cwd PATH] [--model ID] [--thinking LEVEL] [--session ID]
+            [--title TITLE] [--json] [--timeout SECONDS] [--approve]
+pi chat     [--cwd PATH] [--model ID] [--thinking LEVEL] [--session ID] [--title TITLE]
+pi sessions list|show
+pi models   list
+pi tools    list
+pi serve    [--port PORT] [--profile demo|mysql]
 ```
 
-CLI 在 M9 实现，与 Web 共享同一个应用层用例与数据库。
+- 命令 Bean 使用 prototype 作用域，保证多次 `CommandLine.execute` 之间不残留上次参数；
+- 输入流通过 `CliTerminal` 的 ThreadLocal 绑定注入（picocli 4.7 只管理 out/err）；
+- run 事件由主线程轮询队列消费，审批提问与 `/abort` 读取也只在主线程进行；
+- 退出码：`0` 成功、`1` 失败/超时、`2` 参数错误、`3` 审批拒绝、`4` 取消；
+- CLI 与 Web 共享同一个 Spring 容器、数据库与全部应用用例，不直接操作 Mapper。
+
+详见 [API 与 CLI](../docs/05-api-and-cli.md) §8。
 
 ## 当前状态
 
@@ -61,5 +73,5 @@ REST、SSE 流与重放、`/api/v1/system/info`；M5 增加插件管理端点与
 M6 增加审批（列表/详情/决策）与策略管理（GET/PUT）端点，并把
 `APPROVAL_NOT_FOUND` 映射为 404、`APPROVAL_INVALID_STATE` 映射为 409；M7 增加
 `POST /sessions/{id}/compact` 与 `GET /skills`、`/skills/{name}`、`/skills/{name}/content`，
-新增 `SKILL_NOT_FOUND → 404` 映射。共 42 个测试。
-M9 实现完整 CLI。详见 [M7 记录](../docs/milestones/M7.md)。
+新增 `SKILL_NOT_FOUND → 404` 映射。M11 实现 CLI 命令树、流式渲染、审批交互与退出码。
+详见 [M11 记录](../docs/milestones/M11.md)。
