@@ -1,6 +1,7 @@
 package com.piagent.infrastructure.persistence.session;
 
 import java.util.List;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -85,4 +86,27 @@ public interface SessionMapper {
      */
     @Select("SELECT * FROM pi_session ORDER BY updated_at DESC LIMIT #{limit}")
     List<SessionPO> findRecent(@Param("limit") int limit);
+
+    /**
+     * 查询运行态会话，供启动自愈。
+     *
+     * @param limit 最大条数
+     * @return 会话列表
+     */
+    @Select("""
+            SELECT * FROM pi_session
+            WHERE status IN ('RUNNING', 'WAITING_APPROVAL')
+            ORDER BY updated_at ASC
+            LIMIT #{limit}
+            """)
+    List<SessionPO> findStuck(@Param("limit") int limit);
+
+    /**
+     * 删除会话；entry 与审批记录由外键级联删除。
+     *
+     * @param id 会话标识
+     * @return 影响行数
+     */
+    @Delete("DELETE FROM pi_session WHERE id = #{id}")
+    int delete(@Param("id") String id);
 }

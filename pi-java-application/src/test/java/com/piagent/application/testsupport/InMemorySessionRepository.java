@@ -2,6 +2,7 @@ package com.piagent.application.testsupport;
 
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionId;
+import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
@@ -62,5 +63,20 @@ public final class InMemorySessionRepository implements SessionRepository {
         return sessions.values().stream()
                 .limit(limit)
                 .toList();
+    }
+
+    @Override
+    public List<ChatSession> findStuck(int limit) {
+        return sessions.values().stream()
+                .filter(session -> session.status() == SessionStatus.RUNNING
+                        || session.status()
+                        == SessionStatus.WAITING_APPROVAL)
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public void delete(SessionId id) {
+        sessions.remove(id);
     }
 }

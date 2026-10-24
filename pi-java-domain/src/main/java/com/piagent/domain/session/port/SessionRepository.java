@@ -61,4 +61,21 @@ public interface SessionRepository {
      * @return 会话列表，按更新时间倒序
      */
     List<ChatSession> findRecent(int limit);
+
+    /**
+     * 查询卡在运行态的会话，供启动时自愈。
+     *
+     * @param limit 最大条数
+     * @return 状态为 RUNNING 或 WAITING_APPROVAL 的会话
+     */
+    List<ChatSession> findStuck(int limit);
+
+    /**
+     * 删除会话及其 entry、审批记录。
+     *
+     * <p>外键在数据库层级联删除；调用方需先确认会话已停止。</p>
+     *
+     * @param id 会话标识
+     */
+    void delete(SessionId id);
 }
