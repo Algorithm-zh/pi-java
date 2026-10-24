@@ -44,7 +44,8 @@ public class CliRunExecutor {
      * @return 进程退出码
      */
     public int execute(CliRun run, CliTerminal terminal, RunOptions options) {
-        CliRunRenderer renderer = new CliRunRenderer(terminal, options.json());
+        RunRenderer renderer = options.renderer() != null
+                ? options.renderer() : new CliRunRenderer(terminal, options.json());
         RunState state = new RunState();
         long deadline = System.nanoTime() + options.timeout().toNanos();
         boolean fatal = false;
@@ -80,7 +81,7 @@ public class CliRunExecutor {
     }
 
     private void consume(CliRun run, RunEvent event, CliTerminal terminal, RunOptions options,
-            CliRunRenderer renderer, RunState state) {
+            RunRenderer renderer, RunState state) {
         if (event.type() == RunEventType.APPROVAL_REQUESTED) {
             state.denied |= handleApproval(run, event, terminal, options);
         } else {
@@ -96,23 +97,31 @@ public class CliRunExecutor {
             RunOptions options) {
         Map<String, Object> data = event.data();
         PrintWriter target = options.json() ? terminal.err() : terminal.out();
-        target.println();
-        target.println("[审批] " + text(data, "toolName") + " · 风险 " + text(data, "riskLevel"));
-        target.println("  参数: " + CliText.oneLine(text(data, "arguments"), APPROVAL_ARG_LIMIT));
-        String answer = null;
         boolean approved;
+        boolean noInput = false;
         if (options.autoApprove()) {
-            approved = true;
+            target.println();
             target.println("  --approve 自动批准");
+            approved = true;
+        } else if (options.approval() != null) {
+            ApprovalPrompt.Answer answer = options.approval().ask(data);
+            approved = answer.approved();
+            noInput = answer.noInput();
         } else {
-            answer = terminal.readLine(target, "批准执行? [y/N] ");
-            approved = "y".equalsIgnoreCase(answer) || "yes".equalsIgnoreCase(answer);
-            if (answer == null) {
+            target.println();
+            target.println("[审批] " + text(data, "toolName") + " · 风险 "
+                    + text(data, "riskLevel"));
+            target.println("  参数: " + CliText.oneLine(text(data, "arguments"),
+                    APPROVAL_ARG_LIMIT));
+            String line = terminal.readLine(target, "批准执行? [y/N] ");
+            approved = "y".equalsIgnoreCase(line) || "yes".equalsIgnoreCase(line);
+            noInput = line == null;
+            if (noInput) {
                 target.println("  无输入，默认拒绝");
             }
         }
         target.flush();
-        String reason = approved ? null : (answer == null ? "no-input" : "cli-denied");
+        String reason = approved ? null : (noInput ? "no-input" : "cli-denied");
         String decidedBy = options.autoApprove() ? "cli-approve" : "cli";
         try {
             run.decide(text(data, "approvalId"), approved, decidedBy, reason);
@@ -125,7 +134,7 @@ public class CliRunExecutor {
     }
 
     private int finish(CliRun run, CliTerminal terminal, RunOptions options,
-            CliRunRenderer renderer, RunState state) {
+            RunRenderer renderer, RunState state) {
         int exitCode = exitCode(state);
         if (options.json()) {
             printJson(run, terminal, renderer, state);
@@ -135,7 +144,7 @@ public class CliRunExecutor {
         return exitCode;
     }
 
-    private void printJson(CliRun run, CliTerminal terminal, CliRunRenderer renderer,
+    private void printJson(CliRun run, CliTerminal terminal, RunRenderer renderer,
             RunState state) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sessionId", run.sessionId().toString());

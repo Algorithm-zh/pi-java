@@ -9,7 +9,7 @@ import java.util.Map;
  * <p>文本与思考增量共用一个“打开的行”状态：切换类型或消息结束时补换行，
  * 保证流式输出不会把工具摘要和正文粘在一起。</p>
  */
-public final class CliRunRenderer {
+public final class CliRunRenderer implements RunRenderer {
 
     private static final int TOOL_ARG_LIMIT = 160;
     private static final int TOOL_OUTPUT_LIMIT = 240;
@@ -32,11 +32,7 @@ public final class CliRunRenderer {
         this.json = json;
     }
 
-    /**
-     * 渲染一条事件。
-     *
-     * @param event 运行事件
-     */
+    @Override
     public void render(RunEvent event) {
         switch (event.type()) {
             case MESSAGE_STARTED -> {
@@ -62,18 +58,12 @@ public final class CliRunRenderer {
         }
     }
 
-    /**
-     * 结束当前未闭合的文本行。
-     */
+    @Override
     public void finish() {
         finishLine();
     }
 
-    /**
-     * 最终助手文本（只包含 text 增量，不含思考）。
-     *
-     * @return 最终文本；没有时为 empty
-     */
+    @Override
     public String finalText() {
         return finalText;
     }

@@ -97,7 +97,7 @@ public class CliSessionService {
         try {
             Path path = raw == null || raw.isBlank()
                     ? Path.of(".").toAbsolutePath().normalize()
-                    : Path.of(raw.strip()).toAbsolutePath().normalize();
+                    : expandHome(raw.strip()).toAbsolutePath().normalize();
             if (!Files.isDirectory(path)) {
                 throw new DomainException(DomainErrorCode.INVALID_ARGUMENT,
                         "工作目录不存在或不是目录: " + path);
@@ -107,6 +107,16 @@ public class CliSessionService {
             throw new DomainException(DomainErrorCode.INVALID_ARGUMENT,
                     "工作目录不是合法路径: " + raw, error);
         }
+    }
+
+    private static Path expandHome(String value) {
+        if ("~".equals(value)) {
+            return Path.of(System.getProperty("user.home"));
+        }
+        if (value.startsWith("~/") || value.startsWith("~\\")) {
+            return Path.of(System.getProperty("user.home") + value.substring(1));
+        }
+        return Path.of(value);
     }
 
     /**

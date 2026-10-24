@@ -82,8 +82,11 @@ java -jar $JAR serve --port 8081
   `3` 审批被拒绝、`4` 取消。
 - 写工具审批在终端询问 `y/N`；没有输入（EOF）按拒绝处理；`--approve` 自动批准本次
   run 的全部审批，仅建议在可信工作区使用。
+- `chat` 在真实终端里是方框输入区的交互界面：彩色流式输出、`Tab` 补全斜杠命令、
+  `↑/↓` 翻历史；`Ctrl+C` 运行中取消任务，空闲时连按两次退出，`Ctrl+D` 随时退出。
+  管道或脚本里自动退回逐行模式，`--plain` 可强制逐行。
 - `chat` 支持 `/help`、`/exit`、`/abort`、`/compact`、`/model`、`/tree`、
-  `/session` 与 `/skill:名称`；运行期间输入 `/abort` 可取消当前任务。
+  `/session` 与 `/skill:名称`；逐行模式下运行期间输入 `/abort` 可取消当前任务。
 - CLI 与 Web 使用同一数据库、同一套用例与同一条审批管线；CLI 不直接操作 Mapper。
 
 上下文压缩与技能（M7）：
@@ -163,7 +166,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M11 已验证通过：627 个测试全绿（2 个符号链接用例条件跳过），
+当前 M11 已验证通过：637 个测试全绿（2 个符号链接用例条件跳过），
 Checkstyle/ArchUnit 通过。
 
 ## 文档

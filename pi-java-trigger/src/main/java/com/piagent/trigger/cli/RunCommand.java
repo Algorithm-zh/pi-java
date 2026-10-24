@@ -33,7 +33,7 @@ public final class RunCommand implements Callable<Integer> {
             description = "任务文本；省略时从 stdin 读取到 EOF。")
     private String message;
 
-    @Option(names = "--cwd", paramLabel = "PATH", description = "工作目录，默认当前目录。")
+    @Option(names = "--cwd", paramLabel = "PATH", description = "工作目录，支持 ~，默认当前目录。")
     private String cwd;
 
     @Option(names = "--model", paramLabel = "ID", description = "模型档案；新会话默认第一个启用档案。")

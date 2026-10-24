@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +48,31 @@ public final class CliTerminal {
      */
     static void unbind() {
         BOUND_INPUT.remove();
+    }
+
+    /**
+     * 当前输入是否就是进程标准输入。
+     *
+     * <p>TUI 依赖真实终端；测试或脚本注入了内存流时必须退回行模式。</p>
+     *
+     * @return true 表示使用 System.in
+     */
+    static boolean standardInput() {
+        InputStream input = BOUND_INPUT.get();
+        return input == null || input == System.in;
+    }
+
+    /**
+     * 创建 TUI 专用终端：输出直接交给 JLine，由它按控制台方式写 Unicode。
+     *
+     * <p>这样 Windows 控制台无论代码页是 GBK 还是 UTF-8，中文都不会乱码；
+     * 输入由 JLine 的 {@code LineReader} 负责，这里的输入流只作为占位。</p>
+     *
+     * @param out JLine 终端 writer
+     * @return 终端封装
+     */
+    static CliTerminal forTui(PrintWriter out) {
+        return new CliTerminal(new BufferedReader(new StringReader("")), out, out);
     }
 
     /**

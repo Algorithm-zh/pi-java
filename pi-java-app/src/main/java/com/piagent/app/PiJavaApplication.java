@@ -1,10 +1,9 @@
 package com.piagent.app;
 
 import com.piagent.app.cli.CliLauncher;
+import com.piagent.trigger.cli.CliCharset;
 import com.piagent.trigger.cli.CliMode;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -32,8 +31,7 @@ public class PiJavaApplication {
             return;
         }
         if (CliMode.serveHelpRequested(args)) {
-            PrintWriter out = new PrintWriter(
-                    new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
+            PrintWriter out = CliCharset.writer(System.out);
             out.println(CliMode.serveUsage());
             return;
         }

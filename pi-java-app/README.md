@@ -19,7 +19,9 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 ```
 
 同一个 jar 也提供 CLI：`java -jar ... run "任务"`、`chat`、`sessions`、`models`、
-`tools`、`serve`。CLI 模式不启动 Web 服务器，退出后进程结束。
+`tools`、`serve`。CLI 模式不启动 Web 服务器，退出后进程结束。`chat` 在真实
+终端里是对话框式界面（方框输入、Tab 补全、彩色流式、Ctrl+C 取消），管道环境
+自动回退逐行模式，`--plain` 可强制逐行。
 
 开发期可用 `mvn -q -pl pi-java-app spring-boot:run`（需先执行一次
 `mvn -q -DskipTests install`，让依赖模块进入本地仓库）。

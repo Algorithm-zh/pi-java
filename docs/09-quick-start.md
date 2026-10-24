@@ -82,9 +82,11 @@ $Jar = "pi-java-app\target\pi-java-app-0.1.0-SNAPSHOT.jar"
 # 脚本友好的 JSON 输出（stdout 只有一个 JSON，提示走 stderr）
 & $Java $Jar run "跑一遍测试并总结失败" --cwd D:\code\demo --json --timeout 900
 
-# 交互式对话
+# 交互式对话：终端里直接进入对话框界面
 & $Java $Jar chat --cwd D:\code\demo
 & $Java $Jar chat --session 01J...
+# 管道或脚本里退回逐行模式；需要固定逐行输出时加 --plain
+"你好`n/exit`n" | & $Java $Jar chat --plain
 
 # 只读查询
 & $Java $Jar sessions list --cwd D:\code\demo --limit 20
@@ -104,13 +106,17 @@ $Jar = "pi-java-app\target\pi-java-app-0.1.0-SNAPSHOT.jar"
 - `--approve` 自动批准本次 run 的全部审批，仅建议在可信工作区使用；
 - 退出码：`0` 成功、`1` 运行失败或超时、`2` 参数错误、`3` 审批被拒绝、`4` 取消。
 
-`chat` 支持：
+`chat` 在真实终端里默认进入交互式界面：方框输入区、彩色流式输出、
+`Tab` 补全斜杠命令、`↑/↓` 翻历史。`Ctrl+C` 运行中取消当前任务，空闲时
+连按两次退出；`Ctrl+D` 随时退出。`--plain` 强制使用逐行模式。
+
+两种模式都支持：
 
 | 命令 | 说明 |
 |---|---|
 | `/help` | 显示帮助 |
 | `/exit`、`/quit` | 退出 |
-| `/abort` | 取消运行中的任务（运行期间输入） |
+| `/abort` | 取消运行中的任务（逐行模式可用；TUI 运行中直接 Ctrl+C） |
 | `/compact` | 手动压缩当前上下文 |
 | `/model [ID]` | 查看或切换模型 |
 | `/tree` | 查看当前分支 entry |

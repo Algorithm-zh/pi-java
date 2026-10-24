@@ -338,7 +338,8 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 
 - 同一可执行 jar 双模式启动：无参数 / `pi serve` 启动 Web，其余首参进入 CLI；
 - `pi run` 单次执行：流式文本、工具摘要、交互审批、`--json`、退出码；
-- `pi chat` 交互 REPL：多轮对话、`/abort`、`/compact`、`/model`、`/tree`；
+- `pi chat` 对话框式交互界面：方框输入区、彩色流式、`Tab` 补全、Ctrl+C 取消，
+  管道环境自动回退逐行 REPL（多轮对话、`/abort`、`/compact`、`/model`、`/tree`）；
 - 只读命令：`pi sessions list|show`、`pi models list`、`pi tools list`；
 - CLI 与 Web 共用 Spring 容器、数据库、Flyway 与全部应用用例，不新增持久化路径；
 - 用户手册、demo 脚本、MySQL 本机 smoke、依赖清理与 `v0.1.0` tag（tag 需用户确认）。
@@ -350,8 +351,10 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 - Web 启动方式与 M10 完全兼容，`mvn -q verify` 全绿；
 - 验收清单（见 [00 愿景与范围](00-vision-and-scope.md) §7）逐项通过。
 
-实测（2026-10-24）：627 个测试全绿；jar 冒烟覆盖帮助、只读命令、批准/拒绝/EOF、
-`--json`、`chat`、错误退出码与 `serve --port 9099`。MySQL smoke 与 tag 待确认。
+实测（2026-10-24）：637 个测试全绿；jar 冒烟覆盖帮助、只读命令、批准/拒绝/EOF、
+`--json`、`chat`、错误退出码与 `serve --port 9099`；ConPTY 下验证交互界面的
+横幅、Tab 补全、流式对话、审批落盘、`/exit` 与 Ctrl+D，Ctrl+C 因 pty 无法注入
+改由信号单元测试覆盖。MySQL smoke 与 tag 待确认。
 
 ## 4. 关键依赖
 

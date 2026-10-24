@@ -40,6 +40,7 @@
         <mybatis-spring-boot.version>3.0.5</mybatis-spring-boot.version>
         <caffeine.version>3.1.8</caffeine.version>
         <picocli.version>4.7.7</picocli.version>
+        <jline.version>3.29.0</jline.version>
         <archunit.version>1.4.2</archunit.version>
         <wiremock.version>3.13.2</wiremock.version>
 
@@ -99,6 +100,16 @@
                 <groupId>info.picocli</groupId>
                 <artifactId>picocli</artifactId>
                 <version>${picocli.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jline</groupId>
+                <artifactId>jline</artifactId>
+                <version>${jline.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jline</groupId>
+                <artifactId>jline-terminal-jna</artifactId>
+                <version>${jline.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.tngtech.archunit</groupId>

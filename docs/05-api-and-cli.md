@@ -608,6 +608,7 @@ Controller，但数据库、Flyway、demo 初始化、插件、Skills、模型�
 pi run      [MESSAGE] [--cwd PATH] [--model ID] [--thinking LEVEL]
             [--title TITLE] [--session ID] [--json] [--timeout SECONDS] [--approve]
 pi chat     [--cwd PATH] [--model ID] [--thinking LEVEL] [--session ID] [--title TITLE]
+            [--plain]
 pi sessions list [--cwd PATH] [--limit N]
 pi sessions show ID
 pi models list
@@ -658,7 +659,31 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 
 ### 8.3 `pi chat`
 
-交互式 REPL，一次进程内多轮对话：
+一次进程内的多轮对话。标准输入是真实终端时默认进入交互式界面（TUI），
+否则退回逐行模式，保证管道与脚本行为不变。
+
+交互式界面：
+
+```text
+  π pi-java · fake-demo · D:/code/demo
+  修复登录页样式 · 01J...
+  /help 命令 · Tab 补全 · Ctrl+C 取消/退出 · Ctrl+D 退出
+
+┌─ pi ──────────────────────────────────────────
+│ > 读取 README.md 并总结
+└──────────────────────────────────────────────
+```
+
+- 输入区为方框样式，`Tab` 补全斜杠命令，`↑/↓` 翻命令历史；
+- 助手文本青色流式输出，思考增量灰色，工具轨迹两行摘要，压缩与审批各一行；
+- 审批以面板展示工具名、风险与参数：输入 `y`/`yes` 批准，直接回车或其他内容
+  拒绝，Ctrl+C 或 EOF 视为“没有输入”，按 `no-input` 拒绝；
+- Ctrl+C：空闲时第一次提示“再按一次 Ctrl+C 退出”，1.5 秒内再按退出；
+  运行中按 Ctrl+C 取消当前 run，run 收尾后回到提示符，不退出进程；
+- Ctrl+D 随时退出；
+- `--plain` 强制逐行模式（提示符 `你> `，输出与旧版一致），适合录制终端日志。
+
+逐行模式（管道、重定向、测试环境或显式 `--plain`）的斜杠命令：
 
 - 普通文本 → 发起 run 并流式渲染，等待结束后回到提示符；
 - `/exit`、`/quit` → 退出；
@@ -671,8 +696,9 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 - `/skill:name [args]` → 作为普通消息交给 Agent Loop 的技能解析器；
 - EOF（Ctrl+D/Ctrl+Z）退出。
 
-渲染与 `pi run` 一致；审批提示同样使用 `y/N`。v0.1 不支持 `/abort` 以外的
-运行中交互，Ctrl+C 直接终止进程，不保证取消正在执行的 run。
+两种模式共用同一套斜杠命令实现；除此之外的 `/xxx`（如 `/write`、`/read`）
+按普通消息处理。renderer 与审批语义和 `pi run` 一致，退出码恒为 `0`
+（单次 run 失败只提示并继续对话）。
 
 ### 8.4 只读命令
 
