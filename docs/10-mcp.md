@@ -207,7 +207,7 @@ MCP 工具默认不直接放行：`MEDIUM`/`HIGH` 按 [`ToolAccessPolicy`](../pi
 | 宿主 | 注册/风险/串行、调用分派、断线重连、超时错误映射、冲突隔离、关闭移除 |
 | 端到端 | Spring + Fake 模型 + stdio 假服务器：`/tool` → `tool.completed` → `run.completed` |
 
-`mvn verify` 全绿（跳过 repackage 时 671 个测试，2 个符号链接用例条件跳过）。
+`mvn -q verify` 全绿（671 个测试，2 个符号链接用例条件跳过，含 Spring Boot repackage）。
 
 ## 12. 相关文档
 

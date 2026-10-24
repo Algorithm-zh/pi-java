@@ -381,8 +381,8 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 - 真实子进程覆盖发现、调用、远端错误、超时与关闭；本地 HTTP 服务覆盖 JSON/SSE、
   会话头、DELETE 与 HTTP 500；
 - 冲突工具不注册且不影响其他服务器；断线后重连一次，工具定义保持启动时快照；
-- `mvn verify -Dspring-boot.repackage.skip=true` 通过，671 个测试（2 跳过），
-  Checkstyle/ArchUnit 与覆盖率门槛全绿；repackage 因本机运行中的旧 jar 占用未执行。
+- `mvn -q verify` 通过，671 个测试（2 跳过），Checkstyle/ArchUnit、覆盖率门槛
+  与 Spring Boot repackage 全绿。
 
 未包含（按计划后移）：
 

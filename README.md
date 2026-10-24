@@ -170,9 +170,10 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M12 已验证通过：671 个测试全绿（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 与覆盖率门槛通过。打包 repackage 需要先停止正在运行的实例
-（Windows 会锁住 jar），或在测试阶段加 `-Dspring-boot.repackage.skip=true`。
+当前 M12 已验证通过：`mvn -q verify`（含 repackage）全绿，671 个测试
+（2 个符号链接用例条件跳过），Checkstyle/ArchUnit 与覆盖率门槛通过。
+打包前需停止正在运行的实例（Windows 会锁住 jar），调试时可只跑测试并加
+`-Dspring-boot.repackage.skip=true`——该模式产出的 jar 不可直接 `java -jar`。
 
 ## 文档
 
