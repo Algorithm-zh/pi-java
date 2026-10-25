@@ -4,12 +4,15 @@ import com.piagent.application.session.command.ChangeSessionModelCommand;
 import com.piagent.application.session.command.RenameSessionCommand;
 import com.piagent.application.session.service.SessionSettingsApplicationService;
 import com.piagent.domain.session.model.SessionId;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -70,5 +73,16 @@ public class SessionSettingsController {
     @PostMapping("/{id}/archive")
     public SessionResponse archive(@PathVariable String id) {
         return SessionResponse.from(settings.archive(SessionId.parse(id)));
+    }
+
+    /**
+     * 删除会话及其历史。
+     *
+     * @param id 会话 ID
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable String id) {
+        settings.delete(SessionId.parse(id));
     }
 }

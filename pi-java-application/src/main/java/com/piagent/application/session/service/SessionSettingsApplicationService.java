@@ -8,10 +8,12 @@ import com.piagent.domain.model.port.ModelProfileRepository;
 import com.piagent.domain.model.service.ModelSelectionPolicy;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionId;
+import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
+import com.piagent.domain.shared.Guard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,6 +86,23 @@ public class SessionSettingsApplicationService {
     @Transactional
     public ChatSession archive(SessionId sessionId) {
         return save(require(sessionId).archive());
+    }
+
+    /**
+     * 删除会话及其历史。
+     *
+     * <p>运行中的会话不允许删除：先停止 run，避免后台线程继续写已删除的会话。
+     * entry 与审批记录由数据库外键级联删除。</p>
+     *
+     * @param sessionId 会话标识
+     */
+    @Transactional
+    public void delete(SessionId sessionId) {
+        ChatSession current = require(sessionId);
+        Guard.require(current.status() == SessionStatus.IDLE
+                        || current.status() == SessionStatus.ARCHIVED,
+                DomainErrorCode.INVALID_STATE_TRANSITION, "会话正在运行，请先停止再删除");
+        sessions.delete(sessionId);
     }
 
     private ChatSession save(ChatSession session) {

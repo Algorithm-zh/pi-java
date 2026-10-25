@@ -90,7 +90,7 @@ GET /api/v1/sessions/{sessionId}
 
 - 列表按 `updated_at DESC`，`cwd` 可省略，`limit` 默认 50；
 - 列表与详情使用同一个 `SessionResponse`，不返回 entry 正文；
-- 删除接口与分支摘要尚未实现。
+- 删除接口见 2.9；分支摘要尚未实现。
 
 ### 2.3 分支 entry
 
@@ -223,13 +223,29 @@ POST /api/v1/sessions/{sessionId}/abort
 
 > 手动压缩见 7.3；上下文用量见 2.9。
 
+### 2.8.1 进程重启后的自愈
+
+run 只存在于进程内存。服务启动时，`StaleRunStartupRunner` 会遍历遗留的
+`RUNNING` / `WAITING_APPROVAL` 会话以及最近会话：
+
+- 取消遗留 `PENDING` 审批，`decidedBy=system`、`reason=server-restart`；
+- 对分支上悬空的工具调用补写 `isError=true` 的结果
+  （`details.interrupted=true`），否则后续消息会被配对校验拒绝；
+- 把运行态会话复位为 `IDLE`，前端再次打开时通过 `GET /sessions/{id}/run`
+  拿到 `204` 后按数据库状态刷新。
+
+旧版本只复位状态、不闭合调用时，用户可能已经在悬空调用之后追加了失败消息。
+这类会话会以调用所在的 assistant entry 为锚点追写结果并把 leaf 回挂到结果上，
+跳过后续失败消息；原始 entry 仍保留在库中，但不再属于当前分支。
+
 ### 2.9 会话设置与上下文状态（M9）
 
 ```http
-PATCH /api/v1/sessions/{id}          # 重命名
-PUT   /api/v1/sessions/{id}/model    # 切换模型与思考级别
-POST  /api/v1/sessions/{id}/archive  # 归档
-GET   /api/v1/sessions/{id}/context  # 上下文用量估算
+PATCH  /api/v1/sessions/{id}          # 重命名
+DELETE /api/v1/sessions/{id}          # 删除
+PUT    /api/v1/sessions/{id}/model    # 切换模型与思考级别
+POST   /api/v1/sessions/{id}/archive  # 归档
+GET    /api/v1/sessions/{id}/context  # 上下文用量估算
 ```
 
 重命名请求：
@@ -257,6 +273,13 @@ GET   /api/v1/sessions/{id}/context  # 上下文用量估算
 - 归档后 `status=ARCHIVED`，发送消息、压缩与再次切换模型都会被拒绝；
 - 重命名不限制状态，归档会话仍可改名，方便在侧栏中辨认；
 - 归档不删除任何 entry，会话仍可只读查看历史。
+
+删除：
+
+- 返回 `204`，会话与其 entry、审批记录由外键级联删除，不可恢复；
+- 只有 `IDLE` 或 `ARCHIVED` 会话可以删除；运行中或等待审批返回 409
+  `INVALID_STATE_TRANSITION`，需先停止；
+- Web 侧栏通过会话行的 `⋯` 菜单调用重命名与删除，删除前二次确认。
 
 上下文状态响应：
 
@@ -761,18 +784,25 @@ v0.2 再评估是否加入。
    刷新页面通过 `GET /approvals?status=PENDING` 恢复；
 3. 停止运行，显示 ABORTED，保留已输出内容；切换会话或刷新后通过
    `GET /sessions/{id}/run` 自动重连 SSE；
-4. 顶栏上下文仪表显示 `已用 / 窗口 · 百分比`，达到 70% / 88% 变色；
+4. **运行中切换会话**：只断开前端事件流，不打断服务端 run；再次打开会话自动
+   重连并补齐进度。运行中（含等待审批）发送的消息进入队列，本轮结束后按顺序
+   自动发出，输入框上方显示排队提示与取消按钮；
+5. 顶栏上下文仪表显示 `已用 / 窗口 · 百分比`，达到 70% / 88% 变色；
    “压缩”按钮只在空闲会话可用，内容不足时按后端说明提示无需压缩；
-5. 会话设置弹窗支持重命名、切换模型与思考级别、归档；归档后输入框、压缩与
+6. 会话设置弹窗支持重命名、切换模型与思考级别、归档；归档后输入框、压缩与
    设置控件全部禁用，历史仍可只读查看；
-6. 历史条目已渲染压缩摘要、分支摘要、审批决策与模型切换，不只是普通消息；
-7. 设置中心包含五个标签页：
+7. 侧栏按工作目录分组，组头显示目录名与数量，可折叠并记忆（`localStorage`）；
+   搜索时自动展开匹配分组；每行的 `⋯` 菜单提供重命名与删除，删除前二次确认；
+8. 历史条目已渲染压缩摘要、分支摘要、审批决策与模型切换，不只是普通消息；
+9. 进程重启后自动取消遗留审批、闭合悬空工具调用并复位运行态，卡住的会话
+   可以直接继续对话（见 2.8.1）；
+10. 设置中心包含五个标签页：
    - **模型与密钥**：卡片式档案列表、密钥环境变量状态、行内新建/编辑/启停；
    - **技能**：扫描 `~/.pi-java/skills`，按需查看 `SKILL.md` 正文；
    - **插件**：按本地 jar 路径安装、启用/停用、展示最近错误；
    - **工具策略**：选择工具与作用域，设置 `ALLOW/ASK/DENY`、审批模式、风险与超时；
    - **系统**：版本、工作目录、操作系统与安全须知。
-8. 输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`、`/skill:名称 任务`、
+11. 输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`、`/skill:名称 任务`、
    `/tool <工具名> <JSON>` 可在 Fake 模型下体验完整链路。
 
 前端只通过 `textContent` 写入服务端与模型文本，禁止 `innerHTML`；所有密钥相关

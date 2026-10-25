@@ -310,6 +310,151 @@
     opacity: .55;
 }
 
+.session-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 2px 0;
+}
+
+.session-group + .session-group {
+    margin-top: 2px;
+}
+
+.session-group-head {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 9px;
+    color: var(--muted-2);
+    background: transparent;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-align: left;
+    transition: background .16s ease, color .16s ease;
+}
+
+.session-group-head:hover {
+    color: var(--muted);
+    background: var(--surface-soft);
+}
+
+.session-group-chevron {
+    width: 0;
+    height: 0;
+    flex: 0 0 auto;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid currentColor;
+    transform: rotate(90deg);
+    transition: transform .16s ease;
+}
+
+.session-group.is-collapsed .session-group-chevron {
+    transform: rotate(0deg);
+}
+
+.session-group-name {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.session-group-count {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-soft);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.session-group.is-collapsed .session-row {
+    display: none;
+}
+
+.session-row {
+    position: relative;
+}
+
+.session-row .session-item {
+    padding-right: 36px;
+}
+
+.session-more {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    padding: 0 0 5px;
+    border: 0;
+    border-radius: 8px;
+    color: var(--muted-2);
+    background: transparent;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity .16s ease, background .16s ease, color .16s ease;
+}
+
+.session-row:hover .session-more,
+.session-row:focus-within .session-more,
+.session-row .session-item.active + .session-more {
+    opacity: 1;
+}
+
+.session-more:hover,
+.session-more:focus-visible {
+    color: var(--text);
+    background: var(--surface-soft);
+}
+
+.session-menu {
+    position: absolute;
+    top: calc(100% - 6px);
+    right: 8px;
+    z-index: 30;
+    display: flex;
+    min-width: 118px;
+    flex-direction: column;
+    padding: 5px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+}
+
+.session-menu-item {
+    width: 100%;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 8px;
+    color: var(--text);
+    background: transparent;
+    font-size: 12.5px;
+    text-align: left;
+}
+
+.session-menu-item:hover {
+    background: var(--surface-soft);
+}
+
+.session-menu-item.is-danger {
+    color: var(--danger);
+}
+
 .session-empty {
     padding: 20px 12px;
     color: var(--muted-2);
@@ -736,6 +881,53 @@
     margin: 0 auto;
 }
 
+.composer-queue {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 14px 7px;
+    padding: 7px 12px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 14px;
+    color: var(--muted);
+    background: var(--surface-soft);
+    font-size: 12px;
+}
+
+.queue-label {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: var(--accent-ink);
+    background: var(--accent);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+.queue-text {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.queue-cancel {
+    flex: 0 0 auto;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface);
+    font-size: 11.5px;
+}
+
+.queue-cancel:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
 .composer-box {
     display: flex;
     width: 100%;
@@ -928,6 +1120,10 @@
 }
 
 /* ---------- 会话弹窗 ---------- */
+
+.rename-dialog {
+    width: min(430px, calc(100vw - 32px));
+}
 
 .session-dialog {
     width: min(500px, calc(100vw - 28px));

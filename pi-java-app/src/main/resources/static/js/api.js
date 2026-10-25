@@ -218,6 +218,19 @@ export function changeSessionModel(sessionId, modelProfileId, thinkingLevel) {
 }
 
 /**
+ * 删除会话及其历史。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<null>} 204 无响应体
+ */
+export function deleteSession(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" }
+    });
+}
+
+/**
  * 归档会话。
  *
  * @param {string} sessionId 会话 ID

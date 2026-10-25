@@ -6,10 +6,12 @@ import * as api from "./api.js";
 import * as approval from "./approval.js";
 import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
-import { start as startRun, reconnectRun, abort as abortRun } from "./run.js";
 import {
-    bindReconnect, openSession, refreshSessions, reloadSession, renderSessionList,
-    scrollToBottom, setComposerEnabled
+    abort as abortRun, detach, enqueue, reconnectRun, start as startRun, syncQueue
+} from "./run.js";
+import {
+    bindDetach, bindReconnect, bindSessionReady, initSessionActions, openSession,
+    refreshSessions, reloadSession, renderSessionList, scrollToBottom, setComposerEnabled
 } from "./session-view.js";
 import * as sessionSettings from "./session-settings.js";
 import * as settings from "./settings.js";
@@ -22,6 +24,9 @@ let pendingPrompt = "";
 async function init() {
     initTheme();
     bindReconnect(reconnectRun);
+    bindDetach(detach);
+    bindSessionReady(syncQueue);
+    initSessionActions();
     dialog.init(createSession, () => settings.open("models"), () => {
         pendingPrompt = "";
     });
@@ -68,7 +73,7 @@ async function createSession(payload) {
 
 function submitComposer() {
     const text = dom.input.value.trim();
-    if (!text || state.streaming) {
+    if (!text) {
         return;
     }
     if (!state.session) {
@@ -79,6 +84,15 @@ function submitComposer() {
     slash.hide();
     dom.input.value = "";
     resizeInput();
+    const busy = state.streaming
+        || state.session.status === "RUNNING"
+        || state.session.status === "WAITING_APPROVAL";
+    if (busy) {
+        // 运行中的工具调用无法再插话，先排队，本轮结束后自动发出。
+        enqueue(text);
+        toast("已排队，本轮结束后自动发送");
+        return;
+    }
     startRun(text);
 }
 

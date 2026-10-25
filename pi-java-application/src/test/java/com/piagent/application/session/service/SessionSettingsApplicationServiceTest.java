@@ -145,6 +145,27 @@ class SessionSettingsApplicationServiceTest {
     }
 
     @Test
+    void deletesIdleSession() {
+        service.delete(SESSION_ID);
+
+        assertThat(sessions.findById(SESSION_ID)).isEmpty();
+    }
+
+    @Test
+    void rejectsDeleteWhileRunning() {
+        ChatSession running = ChatSession.restore(session.identity(), session.title(),
+                session.config(), SessionStatus.RUNNING, null, session.version());
+        sessions = new InMemorySessionRepository();
+        sessions.insert(running);
+        service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
+
+        assertThatThrownBy(() -> service.delete(SESSION_ID))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_STATE_TRANSITION));
+        assertThat(sessions.findById(SESSION_ID)).isPresent();
+    }
+
+    @Test
     void unknownSessionIsRejected() {
         SessionId missing = SessionId.parse("01TST000000000000000000099");
 

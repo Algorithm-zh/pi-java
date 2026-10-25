@@ -237,6 +237,8 @@
             <div class="composer-stack">
                 <div id="slash-menu" class="slash-menu hidden" role="listbox"
                      aria-label="斜杠命令"></div>
+                <div id="composer-queue" class="composer-queue hidden" role="status"
+                     aria-live="polite"></div>
                 <form id="composer-form" class="composer-box">
                     <textarea id="composer-input" rows="1" maxlength="100000"
                               aria-label="消息"
@@ -399,6 +401,28 @@
                 <button id="session-settings-cancel" class="ghost-button" type="button">取消</button>
                 <button id="session-settings-save" class="primary-button" type="submit">保存</button>
             </div>
+        </footer>
+    </form>
+</dialog>
+
+<dialog id="session-rename-dialog" class="session-dialog rename-dialog">
+    <form id="session-rename-form">
+        <header>
+            <div>
+                <h2>重命名会话</h2>
+                <p class="dialog-lead">只改标题，聊天记录不会受影响。</p>
+            </div>
+            <button id="session-rename-close" class="icon-button" type="button"
+                    aria-label="关闭">×</button>
+        </header>
+        <label class="field">
+            <span>会话名称</span>
+            <input id="session-rename-title" type="text" maxlength="255" required>
+        </label>
+        <p id="session-rename-error" class="dialog-error hidden"></p>
+        <footer>
+            <button id="session-rename-cancel" class="ghost-button" type="button">取消</button>
+            <button id="session-rename-save" class="primary-button" type="submit">保存</button>
         </footer>
     </form>
 </dialog>

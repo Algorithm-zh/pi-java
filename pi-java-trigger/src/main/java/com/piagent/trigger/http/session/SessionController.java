@@ -98,8 +98,7 @@ public class SessionController {
      * @param id 会话 ID
      * @param leafId 叶子，可选
      * @return entry 列表
-     */
-    @GetMapping("/{id}/entries")
+     */    @GetMapping("/{id}/entries")
     public List<SessionEntryResponse> entries(@PathVariable String id,
             @RequestParam(name = "leafId", required = false) String leafId) {
         SessionId sessionId = SessionId.parse(id);

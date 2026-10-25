@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -111,6 +112,14 @@ class SessionSettingsControllerTest {
                 .andReturn();
 
         assertThat(bodyOf(result).path("status").asText()).isEqualTo("ARCHIVED");
+    }
+
+    @Test
+    void deletesSession() throws Exception {
+        mvc.perform(delete("/api/v1/sessions/{id}", SESSION_ID))
+                .andExpect(status().isNoContent());
+
+        verify(settings).delete(SESSION_ID);
     }
 
     private JsonNode bodyOf(MvcResult result) throws Exception {

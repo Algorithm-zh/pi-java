@@ -14,34 +14,174 @@ export {
     basename, el, formatDuration, formatNumber, glyphOf, statusLabel, stopReasonLabel
 };
 
-export function renderSessions(container, sessions, activeId, onSelect, emptyText) {
+const COLLAPSE_KEY = "pi-java-collapsed-groups";
+const NO_WORKSPACE = "__no-workspace__";
+
+const collapsedGroups = loadCollapsedGroups();
+let openMenu = null;
+
+document.addEventListener("click", (event) => {
+    if (openMenu && !openMenu.contains(event.target)) {
+        closeMenu();
+    }
+});
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+        closeMenu();
+    }
+});
+
+function loadCollapsedGroups() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "[]");
+        return new Set(Array.isArray(stored) ? stored : []);
+    } catch {
+        return new Set();
+    }
+}
+
+function saveCollapsedGroups() {
+    try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsedGroups]));
+    } catch {
+        // 隐私模式写不了 localStorage，折叠状态只在本次渲染内生效。
+    }
+}
+
+function closeMenu() {
+    if (openMenu) {
+        openMenu.classList.add("hidden");
+        openMenu = null;
+    }
+}
+
+/**
+ * 渲染按工作区分组的会话列表。
+ *
+ * @param {HTMLElement} container 侧栏列表容器
+ * @param {Array<object>} sessions 会话
+ * @param {string} activeId 当前会话 ID
+ * @param {object} options 回调与状态
+ * @param {string} emptyText 空列表文案
+ */
+export function renderSessions(container, sessions, activeId, options = {}, emptyText) {
     container.replaceChildren();
+    closeMenu();
     if (!sessions.length) {
         container.append(el("div", "session-empty",
             emptyText || "还没有会话。点上面的「新建会话」开始吧。"));
         return;
     }
-    for (const session of sessions) {
-        const archived = session.status === "ARCHIVED";
-        const button = el("button", "session-item"
-            + (session.id === activeId ? " active" : "")
-            + (archived ? " is-archived" : ""));
-        button.type = "button";
-        button.dataset.id = session.id;
-        button.append(el("span", "session-badge",
-            session.origin === "SUBAGENT" ? "↳" : "π"));
-        const copy = el("span", "session-copy");
-        copy.append(el("strong", "", session.title));
-        const meta = el("span", "session-meta-line");
-        appendStatus(meta, session);
-        if (session.origin !== "SUBAGENT") {
-            meta.append(el("span", "session-cwd", basename(session.cwd)));
-        }
-        copy.append(meta);
-        button.append(copy);
-        button.addEventListener("click", () => onSelect(session.id));
-        container.append(button);
+    for (const group of groupByWorkspace(sessions)) {
+        container.append(renderGroup(group, activeId, options));
     }
+}
+
+function groupByWorkspace(sessions) {
+    const groups = new Map();
+    for (const session of sessions) {
+        const key = session.cwd || NO_WORKSPACE;
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                label: session.cwd ? basename(session.cwd) || session.cwd : "未指定工作区",
+                path: session.cwd || "",
+                items: []
+            });
+        }
+        groups.get(key).items.push(session);
+    }
+    return [...groups.values()];
+}
+
+function renderGroup(group, activeId, options) {
+    const section = el("section", "session-group");
+    const collapsed = collapsedGroups.has(group.key) && !options.searching;
+    section.classList.toggle("is-collapsed", collapsed);
+    const head = el("button", "session-group-head");
+    head.type = "button";
+    head.setAttribute("aria-expanded", String(!collapsed));
+    if (group.path && group.path !== group.label) {
+        head.title = group.path;
+    }
+    head.append(el("span", "session-group-chevron"),
+        el("span", "session-group-name", group.label),
+        el("span", "session-group-count", String(group.items.length)));
+    head.addEventListener("click", () => {
+        const isCollapsed = section.classList.toggle("is-collapsed");
+        head.setAttribute("aria-expanded", String(!isCollapsed));
+        if (isCollapsed) {
+            collapsedGroups.add(group.key);
+        } else {
+            collapsedGroups.delete(group.key);
+        }
+        saveCollapsedGroups();
+    });
+    section.append(head);
+    for (const session of group.items) {
+        section.append(renderSessionRow(session, activeId, options));
+    }
+    return section;
+}
+
+function renderSessionRow(session, activeId, options) {
+    const row = el("div", "session-row");
+    const archived = session.status === "ARCHIVED";
+    const button = el("button", "session-item"
+        + (session.id === activeId ? " active" : "")
+        + (archived ? " is-archived" : ""));
+    button.type = "button";
+    button.dataset.id = session.id;
+    button.append(el("span", "session-badge",
+        session.origin === "SUBAGENT" ? "↳" : "π"));
+    const copy = el("span", "session-copy");
+    copy.append(el("strong", "", session.title));
+    const meta = el("span", "session-meta-line");
+    appendStatus(meta, session);
+    if (session.origin !== "SUBAGENT") {
+        meta.append(el("span", "session-cwd", basename(session.cwd)));
+    }
+    copy.append(meta);
+    button.append(copy);
+    button.addEventListener("click", () => options.onSelect?.(session.id));
+
+    const more = el("button", "session-more", "⋯");
+    more.type = "button";
+    more.title = "会话操作";
+    more.setAttribute("aria-haspopup", "menu");
+    more.setAttribute("aria-label", `会话操作：${session.title}`);
+
+    const menu = el("div", "session-menu hidden");
+    menu.setAttribute("role", "menu");
+    const rename = el("button", "session-menu-item", "重命名");
+    rename.type = "button";
+    rename.setAttribute("role", "menuitem");
+    rename.addEventListener("click", () => {
+        closeMenu();
+        options.onRename?.(session);
+    });
+    const remove = el("button", "session-menu-item is-danger", "删除");
+    remove.type = "button";
+    remove.setAttribute("role", "menuitem");
+    remove.addEventListener("click", () => {
+        closeMenu();
+        options.onDelete?.(session);
+    });
+    menu.append(rename, remove);
+    more.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (openMenu === menu) {
+            closeMenu();
+            return;
+        }
+        closeMenu();
+        menu.classList.remove("hidden");
+        openMenu = menu;
+    });
+    menu.addEventListener("click", (event) => event.stopPropagation());
+
+    row.append(button, more, menu);
+    return row;
 }
 
 function appendStatus(meta, session) {
