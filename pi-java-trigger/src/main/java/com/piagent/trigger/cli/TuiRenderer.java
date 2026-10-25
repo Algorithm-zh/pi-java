@@ -2,6 +2,7 @@ package com.piagent.trigger.cli;
 
 import com.piagent.domain.agent.RunEvent;
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,6 +46,7 @@ final class TuiRenderer implements RunRenderer {
             case TOOL_COMPLETED -> toolCompleted(event.data());
             case COMPACTION_STARTED -> compactionStarted(event.data());
             case COMPACTION_COMPLETED -> compactionCompleted(event.data());
+            case WORKSPACE_CHANGED -> workspaceChanged(event.data());
             case APPROVAL_RESOLVED -> approvalResolved(event.data());
             case REPLAY_GAP -> replayGap();
             case RUN_FAILED -> failed(event.data());
@@ -132,6 +134,15 @@ final class TuiRenderer implements RunRenderer {
                 + text(data, "tokensAfter") + " token"
                 + (Boolean.TRUE.equals(data.get("prunedOnly")) ? "（仅剪枝）" : "")
                 + (note.isBlank() ? "" : " · " + note)));
+        out.flush();
+    }
+
+    private void workspaceChanged(Map<String, Object> data) {
+        finishLine();
+        Object files = data.get("files");
+        int count = files instanceof List<?> list ? list.size() : 0;
+        out.println("  " + ansi.cyan("± 改动") + ansi.dim(" " + count + " 个文件 +"
+                + text(data, "additions") + " -" + text(data, "deletions")));
         out.flush();
     }
 

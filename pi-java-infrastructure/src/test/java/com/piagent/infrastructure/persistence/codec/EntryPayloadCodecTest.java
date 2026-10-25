@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.piagent.domain.git.model.FileChange;
+import com.piagent.domain.git.model.GitChangeKind;
 import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.EntryType;
 import com.piagent.domain.session.model.SessionEntry;
@@ -21,6 +23,8 @@ import com.piagent.domain.session.model.payload.CompactionPayload;
 import com.piagent.domain.session.model.payload.CustomMessagePayload;
 import com.piagent.domain.session.model.payload.CustomPayload;
 import com.piagent.domain.session.model.payload.EntryPayload;
+import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
@@ -98,7 +102,14 @@ class EntryPayloadCodecTest {
                 new LabelPayload(eid(3), null),
                 new SessionInfoPayload("会话名"),
                 new ApprovalPayload("appr-1", "call-1", "read", "APPROVED", null, "USER"),
-                new RunSummaryPayload("run-1", "STOP", usage, 2, 3, 1200, null));
+                new RunSummaryPayload("run-1", "STOP", usage, 2, 3, 1200, null),
+                new GitCheckpointPayload("run-1", eid(4), "tree-base", "head-sha", "main"),
+                new GitCheckpointPayload("run-2", null, "tree-empty", null, null),
+                new GitChangeSetPayload("run-1", 2, eid(5), "tree-base", "tree-after",
+                        List.of(new FileChange("src/App.java", GitChangeKind.MODIFIED, 12, 3, false),
+                                new FileChange("logo.bin", GitChangeKind.ADDED, 0, 0, true)),
+                        "diff --git a/src/App.java b/src/App.java\n+hello\n", false,
+                        "feat: 更新 App"));
     }
 
     private static EntryId eid(int n) {

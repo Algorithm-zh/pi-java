@@ -65,4 +65,9 @@ public final class InMemorySessionEntryStore implements SessionEntryStore {
     public long countBySession(SessionId sessionId) {
         return entries.stream().filter(entry -> entry.sessionId().equals(sessionId)).count();
     }
+
+    @Override
+    public void deleteAll(SessionId sessionId) {
+        entries.removeIf(entry -> entry.sessionId().equals(sessionId));
+    }
 }

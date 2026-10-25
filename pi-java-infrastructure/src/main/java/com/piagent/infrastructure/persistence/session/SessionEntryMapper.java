@@ -1,6 +1,7 @@
 package com.piagent.infrastructure.persistence.session;
 
 import java.util.List;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -53,4 +54,13 @@ public interface SessionEntryMapper {
      */
     @Select("SELECT COUNT(*) FROM pi_session_entry WHERE session_id = #{sessionId}")
     long countBySession(@Param("sessionId") String sessionId);
+
+    /**
+     * 删除会话的全部 entry。
+     *
+     * @param sessionId 会话标识
+     * @return 影响行数
+     */
+    @Delete("DELETE FROM pi_session_entry WHERE session_id = #{sessionId}")
+    int deleteBySession(@Param("sessionId") String sessionId);
 }

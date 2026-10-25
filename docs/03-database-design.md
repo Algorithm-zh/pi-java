@@ -358,6 +358,7 @@ COMMIT
 | 压缩摘要 | `COMPACTION` entry | 摘要属于会话历史，必须与分支绑定 |
 | 审批决策 | `APPROVAL` entry + `pi_approval_request` 投影 | 审计以日志为准，投影只服务待办查询 |
 | 运行摘要 | `RUN_SUMMARY` entry | Run 不是事实源，崩溃后可从 entry 恢复语义 |
+| Git 检查点 | `GIT_CHECKPOINT` / `GIT_CHANGES` entry | 检查点与分支绑定，重启后仍可查询与撤销，无需新表 |
 | 子代理 | 复用 `pi_session` 的 parent/root/depth/origin | 子代理就是子会话，不需要单独模型 |
 | Skills | 文件系统 + 进程内缓存 | 用户可直接编辑，不需要数据库生命周期；缓存见 ADR 0002 |
 | 工作区 | session 的 cwd + sandbox 快照 | v0.1 没有工作区生命周期 |

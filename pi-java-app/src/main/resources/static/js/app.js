@@ -4,6 +4,7 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
 import {
@@ -26,6 +27,8 @@ async function init() {
     bindReconnect(reconnectRun);
     bindDetach(detach);
     bindSessionReady(syncQueue);
+    changes.initChanges();
+    changes.bindReload(reloadSession);
     initSessionActions();
     dialog.init(createSession, () => settings.open("models"), () => {
         pendingPrompt = "";

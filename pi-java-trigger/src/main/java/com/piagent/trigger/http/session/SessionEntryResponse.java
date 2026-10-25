@@ -1,5 +1,6 @@
 package com.piagent.trigger.http.session;
 
+import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AgentMessage;
@@ -13,6 +14,8 @@ import com.piagent.domain.session.model.payload.BranchSummaryPayload;
 import com.piagent.domain.session.model.payload.CompactionPayload;
 import com.piagent.domain.session.model.payload.CustomMessagePayload;
 import com.piagent.domain.session.model.payload.CustomPayload;
+import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
@@ -77,6 +80,10 @@ public record SessionEntryResponse(String id, String parentId, long seq, String 
                     extra("name", payload.name(), "kind", "sessionInfo"));
             case CustomPayload payload -> new EntryBody("system", List.of(), null, null, null,
                     extra("customType", payload.customType(), "data", payload.data()));
+            case GitCheckpointPayload payload -> new EntryBody("system", List.of(), null, null,
+                    null, checkpointExtra(payload));
+            case GitChangeSetPayload payload -> new EntryBody("system", List.of(), null, null,
+                    null, changesExtra(payload));
         };
     }
 
@@ -140,6 +147,50 @@ public record SessionEntryResponse(String id, String parentId, long seq, String 
         return extra("approvalId", payload.approvalId(), "decision", payload.decision(),
                 "decidedBy", payload.decidedBy(),
                 "reason", payload.reason() == null ? "" : payload.reason());
+    }
+
+    private static Map<String, Object> checkpointExtra(GitCheckpointPayload payload) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("runId", payload.runId());
+        extra.put("baseTreeSha", payload.baseTreeSha());
+        if (payload.baseLeafId() != null) {
+            extra.put("baseLeafId", payload.baseLeafId().toString());
+        }
+        if (payload.headSha() != null) {
+            extra.put("headSha", payload.headSha());
+        }
+        if (payload.branch() != null) {
+            extra.put("branch", payload.branch());
+        }
+        return Map.copyOf(extra);
+    }
+
+    private static Map<String, Object> changesExtra(GitChangeSetPayload payload) {
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("runId", payload.runId());
+        extra.put("turn", payload.turn());
+        extra.put("baseTreeSha", payload.baseTreeSha());
+        extra.put("treeSha", payload.treeSha());
+        extra.put("additions", payload.additions());
+        extra.put("deletions", payload.deletions());
+        extra.put("truncated", payload.truncated());
+        extra.put("suggestedCommit", payload.suggestedCommit());
+        extra.put("diff", payload.diff());
+        if (payload.baseLeafId() != null) {
+            extra.put("baseLeafId", payload.baseLeafId().toString());
+        }
+        extra.put("files", payload.files().stream().map(SessionEntryResponse::fileMap).toList());
+        return Map.copyOf(extra);
+    }
+
+    private static Map<String, Object> fileMap(FileChange change) {
+        Map<String, Object> file = new LinkedHashMap<>();
+        file.put("path", change.path());
+        file.put("kind", change.kind().name());
+        file.put("additions", change.additions());
+        file.put("deletions", change.deletions());
+        file.put("binary", change.binary());
+        return Map.copyOf(file);
     }
 
     private static Map<String, Object> usageMap(TokenUsage usage) {

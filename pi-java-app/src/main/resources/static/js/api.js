@@ -46,6 +46,29 @@ export function systemInfo() {
     return request("/api/v1/system/info");
 }
 
+/**
+ * 查询最近一次运行的文件改动。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 改动汇总
+ */
+export function sessionChanges(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/changes`);
+}
+
+/**
+ * 撤销最近一次运行：还原文件并回退对话分支。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 撤销结果
+ */
+export function undoSession(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/undo`, {
+        method: "POST",
+        headers: { Accept: "application/json" }
+    });
+}
+
 export function listModels() {
     return request("/api/v1/models");
 }

@@ -9,6 +9,11 @@ spring:
   flyway:
     locations: classpath:db/migration/h2
 
+# 集成测试的工作目录位于仓库内部，关闭 Git 检查点，避免测试去扫描整个仓库。
+pi:
+  git:
+    enabled: false
+
 logging:
   level:
     root: WARN

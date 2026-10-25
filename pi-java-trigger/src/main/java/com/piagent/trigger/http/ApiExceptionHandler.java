@@ -49,8 +49,9 @@ public class ApiExceptionHandler {
             case MODEL_ALREADY_EXISTS, CONCURRENT_MODIFICATION, MODEL_DISABLED,
                     INVALID_STATE_TRANSITION, SESSION_ARCHIVED, RUN_ALREADY_ACTIVE,
                     PLUGIN_ALREADY_EXISTS, PLUGIN_INVALID_STATE, PLUGIN_TOOL_CONFLICT,
-                    APPROVAL_INVALID_STATE -> HttpStatus.CONFLICT;
+                    APPROVAL_INVALID_STATE, GIT_UNAVAILABLE -> HttpStatus.CONFLICT;
             case PLUGIN_INCOMPATIBLE, PLUGIN_LOAD_FAILED -> HttpStatus.UNPROCESSABLE_ENTITY;
+            case GIT_OPERATION_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
             case AGENT_BUSY -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.BAD_REQUEST;
         };

@@ -52,6 +52,11 @@ pi:
   mcp:
     # MCP 服务器默认不启用；配置与示例见 docs/10-mcp.md。
     servers: []
+  git:
+    # 运行前后快照与逐轮 diff；工作区不是 Git 仓库时自动跳过。
+    enabled: true
+    timeout-seconds: 10
+    max-diff-chars: 60000
   agent:
     max-concurrent-runs: 4
     tool-parallelism: 4

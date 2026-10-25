@@ -2,12 +2,15 @@ package com.piagent.application.agent.service;
 
 import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
+import com.piagent.application.git.GitCheckpointService;
+import com.piagent.application.git.RunGitTracker;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.agent.RunStopReason;
 import com.piagent.domain.model.ModelProfile;
 import com.piagent.domain.model.llm.LlmResponse;
 import com.piagent.domain.session.model.ChatSession;
+import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.SessionStatus;
@@ -15,7 +18,6 @@ import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
 import com.piagent.domain.session.model.message.ToolCallBlock;
-import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import java.time.Duration;
@@ -46,12 +48,12 @@ public class AgentLoopService {
     private static final System.Logger LOG = System.getLogger(AgentLoopService.class.getName());
     private static final int MAX_ERROR_LENGTH = 4_000;
 
-    private final SessionRepository sessions;
     private final ActiveModelResolver models;
     private final RunRuntime runtime;
     private final TurnPipeline pipeline;
     private final RunDispatcher dispatcher;
     private final RunCompactionStep compactionStep;
+    private final GitCheckpointService gitCheckpoints;
     private final TurnStreamer streamer;
     private final SkillInvocationResolver skills;
     private final RunSteps steps;
@@ -59,22 +61,22 @@ public class AgentLoopService {
     /**
      * 创建 Agent Loop 服务。
      *
-     * @param sessions 会话仓储
      * @param models 运行期模型解析器
-     * @param runtime 运行运行时
+     * @param runtime 运行运行时（同时提供会话读取与运行取消）
      * @param pipeline turn 流水线
      * @param dispatcher 调度器
      * @param compactionStep 上下文压缩步骤
+     * @param gitCheckpoints Git 检查点服务
      */
-    public AgentLoopService(SessionRepository sessions, ActiveModelResolver models,
-            RunRuntime runtime, TurnPipeline pipeline, RunDispatcher dispatcher,
-            RunCompactionStep compactionStep) {
-        this.sessions = sessions;
+    public AgentLoopService(ActiveModelResolver models, RunRuntime runtime,
+            TurnPipeline pipeline, RunDispatcher dispatcher, RunCompactionStep compactionStep,
+            GitCheckpointService gitCheckpoints) {
         this.models = models;
         this.runtime = runtime;
         this.pipeline = pipeline;
         this.dispatcher = dispatcher;
         this.compactionStep = compactionStep;
+        this.gitCheckpoints = gitCheckpoints;
         this.streamer = new TurnStreamer(pipeline, compactionStep, runtime);
         this.skills = new SkillInvocationResolver(pipeline);
         this.steps = new RunSteps(runtime, pipeline);
@@ -95,13 +97,16 @@ public class AgentLoopService {
         ReservedRun reserved = null;
         boolean submitted = false;
         try {
+            EntryId baseLeafId = session.leafEntryId();
             reserved = runtime.reserve(session.identity().id());
             SkillInvocationResolver.Resolved resolved = skills.resolve(command.text());
             runtime.appendUserAndStart(session.identity().id(), resolved.text());
             ModelProfile profile = models.resolve(session.config().modelProfileId(),
                     session.config().thinkingLevel(), !reserved.tools().descriptors().isEmpty());
+            RunGitTracker git = new RunGitTracker(gitCheckpoints, session.identity().id(),
+                    session.config().cwd(), reserved.runId(), baseLeafId);
             RunContext context = new RunContext(session.identity().id(), profile, reserved,
-                    compactionStep.budgetOf(profile), resolved.skill());
+                    compactionStep.budgetOf(profile), resolved.skill(), git);
             ReservedRun handle = reserved;
             dispatcher.dispatch(() -> runSafely(context));
             submitted = true;
@@ -165,6 +170,7 @@ public class AgentLoopService {
     private void runSafely(RunContext context) {
         try {
             AgentRun run = runtime.current(context.reserved().runId());
+            context.git().begin();
             context.events().runStarted(run, context.profile());
             loop(context);
         } catch (RuntimeException error) {
@@ -187,7 +193,9 @@ public class AgentLoopService {
             ChatSession session = requireSession(context.sessionId());
             compactionStep.tryAutoCompact(session, runId, context.profile(), context.budget(),
                     context.events());
-            TurnResult result = streamTurn(context, session, run.turns() + 1);
+            int turn = run.turns() + 1;
+            EntryId turnBaseLeaf = requireSession(context.sessionId()).leafEntryId();
+            TurnResult result = streamTurn(context, session, turn);
             if (result == null) {
                 return;
             }
@@ -210,9 +218,21 @@ public class AgentLoopService {
                 runtime.finish(context.reserved(), reason, null);
                 return;
             }
-            if (!steps.executeTools(context, session, calls)) {
+            boolean proceed = steps.executeTools(context, session, calls);
+            trackWorkspace(context, turn, turnBaseLeaf);
+            if (!proceed) {
                 return;
             }
+        }
+    }
+
+    private void trackWorkspace(RunContext context, int turn, EntryId turnBaseLeaf) {
+        try {
+            context.git().afterTurn(turn, turnBaseLeaf)
+                    .ifPresent(context.events()::workspaceChanged);
+        } catch (RuntimeException error) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "记录工作区改动失败: " + context.reserved().runId(), error);
         }
     }
 
@@ -245,9 +265,7 @@ public class AgentLoopService {
     }
 
     private ChatSession requireSession(SessionId sessionId) {
-        return sessions.findById(sessionId)
-                .orElseThrow(() -> new DomainException(DomainErrorCode.SESSION_NOT_FOUND,
-                        "会话不存在: " + sessionId));
+        return runtime.requireSession(sessionId);
     }
 
     /**

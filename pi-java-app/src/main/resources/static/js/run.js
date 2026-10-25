@@ -7,6 +7,7 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import { el } from "./dom.js";
 import { resetForConversation, renderUserBubble, stopReasonLabel } from "./render.js";
@@ -255,6 +256,9 @@ function handleEvent({ name, payload }) {
         case "compaction.completed":
             setRunState("生成中");
             break;
+        case "workspace.changed":
+            changes.refresh();
+            break;
         case "replay.gap":
             toast("事件回放不完整，将以数据库会话为准", true);
             break;
@@ -294,6 +298,7 @@ function finishRun(data, failed) {
     if (data.errorMessage) {
         toast(data.errorMessage, true);
     }
+    changes.refresh();
 }
 
 function accumulateUsage(value) {

@@ -4,6 +4,7 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import { el, renderEntries, renderSessions, statusLabel } from "./render.js";
 import { dom, modelDisplayName, setRunState, state, toast } from "./store.js";
@@ -126,6 +127,7 @@ export async function openSession(sessionId, updateUrl = true) {
         usage.restore(entries);
         setComposerEnabled(session.status !== "ARCHIVED");
         contextMeter.refresh();
+        changes.refresh();
         state.stick = true;
         scrollToBottom(true);
         if (updateUrl) {
@@ -229,6 +231,7 @@ function clearSession() {
     setComposerEnabled(true);
     renderSessionList();
     dom.contextWidget.classList.add("hidden");
+    changes.reset();
     history.replaceState(null, "", location.pathname);
     readyHandler?.();
 }
@@ -254,6 +257,7 @@ export async function reloadSession() {
         usage.restore(entries);
         setComposerEnabled(session.status !== "ARCHIVED");
         contextMeter.refresh();
+        changes.refresh();
         state.stick = true;
         scrollToBottom(true);
     } catch (error) {

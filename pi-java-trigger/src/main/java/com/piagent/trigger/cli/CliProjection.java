@@ -11,6 +11,8 @@ import com.piagent.domain.session.model.payload.BranchSummaryPayload;
 import com.piagent.domain.session.model.payload.CompactionPayload;
 import com.piagent.domain.session.model.payload.CustomMessagePayload;
 import com.piagent.domain.session.model.payload.CustomPayload;
+import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
@@ -43,6 +45,8 @@ public final class CliProjection {
             case MODEL_CHANGE -> modelChangeSummary(entry.payload());
             case APPROVAL -> approvalSummary(entry.payload());
             case RUN_SUMMARY -> runSummary(entry.payload());
+            case GIT_CHECKPOINT -> checkpointSummary(entry.payload());
+            case GIT_CHANGES -> changesSummary(entry.payload());
             case SESSION_INFO -> entry.payload() instanceof SessionInfoPayload info
                     ? "会话信息: " + info.name() : "会话信息";
             case LABEL -> labelSummary(entry.payload());
@@ -107,6 +111,28 @@ public final class CliProjection {
                     + summary.toolCalls() + " 工具 · " + summary.durationMs() + "ms";
         }
         return "运行摘要";
+    }
+
+    private static String checkpointSummary(Object payload) {
+        if (payload instanceof GitCheckpointPayload checkpoint) {
+            String branch = checkpoint.branch() == null ? "游离 HEAD" : checkpoint.branch();
+            return "检查点: " + branch + " @ " + shortSha(checkpoint.baseTreeSha());
+        }
+        return "检查点";
+    }
+
+    private static String changesSummary(Object payload) {
+        if (payload instanceof GitChangeSetPayload changes) {
+            String commit = changes.suggestedCommit().isBlank()
+                    ? "" : " · 建议提交: " + changes.suggestedCommit();
+            return "本轮改动: " + changes.files().size() + " 个文件 +"
+                    + changes.additions() + " -" + changes.deletions() + commit;
+        }
+        return "工作区改动";
+    }
+
+    private static String shortSha(String value) {
+        return value.length() <= 8 ? value : value.substring(0, 8);
     }
 
     private static String labelSummary(Object payload) {

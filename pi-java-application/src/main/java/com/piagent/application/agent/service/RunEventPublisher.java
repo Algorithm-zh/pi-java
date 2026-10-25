@@ -5,12 +5,14 @@ import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEventType;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.governance.service.ApprovalArgumentsSanitizer;
+import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.model.ModelProfile;
 import com.piagent.domain.model.llm.ToolCallDelta;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
 import com.piagent.domain.session.model.message.ToolCallBlock;
+import com.piagent.domain.session.model.payload.GitChangeSetPayload;
 import com.piagent.domain.tool.model.ToolResult;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -136,6 +138,22 @@ final class RunEventPublisher {
             data.put("note", note);
         }
         publish(RunEventType.COMPACTION_COMPLETED, data);
+    }
+
+    /**
+     * 一轮工具执行后工作区发生变化。
+     *
+     * @param payload 改动载荷
+     */
+    void workspaceChanged(GitChangeSetPayload payload) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("turn", payload.turn());
+        data.put("files", payload.files().stream().map(FileChange::path).toList());
+        data.put("additions", payload.additions());
+        data.put("deletions", payload.deletions());
+        data.put("truncated", payload.truncated());
+        data.put("suggestedCommit", payload.suggestedCommit());
+        publish(RunEventType.WORKSPACE_CHANGED, data);
     }
 
     void runFailed(AgentRun run) {

@@ -86,4 +86,9 @@ public class MyBatisSessionEntryStore implements SessionEntryStore {
     public long countBySession(SessionId sessionId) {
         return mapper.countBySession(sessionId.toString());
     }
+
+    @Override
+    public void deleteAll(SessionId sessionId) {
+        mapper.deleteBySession(sessionId.toString());
+    }
 }

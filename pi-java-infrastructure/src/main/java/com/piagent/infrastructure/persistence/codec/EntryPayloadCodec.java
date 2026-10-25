@@ -2,7 +2,10 @@ package com.piagent.infrastructure.persistence.codec;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.piagent.domain.git.model.FileChange;
+import com.piagent.domain.git.model.GitChangeKind;
 import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.EntryType;
 import com.piagent.domain.session.model.SessionEntry;
@@ -14,6 +17,8 @@ import com.piagent.domain.session.model.payload.CompactionPayload;
 import com.piagent.domain.session.model.payload.CustomMessagePayload;
 import com.piagent.domain.session.model.payload.CustomPayload;
 import com.piagent.domain.session.model.payload.EntryPayload;
+import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
@@ -21,6 +26,8 @@ import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.model.payload.SessionInfoPayload;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * entry 载荷 JSON 编解码入口。
@@ -66,6 +73,8 @@ public final class EntryPayloadCodec {
             case SessionInfoPayload value -> node.put("name", value.name());
             case ApprovalPayload value -> encodeApproval(node, value);
             case RunSummaryPayload value -> encodeRunSummary(node, value);
+            case GitCheckpointPayload value -> encodeCheckpoint(node, value);
+            case GitChangeSetPayload value -> encodeChanges(node, value);
         }
         try {
             return mapper.writeValueAsString(node);
@@ -108,6 +117,30 @@ public final class EntryPayloadCodec {
                 .put("toolName", value.toolName()).put("decision", value.decision());
         putNullable(node, "reason", value.reason());
         node.put("decidedBy", value.decidedBy());
+    }
+
+    private void encodeCheckpoint(ObjectNode node, GitCheckpointPayload value) {
+        node.put("runId", value.runId());
+        putNullable(node, "baseLeafId",
+                value.baseLeafId() == null ? null : value.baseLeafId().toString());
+        node.put("baseTreeSha", value.baseTreeSha());
+        putNullable(node, "headSha", value.headSha());
+        putNullable(node, "branch", value.branch());
+    }
+
+    private void encodeChanges(ObjectNode node, GitChangeSetPayload value) {
+        node.put("runId", value.runId()).put("turn", value.turn());
+        putNullable(node, "baseLeafId",
+                value.baseLeafId() == null ? null : value.baseLeafId().toString());
+        node.put("baseTreeSha", value.baseTreeSha()).put("treeSha", value.treeSha());
+        node.put("diff", value.diff()).put("truncated", value.truncated())
+                .put("suggestedCommit", value.suggestedCommit());
+        ArrayNode files = node.putArray("files");
+        for (FileChange change : value.files()) {
+            files.addObject().put("path", change.path()).put("kind", change.kind().name())
+                    .put("additions", change.additions()).put("deletions", change.deletions())
+                    .put("binary", change.binary());
+        }
     }
 
     private void encodeRunSummary(ObjectNode node, RunSummaryPayload value) {
@@ -156,6 +189,15 @@ public final class EntryPayloadCodec {
                         requiredText(root, "decision"), nullableText(root, "reason"),
                         requiredText(root, "decidedBy"));
                 case RUN_SUMMARY -> decodeRunSummary(root);
+                case GIT_CHECKPOINT -> new GitCheckpointPayload(requiredText(root, "runId"),
+                        nullableEntryId(root, "baseLeafId"), requiredText(root, "baseTreeSha"),
+                        nullableText(root, "headSha"), nullableText(root, "branch"));
+                case GIT_CHANGES -> new GitChangeSetPayload(requiredText(root, "runId"),
+                        root.path("turn").asInt(), nullableEntryId(root, "baseLeafId"),
+                        requiredText(root, "baseTreeSha"), requiredText(root, "treeSha"),
+                        decodeFiles(root.get("files")), root.path("diff").asText(""),
+                        root.path("truncated").asBoolean(false),
+                        root.path("suggestedCommit").asText(""));
             };
         } catch (DomainException error) {
             throw error;
@@ -170,6 +212,25 @@ public final class EntryPayloadCodec {
         return new RunSummaryPayload(requiredText(root, "runId"), requiredText(root, "stopReason"),
                 usage, root.path("turns").asInt(), root.path("toolCalls").asInt(),
                 root.path("durationMs").asLong(), nullableText(root, "errorMessage"));
+    }
+
+    private List<FileChange> decodeFiles(JsonNode node) {
+        List<FileChange> files = new ArrayList<>();
+        if (node == null || !node.isArray()) {
+            return files;
+        }
+        for (JsonNode item : node) {
+            files.add(new FileChange(requiredText(item, "path"),
+                    GitChangeKind.valueOf(requiredText(item, "kind")),
+                    item.path("additions").asInt(), item.path("deletions").asInt(),
+                    item.path("binary").asBoolean(false)));
+        }
+        return files;
+    }
+
+    private EntryId nullableEntryId(JsonNode node, String field) {
+        String value = nullableText(node, field);
+        return value == null || value.isBlank() ? null : EntryId.parse(value);
     }
 
     private String requiredText(JsonNode node, String field) {

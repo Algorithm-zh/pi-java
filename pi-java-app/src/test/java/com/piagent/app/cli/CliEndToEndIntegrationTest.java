@@ -29,7 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @SpringBootTest(classes = PiJavaApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
-        properties = "pi.fake.demo-mode=true")
+        properties = {"pi.fake.demo-mode=true", "pi.git.enabled=false"})
 @ActiveProfiles("test")
 class CliEndToEndIntegrationTest {
 

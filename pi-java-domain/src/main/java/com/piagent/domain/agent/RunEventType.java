@@ -41,6 +41,9 @@ public enum RunEventType {
     /** 上下文压缩完成并已写入摘要 entry。 */
     COMPACTION_COMPLETED("compaction.completed"),
 
+    /** 一轮工具执行后工作区发生了变化，并已写入改动 entry。 */
+    WORKSPACE_CHANGED("workspace.changed"),
+
     /** run 正常结束（含取消与超时）。 */
     RUN_COMPLETED("run.completed"),
 

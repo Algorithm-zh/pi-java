@@ -36,5 +36,11 @@ public enum EntryType {
     APPROVAL,
 
     /** 一次 run 的结束摘要。 */
-    RUN_SUMMARY
+    RUN_SUMMARY,
+
+    /** run 开始前的工作区检查点。 */
+    GIT_CHECKPOINT,
+
+    /** 一轮工具执行后的工作区改动。 */
+    GIT_CHANGES
 }

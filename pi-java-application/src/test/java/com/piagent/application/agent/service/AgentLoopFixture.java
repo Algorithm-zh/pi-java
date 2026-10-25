@@ -6,6 +6,7 @@ import com.piagent.application.context.CompactionComponents;
 import com.piagent.application.context.CompactionSummarizer;
 import com.piagent.application.context.ContextCompactionService;
 import com.piagent.application.context.ContextMeasurementFactory;
+import com.piagent.application.git.GitCheckpointService;
 import com.piagent.application.testsupport.DirectExecutorService;
 import com.piagent.application.testsupport.InMemoryModelProfileRepository;
 import com.piagent.application.testsupport.InMemorySessionEntryStore;
@@ -25,6 +26,10 @@ import com.piagent.domain.context.CompactionTriggerPolicy;
 import com.piagent.domain.context.EntryTokenCounter;
 import com.piagent.domain.context.SkillPromptFormatter;
 import com.piagent.domain.context.TokenEstimator;
+import com.piagent.domain.git.model.GitChangeSet;
+import com.piagent.domain.git.model.GitRestoreResult;
+import com.piagent.domain.git.model.GitSnapshot;
+import com.piagent.domain.git.port.WorkspaceGit;
 import com.piagent.domain.governance.model.ApprovalContext;
 import com.piagent.domain.governance.model.ApprovalId;
 import com.piagent.domain.governance.model.ApprovalRequest;
@@ -110,6 +115,15 @@ final class AgentLoopFixture {
     }
 
     /**
+     * 用自定义 Git 端口装配，便于验证快照与改动事件。
+     *
+     * @param workspaceGit 工作区 Git 端口
+     */
+    AgentLoopFixture(WorkspaceGit workspaceGit) {
+        this(defaultProfile(), 2, workspaceGit);
+    }
+
+    /**
      * 用指定模型档案装配，便于测试自定义上下文窗口。
      *
      * @param profile 模型档案
@@ -124,6 +138,10 @@ final class AgentLoopFixture {
     }
 
     private AgentLoopFixture(ModelProfile profile, int maxConcurrentRuns) {
+        this(profile, maxConcurrentRuns, new NoGit());
+    }
+
+    private AgentLoopFixture(ModelProfile profile, int maxConcurrentRuns, WorkspaceGit workspaceGit) {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         DirectExecutorService executor = new DirectExecutorService();
         appender = new SessionEntryAppender(sessions, entries, ids, clock);
@@ -152,9 +170,10 @@ final class AgentLoopFixture {
                 compactionState, new ContextMeasurementFactory(new SessionContextProjector(),
                         compaction));
         dispatcher = new RunDispatcher(executor, maxConcurrentRuns);
-        loop = new AgentLoopService(sessions,
+        GitCheckpointService git = new GitCheckpointService(workspaceGit, sessions, entries, appender);
+        loop = new AgentLoopService(
                 new ActiveModelResolver(models, new ModelSelectionPolicy()),
-                runtime, pipeline, dispatcher, compactionStep);
+                runtime, pipeline, dispatcher, compactionStep, git);
     }
 
     ChatSession createSession() {
@@ -187,6 +206,27 @@ final class AgentLoopFixture {
         List<RunEvent> collected = new ArrayList<>();
         hub.subscribe(runId, 0, collected::add).close();
         return collected;
+    }
+
+    /**
+     * 测试里关闭 Git：快照为空，run 不写检查点 entry。
+     */
+    static final class NoGit implements WorkspaceGit {
+
+        @Override
+        public Optional<GitSnapshot> snapshot(Path workspace) {
+            return Optional.empty();
+        }
+
+        @Override
+        public GitChangeSet changes(Path workspace, String baseTreeSha, String treeSha) {
+            throw new UnsupportedOperationException("测试未启用 Git");
+        }
+
+        @Override
+        public GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha) {
+            throw new UnsupportedOperationException("测试未启用 Git");
+        }
     }
 
     /**

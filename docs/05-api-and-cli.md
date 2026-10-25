@@ -2,7 +2,8 @@
 
 > 状态：M9 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理、
 > Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
-> 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）。
+> 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）；
+> M13 已实现工作区改动查询与撤销。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -297,6 +298,54 @@ GET    /api/v1/sessions/{id}/context  # 上下文用量估算
 
 `tokens` 是按当前分支估算的输入用量，不包含预留输出；`availableTokens =
 contextWindow - maxOutputTokens`。该接口只读，不写 entry，也不触发压缩。
+
+### 2.10 工作区改动与撤销（M13）
+
+```http
+GET  /api/v1/sessions/{id}/changes   # 最近一次 run 的检查点与逐轮改动
+POST /api/v1/sessions/{id}/undo      # 还原文件并回退对话
+```
+
+改动响应（非 Git 工作区 `available=false`、`turns=[]`，HTTP 仍为 200）：
+
+```json
+{
+  "available": true,
+  "canUndo": true,
+  "branch": "main",
+  "headSha": "0f3c...",
+  "fileCount": 1,
+  "additions": 1,
+  "deletions": 0,
+  "suggestedCommit": "docs: 更新 notes.md",
+  "turns": [
+    {
+      "turn": 1,
+      "files": [
+        {"path": "notes.md", "kind": "ADDED", "additions": 1, "deletions": 0, "binary": false}
+      ],
+      "diff": "diff --git a/notes.md b/notes.md\n...",
+      "truncated": false,
+      "suggestedCommit": "docs: 更新 notes.md"
+    }
+  ]
+}
+```
+
+撤销响应：
+
+```json
+{"rewound": true, "restored": ["notes.md"], "conflicts": []}
+```
+
+- 只有空闲会话可撤销；运行中或已归档返回 409；
+- 没有检查点或工作区不是仓库返回 409 `GIT_UNAVAILABLE`；
+- 只要本轮改过的文件在本轮之后又被修改，就整体放弃：
+  HTTP 200、`rewound=false`，`conflicts` 带路径与原因，工作区一个字节都不写；
+- 撤销第一轮时同时清空该会话日志，下一次发送会生成新的根 entry；
+- 不创建分支、不移动 HEAD、不自动提交。
+
+字段细节、冲突预检与失败降级见 [12 Git 检查点与撤销](12-git.md)。
 
 ## 3. 审批 API（M6）
 
@@ -700,6 +749,7 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 - 输入区为方框样式；输入 `/` 时在光标后淡色列出全部命令，前缀唯一时直接显示
   待补全部分，`Tab` 弹出完整候选，`↑/↓` 翻命令历史；输入命令参数后提示自动隐藏；
 - 助手文本青色流式输出，思考增量灰色，工具轨迹两行摘要，压缩与审批各一行；
+  工具改变工作区时再打印一行 `± 改动 N 个文件 +X -Y`；
 - 审批以面板展示工具名、风险与参数：输入 `y`/`yes` 批准，直接回车或其他内容
   拒绝，Ctrl+C 或 EOF 视为“没有输入”，按 `no-input` 拒绝；
 - Ctrl+C：空闲时第一次提示“再按一次 Ctrl+C 退出”，1.5 秒内再按退出；
@@ -717,6 +767,8 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 - `/model <id>` → 切换会话模型并写 `MODEL_CHANGE` entry；
 - `/tree` → 打印当前分支 entry 摘要；
 - `/session` → 打印会话 id、模型、思考级别与状态；
+- `/diff` → 最近一次运行的分支、文件、行数、提交建议与 diff（最多 120 行）；
+- `/undo` → 撤销上一轮：还原文件并回退对话；冲突时逐条打印原因；
 - `/skill:name [args]` → 作为普通消息交给 Agent Loop 的技能解析器；
 - EOF（Ctrl+D/Ctrl+Z）退出。
 
@@ -803,7 +855,9 @@ v0.2 再评估是否加入。
    - **工具策略**：选择工具与作用域，设置 `ALLOW/ASK/DENY`、审批模式、风险与超时；
    - **系统**：版本、工作目录、操作系统与安全须知。
 11. 输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`、`/skill:名称 任务`、
-   `/tool <工具名> <JSON>` 可在 Fake 模型下体验完整链路。
+   `/tool <工具名> <JSON>` 可在 Fake 模型下体验完整链路；
+12. 工具改变工作区后，输入框上方出现“本轮改动”面板：分支、文件数、行数、
+   提交建议与逐轮 diff；撤销前二次确认，冲突时展开文件列表并说明原因。
 
 前端只通过 `textContent` 写入服务端与模型文本，禁止 `innerHTML`；所有密钥相关
 字段只展示环境变量名与“是否已配置”。

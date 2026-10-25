@@ -2,12 +2,19 @@ package com.piagent.trigger.cli;
 
 import com.piagent.application.context.CompactionApplicationService;
 import com.piagent.application.context.ManualCompactionView;
+import com.piagent.application.git.GitCheckpointService;
+import com.piagent.application.git.GitUndoResult;
+import com.piagent.application.git.GitUndoService;
+import com.piagent.application.git.SessionGitChanges;
 import com.piagent.application.session.command.ChangeSessionModelCommand;
 import com.piagent.application.session.service.SessionSettingsApplicationService;
+import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionEntry;
+import com.piagent.domain.session.model.payload.GitChangeSetPayload;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,11 +26,16 @@ import org.springframework.stereotype.Component;
 public class CliChatSupport {
 
     private static final Set<String> COMMANDS = Set.of(
-            "/help", "/exit", "/quit", "/abort", "/compact", "/model", "/tree", "/session");
+            "/help", "/exit", "/quit", "/abort", "/compact", "/model", "/tree", "/session",
+            "/diff", "/undo");
+
+    private static final int MAX_DIFF_LINES = 120;
 
     private final CliSessionService sessions;
     private final SessionSettingsApplicationService settings;
     private final CompactionApplicationService compaction;
+    private final GitCheckpointService checkpoints;
+    private final GitUndoService undo;
 
     /**
      * 创建命令支持。
@@ -31,12 +43,17 @@ public class CliChatSupport {
      * @param sessions 会话准备
      * @param settings 会话设置
      * @param compaction 手动压缩
+     * @param checkpoints 工作区改动查询
+     * @param undo 撤销用例
      */
     public CliChatSupport(CliSessionService sessions, SessionSettingsApplicationService settings,
-            CompactionApplicationService compaction) {
+            CompactionApplicationService compaction, GitCheckpointService checkpoints,
+            GitUndoService undo) {
         this.sessions = sessions;
         this.settings = settings;
         this.compaction = compaction;
+        this.checkpoints = checkpoints;
+        this.undo = undo;
     }
 
     /**
@@ -70,9 +87,81 @@ public class CliChatSupport {
             }
             case "/tree" -> printTree(session, terminal);
             case "/session" -> printSession(session, terminal);
+            case "/diff" -> printDiff(session, terminal);
+            case "/undo" -> {
+                return undo(session, terminal);
+            }
             default -> terminal.println("未知命令: " + command + "，输入 /help 查看帮助");
         }
         return session;
+    }
+
+    private void printDiff(ChatSession session, CliTerminal terminal) {
+        SessionGitChanges changes = checkpoints.changes(session.identity().id());
+        if (!changes.available()) {
+            terminal.println("当前目录不是 Git 仓库，或 Git 检查点已关闭");
+            return;
+        }
+        if (changes.turns().isEmpty()) {
+            terminal.println("最近一次运行没有文件改动");
+            return;
+        }
+        String location = changes.checkpoint().branch() == null
+                ? "游离 HEAD" : changes.checkpoint().branch();
+        terminal.println("最近一次运行 · " + location + " · " + changes.fileCount()
+                + " 个文件 +" + changes.additions() + " -" + changes.deletions());
+        for (GitChangeSetPayload turn : changes.turns()) {
+            terminal.println("第 " + turn.turn() + " 轮");
+            for (FileChange file : turn.files()) {
+                terminal.println("  " + mark(file.kind().name()) + " " + file.path()
+                        + " +" + file.additions() + " -" + file.deletions()
+                        + (file.binary() ? " · 二进制" : ""));
+            }
+            if (!turn.suggestedCommit().isBlank()) {
+                terminal.println("  建议提交: " + turn.suggestedCommit());
+            }
+        }
+        printDiffBody(changes, terminal);
+    }
+
+    private void printDiffBody(SessionGitChanges changes, CliTerminal terminal) {
+        String diff = changes.turns().stream()
+                .map(GitChangeSetPayload::diff)
+                .filter(text -> !text.isBlank())
+                .collect(Collectors.joining("\n"));
+        if (diff.isBlank()) {
+            return;
+        }
+        String[] lines = diff.split("\n", -1);
+        int shown = Math.min(lines.length, MAX_DIFF_LINES);
+        terminal.println("");
+        for (int index = 0; index < shown; index++) {
+            terminal.println(lines[index]);
+        }
+        if (lines.length > shown) {
+            terminal.println("…（还有 " + (lines.length - shown) + " 行，完整 diff 见 Web 改动面板）");
+        }
+    }
+
+    private ChatSession undo(ChatSession session, CliTerminal terminal) {
+        GitUndoResult result = undo.undo(session.identity().id());
+        if (!result.rewound()) {
+            terminal.println("撤销未执行：以下文件在本轮之后又被修改");
+            result.conflicts().forEach(conflict ->
+                    terminal.println("  ! " + conflict.path() + " · " + conflict.reason()));
+            return session;
+        }
+        terminal.println("已撤销上一轮，还原 " + result.restored().size() + " 个文件");
+        result.restored().forEach(path -> terminal.println("  - " + path));
+        return sessions.require(session.identity().id().toString());
+    }
+
+    private static String mark(String kind) {
+        return switch (kind) {
+            case "ADDED" -> "+";
+            case "DELETED" -> "-";
+            default -> "~";
+        };
     }
 
     private void compact(ChatSession session, CliTerminal terminal) {
@@ -126,6 +215,8 @@ public class CliChatSupport {
                   /model [ID]    查看或切换模型
                   /tree          查看当前分支 entry
                   /session       查看会话信息
+                  /diff          查看最近一次运行的文件改动
+                  /undo          撤销上一轮（还原文件并回退对话）
                   /skill:名称    以技能方式发送消息""";
     }
 }

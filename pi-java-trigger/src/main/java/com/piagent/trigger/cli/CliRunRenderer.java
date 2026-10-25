@@ -1,6 +1,7 @@
 package com.piagent.trigger.cli;
 
 import com.piagent.domain.agent.RunEvent;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,6 +51,7 @@ public final class CliRunRenderer implements RunRenderer {
             case TOOL_COMPLETED -> toolCompleted(event.data());
             case COMPACTION_STARTED -> compactionStarted(event.data());
             case COMPACTION_COMPLETED -> compactionCompleted(event.data());
+            case WORKSPACE_CHANGED -> workspaceChanged(event.data());
             case APPROVAL_RESOLVED -> approvalResolved(event.data());
             case REPLAY_GAP -> replayGap();
             case RUN_FAILED -> failed(event.data());
@@ -145,6 +147,19 @@ public final class CliRunRenderer implements RunRenderer {
                 + text(data, "tokensAfter") + " token"
                 + (Boolean.TRUE.equals(data.get("prunedOnly")) ? "（仅剪枝）" : "")
                 + (note.isBlank() ? "" : " · " + note));
+    }
+
+    private void workspaceChanged(Map<String, Object> data) {
+        if (json) {
+            return;
+        }
+        finishLine();
+        Object files = data.get("files");
+        int count = files instanceof List<?> list ? list.size() : 0;
+        terminal.println("[改动] " + count + " 个文件 +" + text(data, "additions")
+                + " -" + text(data, "deletions")
+                + (text(data, "suggestedCommit").isBlank() ? ""
+                        : " · 建议: " + CliText.oneLine(text(data, "suggestedCommit"), COMPACTION_TEXT_LIMIT)));
     }
 
     private void approvalResolved(Map<String, Object> data) {

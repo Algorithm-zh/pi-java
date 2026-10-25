@@ -87,6 +87,8 @@ SessionEntry(
 | `SESSION_INFO` | `SessionInfoPayload(name)` | 会话展示名 |
 | `APPROVAL` | `ApprovalPayload(approvalId, toolCallId, toolName, decision, reason, decidedBy)` | 审批审计 |
 | `RUN_SUMMARY` | `RunSummaryPayload(runId, stopReason, usage, turns, toolCalls, durationMs, errorMessage)` | 每次 run 结束摘要 |
+| `GIT_CHECKPOINT` | `GitCheckpointPayload(runId, baseLeafId, baseTreeSha, headSha, branch)` | run 开始前的工作区快照 |
+| `GIT_CHANGES` | `GitChangeSetPayload(runId, turn, baseLeafId, baseTreeSha, treeSha, files, diff, truncated, suggestedCommit)` | 一轮工具执行后的工作区改动 |
 
 ### 2.3 消息模型（sealed）
 
@@ -122,7 +124,7 @@ ContentBlock
 | `SessionId` / `EntryId` | 包装 `Ulid`，类型安全，禁止互换 |
 | `Origin` | `USER / FORK / SUBAGENT` |
 | `SessionStatus` | `IDLE / RUNNING / WAITING_APPROVAL / ARCHIVED` |
-| `EntryType` | 上表 10 种 |
+| `EntryType` | 上表 12 种 |
 | `TokenUsage` | `input/output/cacheRead/cacheWrite/totalTokens`，全为非负 |
 | `SandboxSnapshot` | `writableRoots` + `denyGlobs` 的只读快照；创建会话时从治理上下文复制，避免运行中策略变更改变历史会话的沙箱语义 |
 | `ProjectedContext` | `List<AgentMessage> messages, List<EntryId> trace, int estimatedTokens` |
@@ -139,7 +141,8 @@ ContentBlock
 1. 从 leaf 沿 `parentId` 回溯到根，得到**唯一分支**，再反转为时间序；
 2. 找到分支上**最后一个** `COMPACTION` entry；
 3. 若有压缩：先产出 `CompactionSummaryMessage(summary)`，再取 `firstKeptEntryId` 到压缩点之间的 entry；
-4. 跳过 `CUSTOM`、`LABEL`、`SESSION_INFO`、`RUN_SUMMARY`、`APPROVAL`；
+4. 跳过 `CUSTOM`、`LABEL`、`SESSION_INFO`、`RUN_SUMMARY`、`APPROVAL`、
+   `GIT_CHECKPOINT`、`GIT_CHANGES`；
 5. `CUSTOM_MESSAGE` 转为 `UserMessage` 或带标记的上下文消息；
 6. `BRANCH_SUMMARY` 转为 `BranchSummaryMessage`；
 7. 校验工具调用配对：每个 toolResult 必须找到前置 toolCall，且 toolCall 都有结果（未完成时允许在尾部悬空并由恢复流程处理）；
@@ -171,6 +174,7 @@ interface SessionEntryStore {
     List<SessionEntry> loadBranch(SessionId sessionId, EntryId leafId);
     Optional<SessionEntry> findById(SessionId sessionId, EntryId entryId);
     long countBySession(SessionId sessionId);
+    void deleteAll(SessionId sessionId);       // 只用于撤销会话第一轮
 }
 ```
 

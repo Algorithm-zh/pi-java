@@ -12,7 +12,7 @@ import com.piagent.domain.session.model.SessionEntry;
 public sealed interface EntryPayload permits
         MessagePayload, CustomMessagePayload, CompactionPayload, BranchSummaryPayload,
         ModelChangePayload, CustomPayload, LabelPayload, SessionInfoPayload,
-        ApprovalPayload, RunSummaryPayload {
+        ApprovalPayload, RunSummaryPayload, GitCheckpointPayload, GitChangeSetPayload {
 
     /**
      * 返回该载荷对应的 entry 类型。

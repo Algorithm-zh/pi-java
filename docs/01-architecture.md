@@ -59,7 +59,7 @@ plugin-api     -> JDK
 | `pi-java-domain` | 仅 JDK | 7 个上下文的聚合、实体、值对象、领域服务、仓储/端口接口、共享内核 | Spring、Jackson、MyBatis、Web、插件 API |
 | `pi-java-plugin-api` | 仅 JDK | 第三方插件稳定契约：入口、描述、工具注册、执行上下文、日志 | Spring、Jackson、domain/application 类型 |
 | `pi-java-application` | domain、Spring stereotype/tx | 用例编排、Agent Loop、上下文组装、事务边界、读模型 | MyBatis、Jackson、Web、插件 API、基础设施实现 |
-| `pi-java-infrastructure` | domain、application、plugin-api、驱动库 | LLM 适配器、MyBatis 仓储、内置工具、路径解析、插件加载、MCP 客户端、Caffeine 缓存 | trigger |
+| `pi-java-infrastructure` | domain、application、plugin-api、驱动库 | LLM 适配器、MyBatis 仓储、内置工具、路径解析、插件加载、MCP 客户端、Git CLI 适配器、Caffeine 缓存 | trigger |
 | `pi-java-trigger` | application、Spring MVC、picocli | Controller、SSE、DTO 映射、CLI 命令、参数校验 | 基础设施、Mapper、领域仓储实现 |
 | `pi-java-app` | 全部 | 唯一装配点、启动类、Flyway、`application.yml`、静态 UI、ArchUnit | 业务逻辑 |
 | `examples/pi-plugin-example` | plugin-api（provided） | 示例插件与契约纯度验证 | 其他内部模块 |
@@ -85,6 +85,7 @@ plugin-api     -> JDK
 | 治理 governance | `domain.governance` | 工具策略、审批状态机、路径沙箱、风险级别 | 等待 UI、数据库投影 |
 | 上下文 context | `domain.context` | token 估算、压缩计划、Skill 描述与 prompt 格式化 | 文件扫描、YAML 解析 |
 | 扩展 extension | `domain.extension` | 插件安装记录、jar 检查结果、兼容性与运行时端口 | ClassLoader、Spring 容器 |
+| 工作区 git | `domain.git` | 快照、变化集合、还原结果、提交建议与 `WorkspaceGit` 端口 | 调用 git、读写文件 |
 
 ### 上下文映射
 
@@ -96,6 +97,7 @@ agent   ────► model          （通过 LlmGateway 端口）
 agent   ────► tool           （通过 ToolRegistry/ToolInvoker 端口）
 agent   ────► governance     （审批与沙箱端口）
 agent   ────► context        （压缩与 skills 目录）
+agent   ────► git            （通过 WorkspaceGit 端口）
 tool    ◄──── extension      （插件工具映射为 ToolDescriptor）
 ```
 

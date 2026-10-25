@@ -215,6 +215,19 @@
                     </p>
                 </div>
             </section>
+            <section id="changes-dock" class="changes-dock hidden" aria-label="本轮文件改动">
+                <div class="changes-head">
+                    <button id="changes-toggle" class="changes-toggle" type="button"
+                            aria-expanded="false" aria-controls="changes-detail">
+                        <span class="changes-glyph" aria-hidden="true">±</span>
+                        <span id="changes-text" class="changes-text">本轮改动</span>
+                        <span id="changes-stats" class="changes-stats"></span>
+                        <span class="changes-caret" aria-hidden="true"></span>
+                    </button>
+                    <button id="changes-undo" class="changes-undo" type="button">撤销本轮</button>
+                </div>
+                <div id="changes-detail" class="changes-detail hidden"></div>
+            </section>
             <button id="scroll-bottom" class="scroll-bottom hidden" type="button"
                     title="回到最新消息" aria-label="回到最新消息">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none"

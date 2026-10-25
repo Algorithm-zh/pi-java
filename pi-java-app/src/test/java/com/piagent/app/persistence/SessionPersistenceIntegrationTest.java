@@ -166,6 +166,22 @@ class SessionPersistenceIntegrationTest {
     }
 
     @Test
+    void deleteAllRemovesOnlyTargetSessionLog() {
+        ChatSession target = rootSession(1, "撤销", "target/ws-a");
+        ChatSession other = rootSession(2, "保留", "target/ws-b");
+        repository.insert(target);
+        repository.insert(other);
+        entryStore.append(entry(target.identity().id(), eid(1), 1, null, textPayload("a")));
+        entryStore.append(entry(target.identity().id(), eid(2), 2, eid(1), textPayload("b")));
+        entryStore.append(entry(other.identity().id(), eid(3), 1, null, textPayload("c")));
+
+        entryStore.deleteAll(target.identity().id());
+
+        assertThat(entryStore.countBySession(target.identity().id())).isZero();
+        assertThat(entryStore.countBySession(other.identity().id())).isEqualTo(1);
+    }
+
+    @Test
     void deletingSessionCascadesEntries() {
         ChatSession session = rootSession(1, "级联", "target/ws-a");
         repository.insert(session);

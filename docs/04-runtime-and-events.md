@@ -1,8 +1,9 @@
 # 04 运行时与事件
 
 > 状态：M4 已实现 Agent Loop、工具管线、SSE 与重放；M6 已实现审批等待、写工具与
-> 策略 API；M7 已实现上下文压缩与 Skills。子代理在 M8 落地。运行时由 application 层
-> 编排，domain 只提供规则与快照；所有外部等待（LLM、工具、审批、摘要）都不持有数据库事务。
+> 策略 API；M7 已实现上下文压缩与 Skills；M13 已实现工作区检查点与逐轮改动。
+> 子代理在 M8 落地。运行时由 application 层编排，domain 只提供规则与快照；
+> 所有外部等待（LLM、工具、审批、摘要）都不持有数据库事务。
 
 ## 1. 运行时组件
 
@@ -17,6 +18,7 @@ AgentLoopService
   ├─ SkillInvocationResolver   /skill:name args → 展开后的用户消息 + 显式技能
   ├─ RunSteps               守卫（取消/超时/轮数）与工具批次执行
   ├─ RunCompactionStep      自动压缩 / 溢出压缩 + compaction.* 事件
+  ├─ RunGitTracker          工作区快照、逐轮 diff 与 workspace.changed 事件
   ├─ TurnStreamer           模型调用 + 溢出后压缩重试
   ├─ TurnPipeline
   │    ├─ SessionEntryStore + SessionContextProjector（分支投影）
@@ -40,6 +42,7 @@ AgentLoopService
 | `TurnStreamer` | 一轮模型调用与溢出压缩重试（至多一次） | 状态机推进、工具执行 |
 | `RunSteps` | 守卫判定、工具批次与预算计数 | 模型调用 |
 | `RunCompactionStep` | 触发判定、调用压缩编排、发布 `compaction.*` | 生成摘要（委托 `CompactionSummarizer`） |
+| `GitCheckpointService` / `RunGitTracker` | 快照、逐轮 diff、撤销与改动查询 | 修改用户分支/HEAD/索引、自动提交 |
 | `SkillInvocationResolver` | 解析 `/skill:` 并展开正文 | 缓存与文件扫描 |
 | `ToolCallCoordinator` | 消费预检计划、审批等待、并行/串行执行、成对回写结果 | 决定模型下一步 |
 | `ToolCallPreflight` | 策略解析、注册校验与预算裁剪，产出执行计划 | 调用工具、等待审批 |
@@ -55,10 +58,12 @@ AgentLoopService
    先自愈为 IDLE（单实例前提）
 2. RunDispatcher.tryAcquire：全局许可满额立即返回 AGENT_BUSY（HTTP 429）
 3. ActiveRunRegistry 预留 runId + 取消标志
-4. 短事务：追加用户 MESSAGE entry，会话 RUNNING，移动 leaf
-5. 解析模型档案（档案缺失/停用则回滚预留并恢复 IDLE）
-6. 建立事件通道，发布 run.started（含模型、预算、开始时间）
-7. 虚拟线程执行 run，进入 turn 循环；HTTP 请求立即返回 runId
+4. 记录用户消息之前的叶子（撤销检查点的 baseLeafId）
+5. 短事务：追加用户 MESSAGE entry，会话 RUNNING，移动 leaf
+6. 解析模型档案（档案缺失/停用则回滚预留并恢复 IDLE）
+7. 虚拟线程开始后捕获工作区快照，写 GIT_CHECKPOINT（非仓库/失败则跳过）
+8. 建立事件通道，发布 run.started（含模型、预算、开始时间）
+9. 进入 turn 循环；HTTP 请求立即返回 runId
 ```
 
 会话写锁只在“追加 entry / 移动 leaf / 状态变更”时短暂持有，**不覆盖整个 run**；
@@ -81,6 +86,7 @@ while true:
     若 assistant.stopReason == ERROR：finish(ERROR)
     若没有 toolCall：finish(STOP 或 LENGTH)
     执行整批工具 → 记录执行数 → 若批内预算耗尽则 finish(MAX_STEPS)
+    快照工作区：与上一轮终点比较，有变化写 GIT_CHANGES 并 publish workspace.changed
     进入下一轮
 ```
 
@@ -486,7 +492,7 @@ AgentLoopService → TurnPipeline → ToolCallCoordinator
 - `Last-Event-ID = runId:seq`：命中则回放 `seq+1` 起的事件；起点已被淘汰时先发送
   `replay.gap`，前端重新拉取会话 entry。
 
-### 9.2 事件目录（M4 实际字段）
+### 9.2 事件目录（M4 实际字段，M13 追加工作区事件）
 
 | type | data 关键字段 |
 |---|---|
@@ -503,10 +509,11 @@ AgentLoopService → TurnPipeline → ToolCallCoordinator
 | `approval.resolved` | `approvalId, decision, decidedBy, reason` |
 | `compaction.started` | `mode（AUTO/OVERFLOW）, tokensBefore, availableTokens, reason` |
 | `compaction.completed` | `mode, tokensBefore, tokensAfter, savedTokens, prunedOnly, note` |
+| `workspace.changed` | `turn, files（路径数组）, additions, deletions, truncated, suggestedCommit` |
 | `replay.gap` | `lastAvailableSeq` |
 | `heartbeat` | `at` |
 
-M8 追加：`subagent.*`。
+M8 追加：`subagent.*`；M13 追加：`workspace.changed`。
 
 ### 9.3 连接管理
 

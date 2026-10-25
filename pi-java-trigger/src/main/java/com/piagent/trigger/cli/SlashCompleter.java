@@ -12,8 +12,8 @@ import org.jline.reader.ParsedLine;
 final class SlashCompleter implements Completer {
 
     static final List<String> COMMANDS = List.of(
-            "/abort", "/compact", "/exit", "/help", "/model", "/quit",
-            "/session", "/skill:", "/tree");
+            "/abort", "/compact", "/diff", "/exit", "/help", "/model", "/quit",
+            "/session", "/skill:", "/tree", "/undo");
 
     @Override
     public void complete(LineReader reader, ParsedLine line, List<Candidate> candidates) {

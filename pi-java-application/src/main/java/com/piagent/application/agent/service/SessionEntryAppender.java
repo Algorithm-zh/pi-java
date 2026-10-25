@@ -198,6 +198,21 @@ public class SessionEntryAppender {
     }
 
     /**
+     * 追加不进入模型上下文的运行期元数据 entry。
+     *
+     * <p>Git 检查点与逐轮改动只用于展示和撤销，token 估算固定为 0。</p>
+     *
+     * @param sessionId 会话标识
+     * @param payload 元数据载荷
+     * @return 新 entry
+     */
+    @Transactional
+    public SessionEntry appendMetadata(SessionId sessionId, EntryPayload payload) {
+        Objects.requireNonNull(payload, "payload 不能为空");
+        return appendRunning(sessionId, payload, 0);
+    }
+
+    /**
      * 追写 RUN_SUMMARY 并把会话恢复为空闲。
      *
      * @param sessionId 会话标识

@@ -150,6 +150,26 @@ public record ChatSession(
     }
 
     /**
+     * 回退分支到目标 entry，允许回退到空会话。
+     *
+     * <p>用于撤销上一轮：目标通常是用户消息之前的叶子；传 null 表示把本次会话
+     * 的第一轮也撤销掉。与 {@link #moveLeaf} 的区别是不要求目标存在于当前分支，
+     * 调用方需自行确保目标合法（例如来自检查点）。</p>
+     *
+     * @param target 新叶子；null 表示空会话
+     * @return 新会话实例
+     */
+    public ChatSession rewind(EntryId target) {
+        Guard.require(status == SessionStatus.IDLE, DomainErrorCode.INVALID_STATE_TRANSITION,
+                "只有空闲会话可以撤销，当前状态: " + status);
+        Guard.require(status != SessionStatus.ARCHIVED, DomainErrorCode.SESSION_ARCHIVED,
+                "已归档会话不能撤销");
+        Guard.require(!Objects.equals(target, leafEntryId), DomainErrorCode.INVALID_BRANCH,
+                "目标已经是当前叶子");
+        return new ChatSession(identity, title, config, status, target, version);
+    }
+
+    /**
      * 推进运行期叶子。
      *
      * <p>与 {@link #moveLeaf} 的区别：这里不是“用户切换分支”，而是 run 追加

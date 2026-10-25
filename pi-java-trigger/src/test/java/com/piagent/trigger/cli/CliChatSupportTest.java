@@ -17,6 +17,8 @@ class CliChatSupportTest {
         assertThat(CliChatSupport.isCommand("/help")).isTrue();
         assertThat(CliChatSupport.isCommand("/exit")).isTrue();
         assertThat(CliChatSupport.isCommand("/model fake-demo")).isTrue();
+        assertThat(CliChatSupport.isCommand("/diff")).isTrue();
+        assertThat(CliChatSupport.isCommand("/undo")).isTrue();
     }
 
     @Test

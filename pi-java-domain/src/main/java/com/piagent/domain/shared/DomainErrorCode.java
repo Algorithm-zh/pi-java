@@ -114,5 +114,11 @@ public enum DomainErrorCode {
     SKILL_NOT_FOUND,
 
     /** MCP 服务器工具名与内置工具、插件或其他 MCP 服务器冲突。 */
-    MCP_TOOL_CONFLICT
+    MCP_TOOL_CONFLICT,
+
+    /** 工作区不是 Git 仓库，或没有可撤销的检查点。 */
+    GIT_UNAVAILABLE,
+
+    /** Git 命令失败、超时或输出无法解析。 */
+    GIT_OPERATION_FAILED
 }
