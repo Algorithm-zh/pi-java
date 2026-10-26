@@ -16,7 +16,8 @@ const BUILT_INS = {
     write: {name: "写入文件", description: "创建或覆盖文件（运行前需要审批）"},
     edit: {name: "修改文件", description: "替换文件中的指定内容（运行前需要审批）"},
     bash: {name: "运行命令", description: "执行终端命令（运行前需要审批）"},
-    subagent: {name: "调用子代理", description: "把独立任务交给子代理处理"}
+    subagent: {name: "调用子代理", description: "把独立任务交给子代理处理"},
+    todo: {name: "更新待办", description: "记录或更新本次任务的步骤清单"}
 };
 
 const FIELD_LABELS = {

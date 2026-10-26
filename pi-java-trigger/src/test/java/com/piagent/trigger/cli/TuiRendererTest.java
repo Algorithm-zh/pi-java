@@ -9,6 +9,7 @@ import com.piagent.domain.session.model.SessionId;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +61,23 @@ class TuiRendererTest {
 
         assertThat(buffer.toString()).contains("…");
         assertThat(buffer.toString().lines().findFirst().orElseThrow()).hasSizeLessThan(80);
+    }
+
+    @Test
+    void planAndVerificationEventsStayShort() {
+        StringWriter buffer = new StringWriter();
+        TuiRenderer renderer = new TuiRenderer(new PrintWriter(buffer, true), new Ansi(false));
+        renderer.render(event(RunEventType.PLAN_UPDATED, Map.of("total", 3, "completed", 1,
+                "items", List.of(Map.of("content", "读代码", "status", "done"),
+                        Map.of("content", "改实现", "status", "in_progress")))));
+        renderer.render(event(RunEventType.VERIFICATION_COMPLETED, Map.of("passed", false,
+                "command", "mvn -q test", "durationMs", 1200)));
+
+        String output = buffer.toString();
+        assertThat(output)
+                .contains("□ 待办 1/3 完成 · 改实现")
+                .contains("× 验证未通过 mvn -q test · 1200ms");
+        assertThat(output.lines()).allMatch(line -> line.length() < 140);
     }
 
     private static RunEvent event(RunEventType type, Map<String, Object> data) {

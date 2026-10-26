@@ -264,7 +264,8 @@ export function renderTurn(items, results) {
                 isError: Boolean(body.isError),
                 pending: false
             }));
-        } else if (["APPROVAL", "COMPACTION", "BRANCH_SUMMARY", "MODEL_CHANGE"].includes(entry.type)) {
+        } else if (["APPROVAL", "COMPACTION", "BRANCH_SUMMARY", "MODEL_CHANGE",
+            "PLAN", "VERIFICATION"].includes(entry.type)) {
             ensureProcess().body.append(renderNote(entry));
         }
     }
@@ -478,6 +479,12 @@ export function renderNote(entry) {
         const from = entry.body?.extra?.fromEntryId ? String(entry.body.extra.fromEntryId).slice(0, 8) : "—";
         return collapsibleNote(entry, "branch-note", `分支摘要，起点 ${from}`);
     }
+    if (entry.type === "PLAN") {
+        return planNote(entry);
+    }
+    if (entry.type === "VERIFICATION") {
+        return verificationNote(entry);
+    }
     return el("div", "history-note", "未知记录");
 }
 
@@ -515,6 +522,69 @@ function collapsibleNote(entry, className, label) {
     details.append(summary, el("pre", "history-note-body",
         entry.body?.extra?.summary || "（无摘要）"));
     return details;
+}
+
+function planNote(entry) {
+    const extra = entry.body?.extra || {};
+    const items = Array.isArray(extra.items) ? extra.items : [];
+    const total = Number(extra.total || items.length);
+    const completed = Number(extra.completed || 0);
+    const details = document.createElement("details");
+    details.className = "history-note plan-note"
+        + (total > 0 && completed >= total ? " is-complete" : "");
+    const summary = document.createElement("summary");
+    summary.append(el("span", "history-note-title", "待办更新"),
+        el("span", "history-note-state", `${completed}/${total} 完成`),
+        el("span", "history-note-meta", currentPlanItem(items) || "全部完成"));
+    const list = el("ol", "plan-note-list");
+    for (const item of items) {
+        const status = planStatus(item.status);
+        const row = el("li", `plan-note-item is-${status}`);
+        row.append(el("span", "plan-note-mark",
+            status === "done" ? "✓" : status === "in_progress" ? "●" : ""),
+            el("span", "plan-note-text", item.content || ""));
+        list.append(row);
+    }
+    details.append(summary, list);
+    return details;
+}
+
+function verificationNote(entry) {
+    const extra = entry.body?.extra || {};
+    const passed = Boolean(extra.passed);
+    const details = document.createElement("details");
+    details.className = `history-note verify-note ${passed ? "is-passed" : "is-failed"}`;
+    const summary = document.createElement("summary");
+    summary.append(el("span", "history-note-title", "自动验证"),
+        el("span", "history-note-state", passed ? "通过" : "未通过"),
+        el("span", "history-note-meta", verificationMeta(extra)));
+    details.append(summary, el("pre", "history-note-body",
+        extra.output || "（无输出）"));
+    return details;
+}
+
+function verificationMeta(extra) {
+    const parts = [extra.command || "未设置命令"];
+    if (extra.timedOut) {
+        parts.push("执行超时");
+    } else if (extra.exitCode !== null && extra.exitCode !== undefined) {
+        parts.push(`退出码 ${extra.exitCode}`);
+    }
+    parts.push(formatDuration(extra.durationMs));
+    if (extra.truncated) {
+        parts.push("输出已截断");
+    }
+    return parts.join(" · ");
+}
+
+function currentPlanItem(items) {
+    const active = items.find((item) => item?.status === "in_progress");
+    const pending = items.find((item) => item?.status === "pending");
+    return (active || pending)?.content || "";
+}
+
+function planStatus(status) {
+    return status === "done" || status === "in_progress" ? status : "pending";
 }
 
 function cssEscape(value) {

@@ -4,12 +4,13 @@ import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.agent.RunStopReason;
 import com.piagent.domain.session.model.ChatSession;
+import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
 /**
- * run 内的“守卫检查”与“工具批次执行”。
+ * run 内的“守卫检查”、工具批次执行与工作区记录。
  *
  * <p>为什么独立成类：这些逻辑都是“读 run 快照 → 判断 → 结束或执行”，与 Agent Loop 的
  * 消息流转无关；抽出来之后主循环只剩“守卫 → 压缩 → 模型 → 落库 → 工具”五步，更易读。</p>
@@ -18,6 +19,8 @@ import java.util.function.BooleanSupplier;
  * 调用方，保证主循环不会在 run 已结束的情况下继续请求模型。</p>
  */
 final class RunSteps {
+
+    private static final System.Logger LOG = System.getLogger(RunSteps.class.getName());
 
     private final RunRuntime runtime;
     private final TurnPipeline pipeline;
@@ -54,6 +57,25 @@ final class RunSteps {
             return true;
         }
         return false;
+    }
+
+    /**
+     * 记录一轮工具执行后的工作区改动。
+     *
+     * <p>Git 失败只记日志，绝不影响 run 继续。</p>
+     *
+     * @param context 运行上下文
+     * @param turn 轮次
+     * @param turnBaseLeaf 本轮开始前的叶子
+     */
+    void trackWorkspace(RunContext context, int turn, EntryId turnBaseLeaf) {
+        try {
+            context.git().afterTurn(turn, turnBaseLeaf)
+                    .ifPresent(context.events()::workspaceChanged);
+        } catch (RuntimeException error) {
+            LOG.log(System.Logger.Level.WARNING,
+                    "记录工作区改动失败: " + context.reserved().runId(), error);
+        }
     }
 
     /**

@@ -47,6 +47,8 @@ final class TuiRenderer implements RunRenderer {
             case COMPACTION_STARTED -> compactionStarted(event.data());
             case COMPACTION_COMPLETED -> compactionCompleted(event.data());
             case WORKSPACE_CHANGED -> workspaceChanged(event.data());
+            case PLAN_UPDATED -> planUpdated(event.data());
+            case VERIFICATION_COMPLETED -> verificationCompleted(event.data());
             case APPROVAL_RESOLVED -> approvalResolved(event.data());
             case REPLAY_GAP -> replayGap();
             case RUN_FAILED -> failed(event.data());
@@ -146,6 +148,25 @@ final class TuiRenderer implements RunRenderer {
         out.flush();
     }
 
+    private void planUpdated(Map<String, Object> data) {
+        finishLine();
+        String current = currentPlanItem(data.get("items"));
+        out.println("  " + ansi.accent("□ 待办") + ansi.dim(" " + text(data, "completed")
+                + "/" + text(data, "total") + " 完成"
+                + (current.isBlank() ? ""
+                        : " · " + Ansi.truncate(CliText.oneLine(current, NOTE_LIMIT), NOTE_LIMIT))));
+        out.flush();
+    }
+
+    private void verificationCompleted(Map<String, Object> data) {
+        finishLine();
+        boolean passed = Boolean.TRUE.equals(data.get("passed"));
+        String mark = passed ? ansi.accent("√ 验证通过") : ansi.red("× 验证未通过");
+        out.println("  " + mark + ansi.dim(" " + text(data, "command")
+                + " · " + text(data, "durationMs") + "ms"));
+        out.flush();
+    }
+
     private void approvalResolved(Map<String, Object> data) {
         finishLine();
         boolean approved = "APPROVED".equals(text(data, "status"));
@@ -154,6 +175,27 @@ final class TuiRenderer implements RunRenderer {
         out.println("    " + mark + " " + ansi.dim(text(data, "toolName")
                 + (reason.isBlank() ? "" : " · " + reason)));
         out.flush();
+    }
+
+    private static String currentPlanItem(Object raw) {
+        if (!(raw instanceof List<?> items)) {
+            return "";
+        }
+        String pending = "";
+        for (Object value : items) {
+            if (!(value instanceof Map<?, ?> item)) {
+                continue;
+            }
+            String status = String.valueOf(item.get("status"));
+            String content = item.get("content") == null ? "" : String.valueOf(item.get("content"));
+            if ("in_progress".equals(status)) {
+                return content;
+            }
+            if (pending.isBlank() && "pending".equals(status)) {
+                pending = content;
+            }
+        }
+        return pending;
     }
 
     private void replayGap() {

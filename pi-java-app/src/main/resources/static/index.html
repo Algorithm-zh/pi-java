@@ -215,6 +215,27 @@
                     </p>
                 </div>
             </section>
+            <section id="plan-dock" class="plan-dock hidden" aria-label="待办与自动验证">
+                <div class="plan-head">
+                    <button id="plan-toggle" class="plan-toggle" type="button"
+                            aria-expanded="false" aria-controls="plan-detail">
+                        <span id="plan-seal" class="plan-seal" aria-hidden="true">
+                            <span id="plan-seal-text" class="plan-seal-text">0%</span>
+                        </span>
+                        <span class="plan-copy">
+                            <span id="plan-title" class="plan-title">任务待办</span>
+                            <span id="plan-current" class="plan-current"></span>
+                        </span>
+                        <span id="plan-verify-chip" class="plan-verify-chip hidden"></span>
+                        <span id="plan-count" class="plan-count"></span>
+                        <span class="plan-caret" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <div class="plan-rail" aria-hidden="true">
+                    <span id="plan-rail-fill" class="plan-rail-fill"></span>
+                </div>
+                <div id="plan-detail" class="plan-detail hidden"></div>
+            </section>
             <section id="changes-dock" class="changes-dock hidden" aria-label="本轮文件改动">
                 <div class="changes-head">
                     <button id="changes-toggle" class="changes-toggle" type="button"

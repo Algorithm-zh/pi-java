@@ -52,6 +52,8 @@ public final class CliRunRenderer implements RunRenderer {
             case COMPACTION_STARTED -> compactionStarted(event.data());
             case COMPACTION_COMPLETED -> compactionCompleted(event.data());
             case WORKSPACE_CHANGED -> workspaceChanged(event.data());
+            case PLAN_UPDATED -> planUpdated(event.data());
+            case VERIFICATION_COMPLETED -> verificationCompleted(event.data());
             case APPROVAL_RESOLVED -> approvalResolved(event.data());
             case REPLAY_GAP -> replayGap();
             case RUN_FAILED -> failed(event.data());
@@ -162,6 +164,28 @@ public final class CliRunRenderer implements RunRenderer {
                         : " · 建议: " + CliText.oneLine(text(data, "suggestedCommit"), COMPACTION_TEXT_LIMIT)));
     }
 
+    private void planUpdated(Map<String, Object> data) {
+        if (json) {
+            return;
+        }
+        finishLine();
+        String current = currentPlanItem(data.get("items"));
+        terminal.println("[待办] " + text(data, "completed") + "/" + text(data, "total")
+                + " 完成" + (current.isBlank() ? ""
+                        : " · " + CliText.oneLine(current, COMPACTION_TEXT_LIMIT)));
+    }
+
+    private void verificationCompleted(Map<String, Object> data) {
+        if (json) {
+            return;
+        }
+        finishLine();
+        boolean passed = Boolean.TRUE.equals(data.get("passed"));
+        terminal.println("[验证] " + (passed ? "通过" : "未通过")
+                + " · " + CliText.oneLine(text(data, "command"), COMPACTION_TEXT_LIMIT)
+                + " · " + text(data, "durationMs") + "ms");
+    }
+
     private void approvalResolved(Map<String, Object> data) {
         if (json) {
             return;
@@ -170,6 +194,27 @@ public final class CliRunRenderer implements RunRenderer {
         String reason = CliText.oneLine(text(data, "reason"), COMPACTION_TEXT_LIMIT);
         terminal.println("[审批] " + text(data, "toolName") + " " + text(data, "status")
                 + (reason.isBlank() ? "" : " · " + reason));
+    }
+
+    private static String currentPlanItem(Object raw) {
+        if (!(raw instanceof List<?> items)) {
+            return "";
+        }
+        String pending = "";
+        for (Object value : items) {
+            if (!(value instanceof Map<?, ?> item)) {
+                continue;
+            }
+            String status = String.valueOf(item.get("status"));
+            String content = item.get("content") == null ? "" : String.valueOf(item.get("content"));
+            if ("in_progress".equals(status)) {
+                return content;
+            }
+            if (pending.isBlank() && "pending".equals(status)) {
+                pending = content;
+            }
+        }
+        return pending;
     }
 
     private void replayGap() {

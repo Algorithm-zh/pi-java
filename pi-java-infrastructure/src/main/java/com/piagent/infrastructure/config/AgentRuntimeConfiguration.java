@@ -1,10 +1,18 @@
 package com.piagent.infrastructure.config;
 
+import com.piagent.application.agent.service.ActiveModelResolver;
 import com.piagent.application.agent.service.ActiveRunRegistry;
+import com.piagent.application.agent.service.AgentLoopDependencies;
 import com.piagent.application.agent.service.ContextCompactionState;
+import com.piagent.application.agent.service.RunCompactionStep;
+import com.piagent.application.agent.service.RunDispatcher;
 import com.piagent.application.agent.service.RunEventHub;
+import com.piagent.application.agent.service.RunRuntime;
 import com.piagent.application.agent.service.RunRuntimeDependencies;
 import com.piagent.application.agent.service.SessionEntryAppender;
+import com.piagent.application.agent.service.TurnPipeline;
+import com.piagent.application.git.GitCheckpointService;
+import com.piagent.application.verify.VerificationService;
 import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.IdGenerator;
 import com.piagent.domain.tool.port.ToolRegistry;
@@ -68,5 +76,29 @@ public class AgentRuntimeConfiguration {
             IdGenerator idGenerator, Clock clock) {
         return new RunRuntimeDependencies(registry, hub, appender, toolRegistry, compactionState,
                 sessions, idGenerator, clock);
+    }
+
+    /**
+     * Agent Loop 依赖集合。
+     *
+     * <p>与运行时依赖集合一样只是装配点；循环服务构造参数超过 6 个，集中为值对象。</p>
+     *
+     * @param models 模型解析器
+     * @param runtime 运行运行时
+     * @param pipeline turn 流水线
+     * @param dispatcher 调度器
+     * @param compactionStep 压缩步骤
+     * @param gitCheckpoints Git 检查点服务
+     * @param verification 自动验证服务
+     * @return 依赖集合
+     */
+    @Bean
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public AgentLoopDependencies agentLoopDependencies(ActiveModelResolver models,
+            RunRuntime runtime, TurnPipeline pipeline, RunDispatcher dispatcher,
+            RunCompactionStep compactionStep, GitCheckpointService gitCheckpoints,
+            VerificationService verification) {
+        return new AgentLoopDependencies(models, runtime, pipeline, dispatcher, compactionStep,
+                gitCheckpoints, verification);
     }
 }

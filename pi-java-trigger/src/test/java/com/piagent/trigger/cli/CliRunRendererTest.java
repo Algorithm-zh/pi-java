@@ -9,6 +9,7 @@ import com.piagent.domain.session.model.SessionId;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
@@ -63,6 +64,21 @@ class CliRunRendererTest {
                 .contains("[工具] read")
                 .contains("完成")
                 .contains("第一行 第二行");
+    }
+
+    @Test
+    void planAndVerificationEventsBecomeSummaryLines() {
+        StringWriter buffer = new StringWriter();
+        CliRunRenderer renderer = renderer(buffer, false);
+        renderer.render(event(RunEventType.PLAN_UPDATED, Map.of("total", 3, "completed", 1,
+                "items", List.of(Map.of("content", "读代码", "status", "done"),
+                        Map.of("content", "改实现", "status", "in_progress")))));
+        renderer.render(event(RunEventType.VERIFICATION_COMPLETED, Map.of("passed", false,
+                "command", "mvn -q test", "durationMs", 1200)));
+
+        assertThat(buffer.toString())
+                .contains("[待办] 1/3 完成 · 改实现")
+                .contains("[验证] 未通过 · mvn -q test · 1200ms");
     }
 
     private static CliRunRenderer renderer(StringWriter buffer, boolean json) {

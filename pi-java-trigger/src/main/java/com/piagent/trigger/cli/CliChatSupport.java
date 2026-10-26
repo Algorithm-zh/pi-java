@@ -6,12 +6,16 @@ import com.piagent.application.git.GitCheckpointService;
 import com.piagent.application.git.GitUndoResult;
 import com.piagent.application.git.GitUndoService;
 import com.piagent.application.git.SessionGitChanges;
+import com.piagent.application.plan.SessionPlanService;
+import com.piagent.application.plan.SessionPlanSnapshot;
 import com.piagent.application.session.command.ChangeSessionModelCommand;
 import com.piagent.application.session.service.SessionSettingsApplicationService;
 import com.piagent.domain.git.model.FileChange;
+import com.piagent.domain.plan.model.PlanItem;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.VerificationPayload;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,7 +31,7 @@ public class CliChatSupport {
 
     private static final Set<String> COMMANDS = Set.of(
             "/help", "/exit", "/quit", "/abort", "/compact", "/model", "/tree", "/session",
-            "/diff", "/undo");
+            "/diff", "/undo", "/plan");
 
     private static final int MAX_DIFF_LINES = 120;
 
@@ -36,6 +40,7 @@ public class CliChatSupport {
     private final CompactionApplicationService compaction;
     private final GitCheckpointService checkpoints;
     private final GitUndoService undo;
+    private final SessionPlanService plans;
 
     /**
      * 创建命令支持。
@@ -45,15 +50,17 @@ public class CliChatSupport {
      * @param compaction 手动压缩
      * @param checkpoints 工作区改动查询
      * @param undo 撤销用例
+     * @param plans 计划查询
      */
     public CliChatSupport(CliSessionService sessions, SessionSettingsApplicationService settings,
             CompactionApplicationService compaction, GitCheckpointService checkpoints,
-            GitUndoService undo) {
+            GitUndoService undo, SessionPlanService plans) {
         this.sessions = sessions;
         this.settings = settings;
         this.compaction = compaction;
         this.checkpoints = checkpoints;
         this.undo = undo;
+        this.plans = plans;
     }
 
     /**
@@ -88,6 +95,7 @@ public class CliChatSupport {
             case "/tree" -> printTree(session, terminal);
             case "/session" -> printSession(session, terminal);
             case "/diff" -> printDiff(session, terminal);
+            case "/plan" -> printPlan(session, terminal);
             case "/undo" -> {
                 return undo(session, terminal);
             }
@@ -141,6 +149,39 @@ public class CliChatSupport {
         if (lines.length > shown) {
             terminal.println("…（还有 " + (lines.length - shown) + " 行，完整 diff 见 Web 改动面板）");
         }
+    }
+
+    private void printPlan(ChatSession session, CliTerminal terminal) {
+        SessionPlanSnapshot snapshot = plans.snapshot(session.identity().id());
+        if (!snapshot.hasPlan()) {
+            terminal.println("当前没有待办计划");
+        } else {
+            terminal.println("待办 · " + snapshot.completed() + "/" + snapshot.plan().items().size()
+                    + " 完成");
+            for (PlanItem item : snapshot.plan().items()) {
+                terminal.println("  " + planMark(item) + " " + item.content());
+            }
+        }
+        VerificationPayload verification = snapshot.verification();
+        if (verification != null) {
+            terminal.println("验证: " + verificationStatus(verification) + " · "
+                    + verification.command() + " · " + verification.durationMs() + "ms");
+        }
+    }
+
+    private static String planMark(PlanItem item) {
+        return switch (item.status()) {
+            case DONE -> "[x]";
+            case IN_PROGRESS -> "[>]";
+            case PENDING -> "[ ]";
+        };
+    }
+
+    private static String verificationStatus(VerificationPayload verification) {
+        if (verification.passed()) {
+            return "通过";
+        }
+        return verification.timedOut() ? "超时" : "未通过";
     }
 
     private ChatSession undo(ChatSession session, CliTerminal terminal) {
@@ -216,6 +257,7 @@ public class CliChatSupport {
                   /tree          查看当前分支 entry
                   /session       查看会话信息
                   /diff          查看最近一次运行的文件改动
+                  /plan          查看待办与最近一次验证
                   /undo          撤销上一轮（还原文件并回退对话）
                   /skill:名称    以技能方式发送消息""";
     }

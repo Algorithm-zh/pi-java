@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.git.model.GitChangeKind;
+import com.piagent.domain.plan.model.PlanItem;
+import com.piagent.domain.plan.model.PlanItemStatus;
 import com.piagent.domain.session.model.EntryId;
 import com.piagent.domain.session.model.EntryType;
 import com.piagent.domain.session.model.SessionEntry;
@@ -28,8 +30,10 @@ import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
+import com.piagent.domain.session.model.payload.PlanPayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.model.payload.SessionInfoPayload;
+import com.piagent.domain.session.model.payload.VerificationPayload;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.Ulid;
@@ -109,7 +113,14 @@ class EntryPayloadCodecTest {
                         List.of(new FileChange("src/App.java", GitChangeKind.MODIFIED, 12, 3, false),
                                 new FileChange("logo.bin", GitChangeKind.ADDED, 0, 0, true)),
                         "diff --git a/src/App.java b/src/App.java\n+hello\n", false,
-                        "feat: 更新 App"));
+                        "feat: 更新 App"),
+                new PlanPayload("run-1", List.of(
+                        new PlanItem("读代码", PlanItemStatus.DONE),
+                        new PlanItem("改实现", PlanItemStatus.IN_PROGRESS),
+                        new PlanItem("跑测试", PlanItemStatus.PENDING))),
+                new PlanPayload("", List.of()),
+                new VerificationPayload("run-1", "mvn -q test", false, 1, false, true,
+                        3200, "Tests run: 3, Failures: 1"));
     }
 
     private static EntryId eid(int n) {

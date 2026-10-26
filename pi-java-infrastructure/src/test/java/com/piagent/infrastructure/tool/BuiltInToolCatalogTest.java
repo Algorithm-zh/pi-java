@@ -1,9 +1,11 @@
 package com.piagent.infrastructure.tool;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.piagent.application.plan.SessionPlanService;
 import com.piagent.domain.governance.service.PathSandbox;
 import com.piagent.domain.tool.model.ExecutionMode;
 import com.piagent.domain.tool.model.ToolDescriptor;
@@ -20,7 +22,7 @@ class BuiltInToolCatalogTest {
         List<ToolDescriptor> descriptors = BuiltInToolCatalog.descriptors();
 
         assertThat(descriptors).extracting(descriptor -> descriptor.name().value())
-                .containsExactly("read", "ls", "grep", "glob", "write", "edit", "bash");
+                .containsExactly("read", "ls", "grep", "glob", "todo", "write", "edit", "bash");
         assertThat(descriptors).allSatisfy(descriptor -> assertThat(descriptor.timeout())
                 .isPositive());
     }
@@ -68,13 +70,14 @@ class BuiltInToolCatalogTest {
         assertThat(required("write")).containsExactly("path", "content");
         assertThat(required("edit")).containsExactly("path", "oldText", "newText");
         assertThat(required("bash")).containsExactly("command");
+        assertThat(required("todo")).containsExactly("todos");
     }
 
     @Test
     void everyDescriptorHasAHandler() {
         RealPathResolver resolver = new RealPathResolver(new PathSandbox());
 
-        assertThat(BuiltInToolHandlers.create(resolver).keySet())
+        assertThat(BuiltInToolHandlers.create(resolver, mock(SessionPlanService.class)).keySet())
                 .containsExactlyInAnyOrderElementsOf(BuiltInToolCatalog.descriptors().stream()
                         .map(ToolDescriptor::name)
                         .toList());

@@ -22,8 +22,10 @@ import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
+import com.piagent.domain.session.model.payload.PlanPayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.model.payload.SessionInfoPayload;
+import com.piagent.domain.session.model.payload.VerificationPayload;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import java.util.ArrayList;
@@ -75,6 +77,8 @@ public final class EntryPayloadCodec {
             case RunSummaryPayload value -> encodeRunSummary(node, value);
             case GitCheckpointPayload value -> encodeCheckpoint(node, value);
             case GitChangeSetPayload value -> encodeChanges(node, value);
+            case PlanPayload value -> PlanEntryCodec.encodePlan(node, value);
+            case VerificationPayload value -> PlanEntryCodec.encodeVerification(node, value);
         }
         try {
             return mapper.writeValueAsString(node);
@@ -198,6 +202,8 @@ public final class EntryPayloadCodec {
                         decodeFiles(root.get("files")), root.path("diff").asText(""),
                         root.path("truncated").asBoolean(false),
                         root.path("suggestedCommit").asText(""));
+                case PLAN -> PlanEntryCodec.decodePlan(root);
+                case VERIFICATION -> PlanEntryCodec.decodeVerification(root);
             };
         } catch (DomainException error) {
             throw error;

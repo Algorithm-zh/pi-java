@@ -1,6 +1,7 @@
 package com.piagent.trigger.http.session;
 
 import com.piagent.domain.git.model.FileChange;
+import com.piagent.domain.plan.model.PlanItem;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AgentMessage;
@@ -19,8 +20,10 @@ import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
+import com.piagent.domain.session.model.payload.PlanPayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.model.payload.SessionInfoPayload;
+import com.piagent.domain.session.model.payload.VerificationPayload;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +87,10 @@ public record SessionEntryResponse(String id, String parentId, long seq, String 
                     null, checkpointExtra(payload));
             case GitChangeSetPayload payload -> new EntryBody("system", List.of(), null, null,
                     null, changesExtra(payload));
+            case PlanPayload payload -> new EntryBody("system", List.of(), null, null, null,
+                    planExtra(payload));
+            case VerificationPayload payload -> new EntryBody("system", List.of(), null, null,
+                    null, verificationExtra(payload));
         };
     }
 
@@ -181,6 +188,29 @@ public record SessionEntryResponse(String id, String parentId, long seq, String 
         }
         extra.put("files", payload.files().stream().map(SessionEntryResponse::fileMap).toList());
         return Map.copyOf(extra);
+    }
+
+    private static Map<String, Object> planExtra(PlanPayload payload) {
+        long completed = payload.items().stream()
+                .filter(item -> item.status() == com.piagent.domain.plan.model.PlanItemStatus.DONE)
+                .count();
+        return extra("runId", payload.runId(), "total", payload.items().size(),
+                "completed", completed,
+                "items", payload.items().stream().map(SessionEntryResponse::planItemMap).toList());
+    }
+
+    private static Map<String, Object> planItemMap(PlanItem item) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("content", item.content());
+        map.put("status", item.status().wireName());
+        return Map.copyOf(map);
+    }
+
+    private static Map<String, Object> verificationExtra(VerificationPayload payload) {
+        return extra("runId", payload.runId(), "command", payload.command(),
+                "passed", payload.passed(), "exitCode", payload.exitCode(),
+                "timedOut", payload.timedOut(), "truncated", payload.truncated(),
+                "durationMs", payload.durationMs(), "output", payload.output());
     }
 
     private static Map<String, Object> fileMap(FileChange change) {

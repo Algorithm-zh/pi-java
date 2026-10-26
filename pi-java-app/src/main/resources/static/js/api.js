@@ -57,6 +57,16 @@ export function sessionChanges(sessionId) {
 }
 
 /**
+ * 查询当前分支最新的待办与最近一次自动验证。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 计划快照
+ */
+export function sessionPlan(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/plan`);
+}
+
+/**
  * 撤销最近一次运行：还原文件并回退对话分支。
  *
  * @param {string} sessionId 会话 ID

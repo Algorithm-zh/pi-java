@@ -1,9 +1,10 @@
 # 04 运行时与事件
 
 > 状态：M4 已实现 Agent Loop、工具管线、SSE 与重放；M6 已实现审批等待、写工具与
-> 策略 API；M7 已实现上下文压缩与 Skills；M13 已实现工作区检查点与逐轮改动。
-> 子代理在 M8 落地。运行时由 application 层编排，domain 只提供规则与快照；
-> 所有外部等待（LLM、工具、审批、摘要）都不持有数据库事务。
+> 策略 API；M7 已实现上下文压缩与 Skills；M13 已实现工作区检查点与逐轮改动；
+> M14 已实现待办计划与收尾前自动验证。子代理在 M8 落地。运行时由 application 层
+> 编排，domain 只提供规则与快照；所有外部等待（LLM、工具、审批、摘要、验证）
+> 都不持有数据库事务。
 
 ## 1. 运行时组件
 
@@ -19,6 +20,7 @@ AgentLoopService
   ├─ RunSteps               守卫（取消/超时/轮数）与工具批次执行
   ├─ RunCompactionStep      自动压缩 / 溢出压缩 + compaction.* 事件
   ├─ RunGitTracker          工作区快照、逐轮 diff 与 workspace.changed 事件
+  ├─ RunVerificationStep    改过文件后收尾前自动验证 + verification.completed 事件
   ├─ TurnStreamer           模型调用 + 溢出后压缩重试
   ├─ TurnPipeline
   │    ├─ SessionEntryStore + SessionContextProjector（分支投影）
@@ -84,7 +86,10 @@ while true:
 
     若本次被取消：finish(CANCELLED)，保留已流出的部分文本
     若 assistant.stopReason == ERROR：finish(ERROR)
-    若没有 toolCall：finish(STOP 或 LENGTH)
+    若没有 toolCall：
+        若本 run 改过文件且模型准备收尾 → 自动验证一次
+            失败且允许重试 → 追加用户消息，进入下一轮
+        否则 finish(STOP 或 LENGTH)
     执行整批工具 → 记录执行数 → 若批内预算耗尽则 finish(MAX_STEPS)
     快照工作区：与上一轮终点比较，有变化写 GIT_CHANGES 并 publish workspace.changed
     进入下一轮
@@ -96,6 +101,13 @@ while true:
 - toolResult 与 toolCall 成对：未注册、策略拒绝、审批不可用、预算不足、取消都写 `isError=true` 结果；
 - 模型返回 `TOOL_USE` 但没有可解析 toolCall 时，由 adapter 报 `MALFORMED_RESPONSE`，run 以 ERROR 收尾；
 - M4 不实现插件 follow-up；assistant 无 toolCall 即结束本轮 run。
+
+自动验证（M14）只在本 run 执行过 `write` / `edit` / `bash` 时触发：
+模型无 toolCall、准备以 `STOP` / `LENGTH` 收尾时执行一次 `pi.verify.command`。
+失败输出写成 `VERIFICATION` entry 后，再追加一条用户消息让循环继续；
+`RunVerificationStep` 用 `attempts` 保证每个 run 最多回写一次，避免死循环。
+验证命令来自用户配置，不进入审批；超时与输出上限由执行器控制。
+详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
 
 ### 2.3 收尾
 
@@ -510,10 +522,13 @@ AgentLoopService → TurnPipeline → ToolCallCoordinator
 | `compaction.started` | `mode（AUTO/OVERFLOW）, tokensBefore, availableTokens, reason` |
 | `compaction.completed` | `mode, tokensBefore, tokensAfter, savedTokens, prunedOnly, note` |
 | `workspace.changed` | `turn, files（路径数组）, additions, deletions, truncated, suggestedCommit` |
+| `plan.updated` | `runId, total, completed, items[{content, status}]` |
+| `verification.completed` | `runId, command, passed, exitCode?, timedOut, truncated, durationMs, output（截断）` |
 | `replay.gap` | `lastAvailableSeq` |
 | `heartbeat` | `at` |
 
-M8 追加：`subagent.*`；M13 追加：`workspace.changed`。
+M8 追加：`subagent.*`；M13 追加：`workspace.changed`；M14 追加：
+`plan.updated`、`verification.completed`。
 
 ### 9.3 连接管理
 

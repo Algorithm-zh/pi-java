@@ -30,7 +30,7 @@ public final class BuiltInToolCatalog {
      * @return 工具定义
      */
     public static List<ToolDescriptor> descriptors() {
-        return List.of(read(), ls(), grep(), glob(), write(), edit(), bash());
+        return List.of(read(), ls(), grep(), glob(), todo(), write(), edit(), bash());
     }
 
     private static ToolDescriptor read() {
@@ -106,6 +106,37 @@ public final class BuiltInToolCatalog {
         return descriptor("glob", "Find files by glob pattern. "
                 + "Build output and hidden directories are skipped.", schema,
                 SCAN_TIMEOUT_SECONDS);
+    }
+
+    private static ToolDescriptor todo() {
+        String schema = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "todos": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "description": "Full replacement list; send every step, not just changes.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "content": {"type": "string",
+                                      "description": "One short, verifiable step."},
+                          "status": {"type": "string",
+                                     "enum": ["pending", "in_progress", "done"]}
+                        },
+                        "required": ["content", "status"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["todos"],
+                  "additionalProperties": false
+                }
+                """;
+        return descriptor("todo", "Maintain the task checklist. Each call replaces the whole "
+                + "list; keep at most one item in_progress and mark steps done as you finish them.",
+                schema, ToolRisk.LOW, ExecutionMode.SEQUENTIAL, WRITE_TIMEOUT_SECONDS);
     }
 
     private static ToolDescriptor write() {

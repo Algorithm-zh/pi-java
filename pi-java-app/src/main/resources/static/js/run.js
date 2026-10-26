@@ -10,6 +10,7 @@ import * as approval from "./approval.js";
 import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import { el } from "./dom.js";
+import * as plan from "./plan.js";
 import { resetForConversation, renderUserBubble, stopReasonLabel } from "./render.js";
 import { reloadSession, scrollToBottom, syncSessionTitle } from "./session-view.js";
 import { dom, setRunState, state, toast } from "./store.js";
@@ -260,6 +261,15 @@ function handleEvent({ name, payload }) {
         case "workspace.changed":
             changes.refresh();
             break;
+        case "plan.updated":
+            plan.applyEvent(data);
+            break;
+        case "verification.completed":
+            plan.applyVerification(data);
+            if (!data.passed) {
+                toast("自动验证未通过，已把错误反馈给模型");
+            }
+            break;
         case "replay.gap":
             toast("事件回放不完整，将以数据库会话为准", true);
             break;
@@ -281,6 +291,10 @@ function handleReconnectEvent({ name, payload }) {
         setRunState("生成中");
     } else if (type === "run.completed" || type === "run.failed") {
         finishRun(data, type === "run.failed");
+    } else if (type === "plan.updated") {
+        plan.applyEvent(data);
+    } else if (type === "verification.completed") {
+        plan.applyVerification(data);
     } else if (type === "replay.gap") {
         toast("事件回放不完整，将以数据库会话为准", true);
     }
@@ -300,6 +314,7 @@ function finishRun(data, failed) {
         toast(data.errorMessage, true);
     }
     changes.refresh();
+    plan.refresh();
 }
 
 function accumulateUsage(value) {

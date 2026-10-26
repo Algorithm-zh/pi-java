@@ -3,7 +3,7 @@
 > 状态：M9 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理、
 > Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
 > 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）；
-> M13 已实现工作区改动查询与撤销。
+> M13 已实现工作区改动查询与撤销；M14 已实现计划查询、`todo` 工具与自动验证事件。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -348,6 +348,41 @@ POST /api/v1/sessions/{id}/undo      # 还原文件并回退对话
 - 不创建分支、不移动 HEAD、不自动提交。
 
 字段细节、冲突预检与失败降级见 [12 Git 检查点与撤销](12-git.md)。
+
+### 2.11 计划与自动验证（M14）
+
+```http
+GET /api/v1/sessions/{id}/plan
+```
+
+```json
+{
+  "hasPlan": true,
+  "total": 3,
+  "completed": 1,
+  "items": [
+    {"content": "读代码", "status": "done"},
+    {"content": "改实现", "status": "in_progress"},
+    {"content": "跑测试", "status": "pending"}
+  ],
+  "verification": {
+    "command": "mvn -q test",
+    "passed": false,
+    "exitCode": 1,
+    "timedOut": false,
+    "truncated": false,
+    "durationMs": 48213,
+    "output": "Tests run: 3, Failures: 1 ..."
+  }
+}
+```
+
+- `hasPlan=false` 时 `items=[]`；`verification` 为最近一次自动验证，从未验证时
+  为 `null`；
+- 接口只读：计划只能由模型通过 `todo` 工具整表替换，HTTP 不提供人工编辑入口；
+- 运行中的更新通过 SSE `plan.updated` 与 `verification.completed` 推送。
+
+详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
 
 ## 3. 审批 API（M6）
 
@@ -771,6 +806,7 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 - `/session` → 打印会话 id、模型、思考级别与状态；
 - `/diff` → 最近一次运行的分支、文件、行数、提交建议与 diff（最多 120 行）；
 - `/undo` → 撤销上一轮：还原文件并回退对话；冲突时逐条打印原因；
+- `/plan` → 打印当前待办、完成数与最近一次自动验证结果；
 - `/skill:name [args]` → 作为普通消息交给 Agent Loop 的技能解析器；
 - EOF（Ctrl+D/Ctrl+Z）退出。
 

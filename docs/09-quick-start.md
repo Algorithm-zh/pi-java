@@ -255,6 +255,40 @@ curl -X PUT http://127.0.0.1:8080/api/v1/tool-policies `
 > 注意：使用 Fake Demo 模型时子代理无法真正执行（Fake 按最后一条用户消息匹配指令），
 > 需要用真实模型验证效果。
 
+## 六点七、计划与自动验证（M14）
+
+给会话配置一次验证命令，代理改过文件并准备收尾时会自动执行：
+
+```powershell
+# 启动前设置；留空表示关闭
+$env:PI_VERIFY_COMMAND = "mvn -q test"
+```
+
+也可以在 `application.yml` 中固定：
+
+```yaml
+pi:
+  verify:
+    command: "mvn -q test"   # Windows 也支持 cmd 命令
+    timeout-seconds: 120
+    max-output-chars: 6000
+    retry-on-failure: true   # 失败后把输出回写一次，让模型修复
+```
+
+体验待办面板（Fake demo 可直接使用）：
+
+```text
+/tool todo {"todos":[{"content":"读代码","status":"done"},{"content":"改实现","status":"in_progress"},{"content":"跑测试","status":"pending"}]}
+```
+
+- 待办最多 20 条、最多一条 `in_progress`；每次调用整表替换，传空数组清空；
+- 计划写入会话日志，刷新、切换会话或重启后仍在；
+- 验证只在本次 run 执行过 `write` / `edit` / `bash` 时运行；
+- 失败输出会作为用户消息交回模型，同一 run 最多重试一次；
+- CLI 用 `/plan` 查看当前计划与最近验证结果。
+
+详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
+
 ## 七、常见问题
 
 **Q：脚本报"表达式或语句中包含意外的标记"，满屏解析错误**

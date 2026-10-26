@@ -4,6 +4,7 @@ import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
 import com.piagent.application.git.GitCheckpointService;
 import com.piagent.application.git.RunGitTracker;
+import com.piagent.application.verify.VerificationService;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.agent.RunStopReason;
@@ -23,6 +24,7 @@ import com.piagent.domain.shared.DomainException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
@@ -47,6 +49,7 @@ public class AgentLoopService {
 
     private static final System.Logger LOG = System.getLogger(AgentLoopService.class.getName());
     private static final int MAX_ERROR_LENGTH = 4_000;
+    private static final Set<String> MUTATING_TOOLS = Set.of("write", "edit", "bash");
 
     private final ActiveModelResolver models;
     private final RunRuntime runtime;
@@ -54,6 +57,7 @@ public class AgentLoopService {
     private final RunDispatcher dispatcher;
     private final RunCompactionStep compactionStep;
     private final GitCheckpointService gitCheckpoints;
+    private final VerificationService verification;
     private final TurnStreamer streamer;
     private final SkillInvocationResolver skills;
     private final RunSteps steps;
@@ -61,22 +65,16 @@ public class AgentLoopService {
     /**
      * 创建 Agent Loop 服务。
      *
-     * @param models 运行期模型解析器
-     * @param runtime 运行运行时（同时提供会话读取与运行取消）
-     * @param pipeline turn 流水线
-     * @param dispatcher 调度器
-     * @param compactionStep 上下文压缩步骤
-     * @param gitCheckpoints Git 检查点服务
+     * @param deps 循环依赖集合
      */
-    public AgentLoopService(ActiveModelResolver models, RunRuntime runtime,
-            TurnPipeline pipeline, RunDispatcher dispatcher, RunCompactionStep compactionStep,
-            GitCheckpointService gitCheckpoints) {
-        this.models = models;
-        this.runtime = runtime;
-        this.pipeline = pipeline;
-        this.dispatcher = dispatcher;
-        this.compactionStep = compactionStep;
-        this.gitCheckpoints = gitCheckpoints;
+    public AgentLoopService(AgentLoopDependencies deps) {
+        this.models = deps.models();
+        this.runtime = deps.runtime();
+        this.pipeline = deps.pipeline();
+        this.dispatcher = deps.dispatcher();
+        this.compactionStep = deps.compactionStep();
+        this.gitCheckpoints = deps.gitCheckpoints();
+        this.verification = deps.verification();
         this.streamer = new TurnStreamer(pipeline, compactionStep, runtime);
         this.skills = new SkillInvocationResolver(pipeline);
         this.steps = new RunSteps(runtime, pipeline);
@@ -106,7 +104,8 @@ public class AgentLoopService {
             RunGitTracker git = new RunGitTracker(gitCheckpoints, session.identity().id(),
                     session.config().cwd(), reserved.runId(), baseLeafId);
             RunContext context = new RunContext(session.identity().id(), profile, reserved,
-                    compactionStep.budgetOf(profile), resolved.skill(), git);
+                    compactionStep.budgetOf(profile), resolved.skill(), git,
+                    new RunVerificationStep(verification));
             ReservedRun handle = reserved;
             dispatcher.dispatch(() -> runSafely(context));
             submitted = true;
@@ -185,6 +184,7 @@ public class AgentLoopService {
 
     private void loop(RunContext context) {
         RunId runId = context.reserved().runId();
+        boolean mutated = false;
         while (true) {
             AgentRun run = runtime.current(runId);
             if (steps.stopByGuard(context, run)) {
@@ -212,27 +212,23 @@ public class AgentLoopService {
                 return;
             }
             List<ToolCallBlock> calls = toolCalls(response);
+            mutated = mutated || calls.stream().map(ToolCallBlock::name)
+                    .anyMatch(MUTATING_TOOLS::contains);
             if (calls.isEmpty()) {
                 RunStopReason reason = response.stopReason() == AssistantStopReason.LENGTH
                         ? RunStopReason.LENGTH : RunStopReason.STOP;
+                if (reason == RunStopReason.STOP
+                        && context.verification().beforeFinish(session, mutated)) {
+                    continue;
+                }
                 runtime.finish(context.reserved(), reason, null);
                 return;
             }
             boolean proceed = steps.executeTools(context, session, calls);
-            trackWorkspace(context, turn, turnBaseLeaf);
+            steps.trackWorkspace(context, turn, turnBaseLeaf);
             if (!proceed) {
                 return;
             }
-        }
-    }
-
-    private void trackWorkspace(RunContext context, int turn, EntryId turnBaseLeaf) {
-        try {
-            context.git().afterTurn(turn, turnBaseLeaf)
-                    .ifPresent(context.events()::workspaceChanged);
-        } catch (RuntimeException error) {
-            LOG.log(System.Logger.Level.WARNING,
-                    "记录工作区改动失败: " + context.reserved().runId(), error);
         }
     }
 

@@ -7,8 +7,7 @@ import com.piagent.application.context.CompactionSummarizer;
 import com.piagent.application.context.ContextCompactionService;
 import com.piagent.application.context.ContextMeasurementFactory;
 import com.piagent.application.git.GitCheckpointService;
-import com.piagent.application.testsupport.DirectExecutorService;
-import com.piagent.application.testsupport.InMemoryModelProfileRepository;
+import com.piagent.application.testsupport.DirectExecutorService;import com.piagent.application.testsupport.InMemoryModelProfileRepository;
 import com.piagent.application.testsupport.InMemorySessionEntryStore;
 import com.piagent.application.testsupport.InMemorySessionRepository;
 import com.piagent.application.testsupport.InMemorySkillSource;
@@ -16,6 +15,8 @@ import com.piagent.application.testsupport.InMemoryToolPolicyRepository;
 import com.piagent.application.testsupport.ScriptedLlmGateway;
 import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.application.testsupport.StubWorkspacePromptSource;
+import com.piagent.application.verify.VerificationOptions;
+import com.piagent.application.verify.VerificationService;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunEvent;
 import com.piagent.domain.agent.RunId;
@@ -57,6 +58,8 @@ import com.piagent.domain.tool.model.ToolResult;
 import com.piagent.domain.tool.model.ToolRisk;
 import com.piagent.domain.tool.port.ToolInvoker;
 import com.piagent.domain.tool.port.ToolRegistry;
+import com.piagent.domain.verify.model.VerificationOutcome;
+import com.piagent.domain.verify.port.VerificationRunner;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -142,6 +145,22 @@ final class AgentLoopFixture {
     }
 
     private AgentLoopFixture(ModelProfile profile, int maxConcurrentRuns, WorkspaceGit workspaceGit) {
+        this(profile, maxConcurrentRuns, workspaceGit, passingRunner(),
+                VerificationOptions.disabled());
+    }
+
+    /**
+     * 用自定义验证配置装配，便于验证失败回写与重试上限。
+     *
+     * @param runner 验证执行器
+     * @param options 验证配置
+     */
+    AgentLoopFixture(VerificationRunner runner, VerificationOptions options) {
+        this(defaultProfile(), 2, new NoGit(), runner, options);
+    }
+
+    private AgentLoopFixture(ModelProfile profile, int maxConcurrentRuns,
+            WorkspaceGit workspaceGit, VerificationRunner runner, VerificationOptions options) {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         DirectExecutorService executor = new DirectExecutorService();
         appender = new SessionEntryAppender(sessions, entries, ids, clock);
@@ -171,9 +190,16 @@ final class AgentLoopFixture {
                         compaction));
         dispatcher = new RunDispatcher(executor, maxConcurrentRuns);
         GitCheckpointService git = new GitCheckpointService(workspaceGit, sessions, entries, appender);
-        loop = new AgentLoopService(
+        VerificationService verification = new VerificationService(runner, appender, runtime,
+                new RunAuxEvents(runtime, hub), options, clock);
+        loop = new AgentLoopService(new AgentLoopDependencies(
                 new ActiveModelResolver(models, new ModelSelectionPolicy()),
-                runtime, pipeline, dispatcher, compactionStep, git);
+                runtime, pipeline, dispatcher, compactionStep, git, verification));
+    }
+
+    private static VerificationRunner passingRunner() {
+        return (command, workspace, timeout, maxChars) ->
+                new VerificationOutcome(command, 0, false, false, 0, "");
     }
 
     ChatSession createSession() {

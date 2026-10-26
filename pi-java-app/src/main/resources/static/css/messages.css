@@ -981,6 +981,84 @@
     border-left-color: var(--accent);
 }
 
+.plan-note,
+.verify-note.is-passed {
+    border-left-color: var(--success);
+}
+
+.plan-note.is-complete {
+    border-left-color: var(--accent);
+}
+
+.plan-note.is-complete .history-note-state {
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+}
+
+.plan-note-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 9px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.plan-note-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.plan-note-mark {
+    display: grid;
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    margin-top: 1px;
+    place-items: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    color: var(--muted-2);
+    font-family: var(--mono);
+    font-size: 8px;
+}
+
+.plan-note-item.is-done .plan-note-mark {
+    border-color: var(--success);
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+.plan-note-item.is-done .plan-note-text {
+    color: var(--muted-2);
+    text-decoration: line-through;
+    text-decoration-color: var(--line-strong);
+}
+
+.plan-note-item.is-in_progress .plan-note-mark {
+    border-color: var(--accent);
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+}
+
+.plan-note-item.is-in_progress .plan-note-text {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.verify-note.is-failed {
+    border-left-color: var(--danger);
+}
+
+.verify-note.is-failed .history-note-state {
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
 .history-note-meta {
     color: var(--muted-2);
     font-size: 11px;

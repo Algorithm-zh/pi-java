@@ -1,5 +1,6 @@
 package com.piagent.infrastructure.config;
 
+import com.piagent.application.plan.SessionPlanService;
 import com.piagent.application.subagent.SubagentRegistry;
 import com.piagent.domain.governance.service.PathSandbox;
 import com.piagent.domain.tool.model.ToolDescriptor;
@@ -68,12 +69,14 @@ public class ToolConfiguration {
      *
      * @param registry 工具注册表
      * @param resolver 路径解析器
+     * @param plans 会话计划服务，供 todo 工具使用
      * @return 调用器
      */
     @Bean(destroyMethod = "close")
     public BuiltInToolInvoker builtInToolInvoker(RuntimeToolRegistry registry,
-            RealPathResolver resolver) {
-        return new BuiltInToolInvoker(registry, BuiltInToolHandlers.create(resolver));
+            RealPathResolver resolver, SessionPlanService plans) {
+        return new BuiltInToolInvoker(registry,
+                BuiltInToolHandlers.create(resolver, plans));
     }
 
     /**

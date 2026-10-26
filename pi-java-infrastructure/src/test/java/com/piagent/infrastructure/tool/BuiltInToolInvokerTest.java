@@ -2,7 +2,9 @@ package com.piagent.infrastructure.tool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
+import com.piagent.application.plan.SessionPlanService;
 import com.piagent.domain.governance.model.SandboxPolicy;
 import com.piagent.domain.governance.service.PathSandbox;
 import com.piagent.domain.shared.DomainErrorCode;
@@ -125,7 +127,8 @@ class BuiltInToolInvokerTest {
     private BuiltInToolInvoker builtInInvoker() {
         CatalogToolRegistry registry = new CatalogToolRegistry(BuiltInToolCatalog.descriptors());
         RealPathResolver resolver = new RealPathResolver(new PathSandbox());
-        return new BuiltInToolInvoker(registry, BuiltInToolHandlers.create(resolver));
+        return new BuiltInToolInvoker(registry,
+                BuiltInToolHandlers.create(resolver, mock(SessionPlanService.class)));
     }
 
     private CatalogToolRegistry registry(ToolDescriptor descriptor) {

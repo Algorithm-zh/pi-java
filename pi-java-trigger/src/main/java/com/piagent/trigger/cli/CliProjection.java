@@ -16,8 +16,10 @@ import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.LabelPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
+import com.piagent.domain.session.model.payload.PlanPayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.model.payload.SessionInfoPayload;
+import com.piagent.domain.session.model.payload.VerificationPayload;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +49,8 @@ public final class CliProjection {
             case RUN_SUMMARY -> runSummary(entry.payload());
             case GIT_CHECKPOINT -> checkpointSummary(entry.payload());
             case GIT_CHANGES -> changesSummary(entry.payload());
+            case PLAN -> planSummary(entry.payload());
+            case VERIFICATION -> verificationSummary(entry.payload());
             case SESSION_INFO -> entry.payload() instanceof SessionInfoPayload info
                     ? "会话信息: " + info.name() : "会话信息";
             case LABEL -> labelSummary(entry.payload());
@@ -129,6 +133,27 @@ public final class CliProjection {
                     + changes.additions() + " -" + changes.deletions() + commit;
         }
         return "工作区改动";
+    }
+
+    private static String planSummary(Object payload) {
+        if (payload instanceof PlanPayload plan) {
+            String current = plan.plan().currentIndex()
+                    .stream().mapToObj(index -> plan.items().get(index).content())
+                    .findFirst().orElse("全部完成");
+            return "待办: " + plan.plan().completedCount() + "/" + plan.items().size()
+                    + " 完成 · " + CliText.oneLine(current, 80);
+        }
+        return "待办";
+    }
+
+    private static String verificationSummary(Object payload) {
+        if (payload instanceof VerificationPayload verification) {
+            String status = verification.passed() ? "验证通过"
+                    : verification.timedOut() ? "验证超时" : "验证未通过";
+            return status + ": " + CliText.oneLine(verification.command(), 80)
+                    + " · " + verification.durationMs() + "ms";
+        }
+        return "自动验证";
     }
 
     private static String shortSha(String value) {

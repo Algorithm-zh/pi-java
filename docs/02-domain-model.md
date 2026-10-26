@@ -181,6 +181,31 @@ interface SessionEntryStore {
 追加 entry 与更新 `leaf_entry_id/version` 必须在**同一短事务**内完成；
 应用层先校验 session 状态，再用 CAS 处理并发写。
 
+### 2.7 计划与验证（M14）
+
+`domain.plan` 只包含纯值对象：
+
+| 类型 | 说明 |
+|---|---|
+| `Plan` | 不可变完整待办快照；最多 20 条 |
+| `PlanItem(content, status)` | 内容非空、去空白、≤200 字 |
+| `PlanItemStatus` | `PENDING / IN_PROGRESS / DONE`，线名 `pending / in_progress / done` |
+
+不变量：
+
+- 最多一条 `in_progress`；
+- `currentIndex()` 优先 `in_progress`，否则第一条 `pending`；
+- `completedCount()` 只统计 `DONE`；
+- 空列表表示清空计划。
+
+日志表示：
+
+- `EntryType.PLAN` + `PlanPayload(runId, items)`：每次更新写完整快照，
+  分支上最新一条即当前计划；
+- `EntryType.VERIFICATION` + `VerificationPayload(runId, command, passed, exitCode,
+  timedOut, truncated, durationMs, output)`：最近一条即最近一次验证；
+- 两者都是元数据 entry，不进入模型上下文。
+
 ## 3. 运行时上下文 `domain.agent`
 
 ### 3.1 聚合根 `AgentRun`（仅内存）
@@ -216,7 +241,8 @@ M4 的实现是**不可变状态快照**，每次变更返回新 record，而不
 - `RunEvent(seq, runId, sessionId, type, at, data)`：`seq` 从 1 开始，`data` 冻结为
   不可变 Map，只放 JSON 友好的 JDK 值。
 - `RunEventType`：`run.started`、`turn.started`、`message.started/delta/completed`、
-  `tool.started/completed`、`run.completed/failed`、`heartbeat`、`replay.gap`。
+  `tool.started/completed`、`run.completed/failed`、`heartbeat`、`replay.gap`；
+  M13 追加 `workspace.changed`，M14 追加 `plan.updated`、`verification.completed`。
 - `ThinkingLevel`：`OFF / LOW / MEDIUM / HIGH`，属于会话配置，不属于 run 快照。
 - `SubagentSpec` / `SubagentMode` / `SubagentResult`：M8 引入，当前仅保留规划。
 

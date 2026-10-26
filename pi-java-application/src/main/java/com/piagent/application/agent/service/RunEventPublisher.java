@@ -13,6 +13,8 @@ import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.PlanPayload;
+import com.piagent.domain.session.model.payload.VerificationPayload;
 import com.piagent.domain.tool.model.ToolResult;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -158,6 +160,42 @@ final class RunEventPublisher {
 
     void runFailed(AgentRun run) {
         publish(RunEventType.RUN_FAILED, runData(run));
+    }
+
+    /**
+     * 待办计划更新。
+     *
+     * @param payload 计划快照
+     */
+    void planUpdated(PlanPayload payload) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("runId", payload.runId());
+        data.put("total", payload.items().size());
+        data.put("completed", payload.plan().completedCount());
+        data.put("items", payload.items().stream().map(item -> Map.of(
+                "content", item.content(),
+                "status", item.status().wireName())).toList());
+        publish(RunEventType.PLAN_UPDATED, data);
+    }
+
+    /**
+     * 自动验证完成。
+     *
+     * @param payload 验证结果
+     */
+    void verificationCompleted(VerificationPayload payload) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("runId", payload.runId());
+        data.put("command", payload.command());
+        data.put("passed", payload.passed());
+        if (payload.exitCode() != null) {
+            data.put("exitCode", payload.exitCode());
+        }
+        data.put("timedOut", payload.timedOut());
+        data.put("truncated", payload.truncated());
+        data.put("durationMs", payload.durationMs());
+        data.put("output", truncate(payload.output()));
+        publish(RunEventType.VERIFICATION_COMPLETED, data);
     }
 
     private void publish(RunEventType type, Map<String, Object> data) {

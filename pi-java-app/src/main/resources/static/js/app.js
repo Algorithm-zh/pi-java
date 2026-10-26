@@ -7,6 +7,7 @@ import * as approval from "./approval.js";
 import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
+import * as plan from "./plan.js";
 import {
     abort as abortRun, detach, enqueue, reconnectRun, start as startRun, syncQueue
 } from "./run.js";
@@ -31,6 +32,7 @@ async function init() {
     bindSessionReady(syncQueue);
     changes.initChanges();
     changes.bindReload(reloadSession);
+    plan.initPlan();
     initSessionActions();
     dialog.init(createSession, () => settings.open("models"), () => {
         pendingPrompt = "";

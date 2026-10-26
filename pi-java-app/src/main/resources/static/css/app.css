@@ -2399,3 +2399,362 @@ body.tool-modal-open {
         max-height: 36vh;
     }
 }
+
+/* ---------- 待办与自动验证 ---------- */
+
+.plan-dock {
+    width: min(var(--content-w), calc(100% - 60px));
+    flex: 0 0 auto;
+    margin: 0 auto 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.plan-dock.is-expanded {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-md);
+}
+
+.plan-dock.is-failed:not(.is-expanded) .plan-head {
+    background: linear-gradient(90deg, var(--danger-soft), transparent 62%);
+}
+
+.plan-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px 7px 12px;
+}
+
+.plan-toggle {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.plan-seal {
+    --plan-progress: 0;
+    position: relative;
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--plan-progress) * 1%),
+            var(--surface-sunken) 0);
+    transition: background .35s ease;
+}
+
+.plan-seal::before {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--surface);
+    content: "";
+}
+
+.plan-seal-text {
+    position: relative;
+    color: var(--accent-strong);
+    font-family: var(--mono);
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+}
+
+.plan-dock.is-verify-only .plan-seal {
+    display: none;
+}
+
+.plan-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: baseline;
+    gap: 9px;
+}
+
+.plan-title {
+    flex: 0 0 auto;
+    color: var(--ink);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.plan-current {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-count {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    white-space: nowrap;
+}
+
+.plan-verify-chip {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.plan-verify-chip.is-passed {
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+.plan-verify-chip.is-failed {
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.plan-caret {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    margin-right: 2px;
+    border-right: 1.6px solid var(--muted-2);
+    border-bottom: 1.6px solid var(--muted-2);
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform .18s ease;
+}
+
+.plan-dock.is-expanded .plan-caret {
+    transform: translateY(1px) rotate(-135deg);
+}
+
+.plan-rail {
+    height: 2px;
+    background: var(--surface-sunken);
+}
+
+.plan-rail-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--accent);
+    transition: width .45s cubic-bezier(.2, .7, .2, 1);
+}
+
+.plan-dock.is-done .plan-rail-fill {
+    background: var(--success);
+}
+
+.plan-dock.is-verify-only .plan-rail {
+    display: none;
+}
+
+.plan-detail {
+    max-height: min(38vh, 380px);
+    overflow: auto;
+    padding: 4px 12px 12px;
+    border-top: 1px solid var(--line);
+}
+
+.plan-items {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 8px 0 2px;
+    list-style: none;
+}
+
+.plan-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 5px 7px;
+    border-radius: var(--radius-xs);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.plan-item-mark {
+    display: grid;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    margin-top: 1px;
+    place-items: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    color: var(--muted-2);
+    font-family: var(--mono);
+    font-size: 8px;
+}
+
+.plan-item.is-done .plan-item-mark {
+    border-color: var(--success);
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+.plan-item.is-done .plan-item-text {
+    color: var(--muted-2);
+    text-decoration: line-through;
+    text-decoration-color: var(--line-strong);
+}
+
+.plan-item.is-active {
+    background: var(--accent-soft);
+    color: var(--ink);
+}
+
+.plan-item.is-active .plan-item-mark {
+    border-color: var(--accent);
+    color: var(--accent-strong);
+    animation: plan-pulse 1.9s ease-in-out infinite;
+}
+
+.plan-item.is-active .plan-item-text {
+    font-weight: 600;
+}
+
+@keyframes plan-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 var(--accent-soft);
+    }
+
+    50% {
+        box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+}
+
+.plan-verify {
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    overflow: hidden;
+}
+
+.plan-verify.is-failed {
+    border-color: var(--danger);
+}
+
+.plan-verify > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    list-style: none;
+    font-size: 11.5px;
+    cursor: pointer;
+}
+
+.plan-verify > summary::-webkit-details-marker {
+    display: none;
+}
+
+.verify-mark {
+    display: grid;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    place-items: center;
+    border-radius: 50%;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.plan-verify.is-passed .verify-mark {
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+.plan-verify.is-failed .verify-mark {
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.verify-label {
+    flex: 0 0 auto;
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.plan-verify.is-failed .verify-label {
+    color: var(--danger);
+}
+
+.verify-meta {
+    max-width: 58%;
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.verify-output {
+    max-height: 220px;
+    margin: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+    color: var(--text);
+    background: var(--canvas);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+@media (max-width: 720px) {
+    .plan-dock {
+        width: calc(100% - 24px);
+    }
+
+    .plan-count {
+        display: none;
+    }
+
+    .plan-current {
+        max-width: 42vw;
+    }
+
+    .plan-detail {
+        max-height: 34vh;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .plan-item.is-active .plan-item-mark {
+        animation: none;
+    }
+
+    .plan-rail-fill,
+    .plan-seal,
+    .plan-caret {
+        transition: none;
+    }
+}

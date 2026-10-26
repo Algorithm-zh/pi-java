@@ -44,6 +44,12 @@ public enum RunEventType {
     /** 一轮工具执行后工作区发生了变化，并已写入改动 entry。 */
     WORKSPACE_CHANGED("workspace.changed"),
 
+    /** 模型更新了待办计划。 */
+    PLAN_UPDATED("plan.updated"),
+
+    /** 自动验证命令执行完成。 */
+    VERIFICATION_COMPLETED("verification.completed"),
+
     /** run 正常结束（含取消与超时）。 */
     RUN_COMPLETED("run.completed"),
 

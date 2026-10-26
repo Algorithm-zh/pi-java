@@ -42,5 +42,11 @@ public enum EntryType {
     GIT_CHECKPOINT,
 
     /** 一轮工具执行后的工作区改动。 */
-    GIT_CHANGES
+    GIT_CHANGES,
+
+    /** 模型维护的待办快照。 */
+    PLAN,
+
+    /** 自动验证命令的执行结果。 */
+    VERIFICATION
 }

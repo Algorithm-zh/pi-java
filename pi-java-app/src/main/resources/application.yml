@@ -57,6 +57,14 @@ pi:
     enabled: true
     timeout-seconds: 10
     max-diff-chars: 60000
+  verify:
+    # 自动验证命令；留空表示关闭。示例：mvn -q test 或 npm test。
+    # 也可用环境变量 PI_VERIFY_COMMAND 临时启用。
+    command: "${PI_VERIFY_COMMAND:}"
+    timeout-seconds: 120
+    max-output-chars: 6000
+    # 失败后把输出回写一次，让模型在同一 run 内修复。
+    retry-on-failure: true
   agent:
     max-concurrent-runs: 4
     tool-parallelism: 4
