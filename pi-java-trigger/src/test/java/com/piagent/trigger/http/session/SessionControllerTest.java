@@ -68,9 +68,9 @@ class SessionControllerTest {
         MvcResult result = mvc.perform(post("/api/v1/sessions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"title":"测试会话","cwd":"D:/demo",
+                                {"title":"测试会话","cwd":"%s",
                                  "modelProfileId":"fake-demo","thinkingLevel":"LOW"}
-                                """))
+                                """.formatted(WORKSPACE.toString().replace("\\", "\\\\"))))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -83,7 +83,7 @@ class SessionControllerTest {
                 ArgumentCaptor.forClass(CreateSessionCommand.class);
         verify(sessions).createSession(captor.capture());
         assertThat(captor.getValue().title()).isEqualTo("测试会话");
-        assertThat(captor.getValue().cwd()).isEqualTo(Path.of("D:/demo"));
+        assertThat(captor.getValue().cwd()).isEqualTo(WORKSPACE);
         assertThat(captor.getValue().modelProfileId()).isEqualTo("fake-demo");
         assertThat(captor.getValue().thinkingLevel()).hasToString("LOW");
     }
