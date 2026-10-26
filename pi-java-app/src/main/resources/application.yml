@@ -36,6 +36,15 @@ server:
       charset: UTF-8
       force: true
 
+# OpenAPI：/v3/api-docs 是 JSON 契约，/swagger-ui.html 提供本地调试页面。
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
@@ -45,7 +54,7 @@ mybatis:
 
 # 运行时参数。全部有安全默认值，后续里程碑由配置绑定逐步消费。
 pi:
-  version: "0.1.0-SNAPSHOT"
+  version: "0.2.0"
   fake:
     # 默认回声；demo profile 下开启确定性指令脚本（/read、/ls）。
     demo-mode: false
@@ -90,7 +99,7 @@ spring:
     activate:
       on-profile: demo
   datasource:
-    url: "jdbc:h2:file:./data/pi-java;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;AUTO_SERVER=TRUE"
+    url: "jdbc:h2:file:${PI_DATA_DIR:./data}/pi-java;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;AUTO_SERVER=TRUE"
     driver-class-name: org.h2.Driver
     username: sa
     password: ""

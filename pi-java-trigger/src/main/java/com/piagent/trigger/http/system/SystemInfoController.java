@@ -23,7 +23,7 @@ public class SystemInfoController {
      *
      * @param version 应用版本
      */
-    public SystemInfoController(@Value("${pi.version:0.1.0-SNAPSHOT}") String version) {
+    public SystemInfoController(@Value("${pi.version:0.2.0}") String version) {
         this.version = version;
     }
 

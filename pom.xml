@@ -6,7 +6,7 @@
 
     <groupId>com.piagent</groupId>
     <artifactId>pi-java</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0</version>
     <packaging>pom</packaging>
 
     <name>pi-java</name>
@@ -44,6 +44,7 @@
         <jline.version>3.29.0</jline.version>
         <archunit.version>1.4.2</archunit.version>
         <wiremock.version>3.13.2</wiremock.version>
+        <springdoc.version>2.8.13</springdoc.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -123,6 +124,11 @@
                 <artifactId>wiremock-standalone</artifactId>
                 <version>${wiremock.version}</version>
                 <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

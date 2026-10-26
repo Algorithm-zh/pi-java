@@ -1,0 +1,32 @@
+# MySQL 变体：与 docker-compose.yml 叠加使用。
+#   PI_MYSQL_PASSWORD=... PI_MYSQL_ROOT_PASSWORD=... \
+#   docker compose -f docker-compose.yml -f docker-compose.mysql.yml up --build
+# 密码只从当前 shell 注入，不写入仓库。
+services:
+  pi-java:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      PI_MYSQL_URL: "jdbc:mysql://mysql:3306/pi_java?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
+      PI_MYSQL_USER: pi
+      PI_MYSQL_PASSWORD: ${PI_MYSQL_PASSWORD:?set PI_MYSQL_PASSWORD}
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: pi_java
+      MYSQL_USER: pi
+      MYSQL_PASSWORD: ${PI_MYSQL_PASSWORD:?set PI_MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${PI_MYSQL_ROOT_PASSWORD:?set PI_MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql-data:

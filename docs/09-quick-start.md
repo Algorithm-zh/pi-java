@@ -8,7 +8,7 @@ JDK 路径、环境变量名和模型档案参数。
 | 项目 | 要求 | 检查方式 |
 |---|---|---|
 | JDK | 21 或更高 | 脚本会自动探测，无需手动配置 |
-| 构建产物 | `pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar` | `mvn -q -DskipTests package` |
+| 构建产物 | `pi-java-app/target/pi-java-app-0.2.0.jar` | `mvn -q -DskipTests package` |
 | Git（可选） | 工作区是本机 Git 仓库时才有“本轮改动”与撤销 | `git --version` |
 | API Key | 可选；不设置时只能用 Fake 离线模型 | 见下文 |
 
@@ -90,7 +90,7 @@ $env:PI_DEEPSEEK_KEY = "sk-你的key"
 CLI 与 Web 共用同一个 Spring 容器、数据库、工作目录校验与审批管线。
 
 ```powershell
-$Jar = "pi-java-app\target\pi-java-app-0.1.0-SNAPSHOT.jar"
+$Jar = "pi-java-app\target\pi-java-app-0.2.0.jar"
 
 # 单次执行：默认流式输出
 & $Java $Jar run "读取 pom.xml 并总结依赖" --cwd D:\code\demo
@@ -289,6 +289,25 @@ pi:
 
 详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
 
+## 六点八、Docker 与接口文档（M15）
+
+没有 JDK 21 时可以直接用容器；数据库落在命名卷，仓库目录挂到 `/workspace`：
+
+```bash
+docker compose up --build
+```
+
+MySQL 变体与手动 `docker build` / `docker run` 命令见
+[14 部署、容器与 CI](14-deployment.md)。
+
+服务启动后：
+
+- <http://127.0.0.1:8080/swagger-ui.html>：Swagger UI；
+- <http://127.0.0.1:8080/v3/api-docs>：OpenAPI 3 JSON。
+
+容器内固定使用 `/app/data` 存 H2；本机运行可用 `PI_DATA_DIR` 改数据目录，
+例如 `$env:PI_DATA_DIR = "D:\pi-java-data"`。
+
 ## 七、常见问题
 
 **Q：脚本报"表达式或语句中包含意外的标记"，满屏解析错误**
@@ -310,7 +329,7 @@ Key 是在**启动服务的那个终端**里设置的。如果换了终端，需
 `$env:PI_DEEPSEEK_KEY = "..."` 并重启服务。
 
 **Q：会话数据在哪**
-`.\data\pi-java.mv.db`（H2 文件库）。删除该目录即清空全部会话，
+`.\data\pi-java.mv.db`（H2 文件库；可用 `PI_DATA_DIR` 改目录）。删除该目录即清空全部会话，
 下次启动会重新建表并创建 demo 档案。
 
 **Q：想换成 MySQL**
@@ -322,7 +341,7 @@ Key 是在**启动服务的那个终端**里设置的。如果换了终端，需
 
 ## 八、安全提示
 
-- 服务只监听 `127.0.0.1`，且 **v0.1 没有鉴权**，不要暴露到公网；
+- 服务只监听 `127.0.0.1`，且 **v0.2 没有鉴权**，不要暴露到公网；
 - Key 只从环境变量读取，数据库里只保存变量名；
 - `write` / `edit` 默认需要人工审批；`bash` 默认拒绝；
 - 插件运行在同进程内，类加载隔离不是安全沙箱，只安装可信来源的插件。

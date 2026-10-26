@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.vscode
+.workbuddy
+**/target
+data
+logs
+*.log
+promo-video
+resume
+docs
+*.png

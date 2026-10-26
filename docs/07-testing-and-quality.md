@@ -1,6 +1,6 @@
 # 07 测试与质量
 
-> 状态：M5 更新。每个里程碑必须通过本文定义的统一门禁，才能提交与进入下一阶段。
+> 状态：M15 更新。每个里程碑必须通过本文定义的统一门禁，才能提交与进入下一阶段。
 
 ## 1. 质量目标
 
@@ -334,6 +334,19 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 - 文件锁、临时目录清理使用 `@TempDir`；
 - CI 若只跑 Linux，Windows 行为由本机手工 smoke 兜底，文档明确。
 
+### 9.1 CI 平台（M15）
+
+`.github/workflows/ci.yml` 在 push 到 `main`、PR 与手动触发时运行：
+
+| 作业 | 验证内容 |
+|---|---|
+| `verify` | ubuntu-latest + JDK 21 Temurin + Maven 缓存，执行完整 `mvn verify` |
+| `docker` | 构建镜像、启动容器、校验版本/OpenAPI/首页，失败时输出容器日志 |
+| `mysql` | MySQL 8.4 服务容器 + `mysql` profile 启动，通过 HTTP 建会话并读回 |
+
+`verify` 失败时上传 surefire/failsafe 报告。本机开发环境未安装 Docker，
+因此 Windows 行为与本地容器启动由本机 smoke/文档说明兜底，Linux 与容器路径由 CI 覆盖。
+
 ## 10. 提交前检查清单
 
 ```bash
@@ -351,7 +364,8 @@ git diff --stat               # 确认没有巨文件
 
 ## 11. 已知取舍
 
-- v0.1 不做 Testcontainers：本机 Docker 不可用，MySQL 用本机 smoke 补充；
+- 本地开发机不安装 Docker，容器构建与启动由 CI 的 `docker` 作业验证；
+  MySQL 既有本机 smoke，也有 CI 服务容器 smoke；仍不引入 Testcontainers；
 - 不做变异测试、契约测试平台、性能基准；
 - SSE 前端自动化暂用 MockMvc + 手工浏览器走查，M9 再评估 Playwright；
 - 覆盖率门槛只覆盖 domain/application，基础设施靠行为测试而非数字。
@@ -360,3 +374,4 @@ git diff --stat               # 确认没有巨文件
 
 - [整体架构](01-architecture.md)
 - [路线图](08-roadmap.md)
+- [部署、容器与 CI](14-deployment.md)

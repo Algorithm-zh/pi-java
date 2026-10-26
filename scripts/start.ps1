@@ -41,7 +41,7 @@ Set-StrictMode -Version Latest
 
 # ── 路径与可调参数 ────────────────────────────────────────────────────────────
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.1.0-SNAPSHOT.jar"
+$JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.2.0.jar"
 $BaseUrl = "http://127.0.0.1:$Port/api/v1"
 
 # DeepSeek 走 OpenAI-compatible 协议。换其它服务时只改下面四行即可。

@@ -15,14 +15,14 @@
 mvn -q -pl examples/pi-plugin-example -am package
 ```
 
-产物是普通 jar：`target/pi-plugin-example-0.1.0-SNAPSHOT.jar`。
+产物是普通 jar：`target/pi-plugin-example-0.2.0.jar`。
 
 ## 安装与启用
 
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/plugins \
   -H 'Content-Type: application/json' \
-  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.1.0-SNAPSHOT.jar"}'
+  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.2.0.jar"}'
 
 curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enable
 curl http://127.0.0.1:8080/api/v1/tools

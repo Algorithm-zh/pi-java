@@ -8,7 +8,7 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M14 计划与自动验证已完成**（2026-10-26）。已具备树形会话日志、
+> 当前状态：**M15 工程化与 v0.2.0 已完成**（2026-10-26）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理、会话设置与上下文用量仪表，以及工作区检查点、
@@ -20,8 +20,9 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > 提供圆角输入框、中文风险标签与安全默认的审批面板。设计细节见 [界面设计](docs/11-interface-design.md)。
 > 同一个 jar 既是 Web 服务也是 CLI：`pi run`、`pi chat`、`pi sessions/models/tools`、
 > `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
-> v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具、Git 检查点，
-> 以及计划、待办与自动验证。下一步是工程化与 v0.2.0。
+> v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具、Git 检查点、
+> 计划/待办/自动验证，以及 GitHub Actions、Docker 镜像与 OpenAPI 文档。
+> `v0.2.0` tag 与 GitHub Release 待用户确认后创建。
 
 ![欢迎页与示例任务](docs/images/welcome.png)
 
@@ -59,7 +60,7 @@ $env:PI_DEEPSEEK_KEY = "sk-你的key"   # 可选；不设则只能用 Fake 离�
 
 ```bash
 mvn -q -DskipTests package
-java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
+java -jar pi-java-app/target/pi-java-app-0.2.0.jar
 ```
 
 打开 <http://127.0.0.1:8080>，新建会话后输入 `/read README.md`、`/ls .` 或
@@ -70,16 +71,32 @@ java -jar pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
 失败输出会回给模型修复一次。
 侧栏可搜索历史会话，底部可切换浅色/深色主题或进入设置中心（模型档案与密钥环境变量、
 技能、插件、工具策略）；顶栏仪表显示上下文用量，空闲时可手动压缩。默认 demo profile 使用 H2 文件库与 Fake LLM，
-**不需要任何 API Key**。服务只监听 `127.0.0.1`，v0.1 无鉴权，禁止直接暴露公网。
+**不需要任何 API Key**。服务只监听 `127.0.0.1`，v0.2 无鉴权，禁止直接暴露公网。
+启动后可访问 `/v3/api-docs` 与 `/swagger-ui.html` 查看接口契约。
 
 接入真实模型、技能配置与常见问题见 [快速上手](docs/09-quick-start.md)。
+
+### Docker
+
+没有 JDK 21 时可以直接用容器；H2 数据放在命名卷，仓库目录挂到 `/workspace`：
+
+```bash
+docker compose up --build
+
+# 或手动构建/运行
+docker build -t pi-java:0.2.0 .
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -v "$PWD:/workspace" -v pi-data:/app/data pi-java:0.2.0
+```
+
+MySQL 变体、环境变量与安全说明见 [部署、容器与 CI](docs/14-deployment.md)。
 
 ### CLI
 
 同一个 jar 既启动 Web，也提供命令行入口；不带参数仍是 Web 服务。
 
 ```bash
-JAR=pi-java-app/target/pi-java-app-0.1.0-SNAPSHOT.jar
+JAR=pi-java-app/target/pi-java-app-0.2.0.jar
 
 java -jar $JAR run "读取 pom.xml 并总结依赖" --cwd D:/code/demo
 java -jar $JAR run "跑一遍测试并总结失败" --json --timeout 900
@@ -134,7 +151,7 @@ mvn -q -pl examples/pi-plugin-example -am package
 
 curl -X POST http://127.0.0.1:8080/api/v1/plugins \
   -H 'Content-Type: application/json' \
-  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.1.0-SNAPSHOT.jar"}'
+  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.2.0.jar"}'
 curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enable
 ```
 
@@ -184,7 +201,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M14 已验证通过：768 个测试（2 个符号链接用例条件跳过），
+当前 M15 已验证通过：770 个测试（2 个符号链接用例条件跳过），
 Checkstyle/ArchUnit 与覆盖率门槛通过。
 
 > **验证前先停止正在运行的服务。** `verify` 包含 `package`，会重写
@@ -210,6 +227,8 @@ Checkstyle/ArchUnit 与覆盖率门槛通过。
 - [MCP 客户端](docs/10-mcp.md)
 - [Git 检查点与撤销](docs/12-git.md)
 - [计划、待办与自动验证](docs/13-plans-and-verification.md)
+- [部署、容器与 CI](docs/14-deployment.md)
+- [v0.2.0 发布说明](docs/releases/v0.2.0.md)
 - [M0 里程碑记录](docs/milestones/M0.md)
 - [M1 里程碑记录](docs/milestones/M1.md)
 - [M2 里程碑记录](docs/milestones/M2.md)
@@ -225,6 +244,7 @@ Checkstyle/ArchUnit 与覆盖率门槛通过。
 - [M12 里程碑记录（MCP 客户端）](docs/milestones/M12.md)
 - [M13 里程碑记录（Git 检查点）](docs/milestones/M13.md)
 - [M14 里程碑记录（计划、待办与自动验证）](docs/milestones/M14.md)
+- [M15 里程碑记录（工程化与 v0.2.0）](docs/milestones/M15.md)
 
 架构决策：
 
@@ -236,7 +256,7 @@ Checkstyle/ArchUnit 与覆盖率门槛通过。
 
 ## 安全
 
-- v0.1 默认只监听 `127.0.0.1`，无鉴权，禁止直接暴露公网；
+- v0.2 默认只监听 `127.0.0.1`，无鉴权，禁止直接暴露公网；
 - 模型密钥只从环境变量读取，数据库只保存环境变量名；
 - 插件类加载隔离不是安全沙箱，只安装可信来源；
 - MCP 工具由外部服务器执行，路径沙箱不覆盖其内部行为；token 只写 `${ENV_VAR}`。

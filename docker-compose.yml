@@ -1,0 +1,18 @@
+# 本地容器演示：H2 数据放在命名卷，仓库目录挂到 /workspace 供代理读写。
+# 端口只绑定 127.0.0.1；v0.2 没有鉴权，不要把 8080 暴露到局域网。
+services:
+  pi-java:
+    build:
+      context: .
+    image: pi-java:0.2.0
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+    volumes:
+      - pi-data:/app/data
+      - ${PI_WORKSPACE:-.}:/workspace
+    restart: unless-stopped
+
+volumes:
+  pi-data:

@@ -557,7 +557,7 @@ POST /api/v1/plugins/{id}/disable
 
 ```json
 {
-  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.1.0-SNAPSHOT.jar",
+  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.2.0.jar",
   "config": {}
 }
 ```
@@ -571,7 +571,7 @@ POST /api/v1/plugins/{id}/disable
   "id": "com.piagent.example.hello",
   "version": "1.0.0",
   "apiVersion": "1.0",
-  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.1.0-SNAPSHOT.jar",
+  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.2.0.jar",
   "status": "INSTALLED",
   "lastError": null,
   "installedAt": "2026-10-22T08:00:00Z",
@@ -604,7 +604,7 @@ GET /api/v1/system/info
 
 ```json
 {
-  "version": "0.1.0-SNAPSHOT",
+  "version": "0.2.0",
   "workspaceRoot": "D:\\code\\pi-java",
   "osName": "Windows 11"
 }
@@ -696,6 +696,18 @@ GET /api/v1/health
 ```
 
 计划返回数据库、Flyway、插件快照与活跃 run 数；尚未实现。
+
+### 7.5 OpenAPI 与 Swagger UI（M15）
+
+```http
+GET /v3/api-docs
+GET /swagger-ui.html
+```
+
+- `/v3/api-docs` 由 springdoc 扫描 Controller 生成，信息中的版本来自 `pi.version`；
+- `/swagger-ui.html` 重定向到本地静态页面 `/swagger-ui/index.html`；
+- 文档只描述本机单机接口，不包含鉴权；请求/响应示例以本文为准；
+- `OpenApiDocumentIntegrationTest` 校验文档端点与核心路径，接口重命名会先让测试失败。
 
 ## 8. CLI（M11）
 
@@ -906,7 +918,7 @@ v0.2 再评估是否加入。
 - 响应只增字段不删字段；客户端忽略未知字段；
 - 错误 code 稳定，message 可调整；
 - CLI 参数只增不删；废弃参数先告警一个 minor 版本；
-- OpenAPI 描述 v0.1 暂不生成，接口以本文与 DTO 测试为准。
+- OpenAPI 3 契约由 `/v3/api-docs` 自动生成，Swagger UI 见 §7.5；接口行为仍以本文为准。
 
 ## 11. 相关文档
 

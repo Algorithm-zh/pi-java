@@ -16,7 +16,7 @@ import picocli.CommandLine.Model.CommandSpec;
  */
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-@Command(name = "pi", mixinStandardHelpOptions = true, version = "pi-java 0.1.0-SNAPSHOT",
+@Command(name = "pi", mixinStandardHelpOptions = true, version = "pi-java 0.2.0",
         description = "pi-java 编码代理 CLI。Web 与 CLI 共用同一套会话、模型与工具体系。",
         subcommands = {RunCommand.class, ChatCommand.class, SessionsCommand.class,
                 ModelsCommand.class, ToolsCommand.class})

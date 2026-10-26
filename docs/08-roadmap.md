@@ -1,12 +1,11 @@
 # 08 路线图
 
-> 状态：M0–M14 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
-> 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26）。详见
-> [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
-> [M13 记录](milestones/M13.md) 与 [M14 记录](milestones/M14.md)；
-> `v0.1.0` tag 与 MySQL smoke 待用户环境确认。
-> v0.2 接下来的顺序是“工程化与 v0.2.0”。
-> 里程碑顺序不可跳跃；每个里程碑以“可运行 + 可测试 + 有文档 + 有提交”为完成标准。
+> 状态：M0–M15 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
+> 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26，M15 工程化与 v0.2.0
+> 于 2026-10-26）。详见 [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
+> [M13 记录](milestones/M13.md)、[M14 记录](milestones/M14.md) 与
+> [M15 记录](milestones/M15.md)；`v0.2.0` tag 与 GitHub Release 待用户确认。
+> v0.2 已完成，`v0.3` 候选见第 6 节。
 
 ## 1. 交付策略
 
@@ -36,7 +35,6 @@
 | **M13** | Git 感知与检查点 | 启动快照、turn 前后 diff、撤销上一轮、提交建议 | 临时仓库回滚/冲突/未跟踪文件 | `feat(git): git-aware checkpoints and diff` |
 | **M14** | 计划、待办与自动验证 | 计划条目、todo 工具、验证命令自动执行与回写 | 计划推进、验证失败重试、UI/CLI 展示 | `feat(agent): plans, todos and verification loop` |
 | **M15** | 工程化与 v0.2.0 | GitHub Actions、Dockerfile、OpenAPI、发布说明与 tag | CI 全绿、容器启动、OpenAPI 校验 | `chore(release): ci, docker and v0.2.0` |
-
 ## 3. 各里程碑详情
 
 ### M0 骨架与文档
@@ -461,10 +459,49 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 - 多轮验证、验证矩阵与并行项目；
 - 验证结果单独表、跨会话统计与 CI 集成。
 
+### M15 工程化与 v0.2.0
+
+状态：已完成（2026-10-26），详见 [M15 记录](milestones/M15.md) 与
+[v0.2.0 发布说明](releases/v0.2.0.md)。
+
+范围：
+
+- GitHub Actions 三作业：`mvn verify`、Docker 构建与容器 smoke、MySQL profile smoke；
+- 多阶段 `Dockerfile`：非 root、H2 数据卷与工作区分离、内置健康检查；
+- `docker-compose.yml`（H2）与 `docker-compose.mysql.yml`（MySQL 叠加）；
+- springdoc OpenAPI：`/v3/api-docs`、`/swagger-ui.html` 与契约测试；
+- 版本号统一升级为 `0.2.0`，更新启动脚本、文档与发布说明。
+
+关键设计：
+
+- **容器内监听与宿主侧安全默认值分离**：镜像内 `PI_SERVER_ADDRESS=0.0.0.0`，
+  Compose 端口仍只映射 `127.0.0.1`；
+- **数据与工作区分卷**：H2 落 `/app/data` 命名卷，用户仓库挂 `/workspace`，
+  避免数据库文件写进用户项目；
+- **契约随代码生成**：OpenAPI 由 Controller 扫描生成，测试锁定版本与核心路径，
+  不再手写一份易过期的接口清单；
+- **CI 与本地一致**：CI 直接执行 `mvn verify`，不降低静态检查或跳过测试；
+  MySQL 作业通过 HTTP 建会话读回，验证 Flyway、方言与仓储链路。
+
+验收结果：
+
+- `mvn verify`：770 个测试通过（2 个符号链接用例条件跳过）；
+- `OpenApiDocumentIntegrationTest`：文档端点、版本 `0.2.0`、8 个核心路径与
+  Swagger UI 静态页全部通过；
+- CI 工作流与 compose 文件通过 YAML 解析校验；
+- 本机未安装 Docker，镜像构建与容器启动由 CI 的 `docker` 作业校验；
+  本地用 `PI_DATA_DIR`、`PI_SERVER_ADDRESS` 与独立工作目录运行 jar 验证容器等价参数。
+
+未包含（按计划后移）：
+
+- 镜像仓库发布、多架构构建、SBOM 与镜像签名；
+- 自动创建 tag 与 GitHub Release（需用户确认）；
+- Testcontainers、Kubernetes/Helm 与横向扩展。
+
 ## 4. 关键依赖
 
 ```text
-M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► M8 ─► M9 ─► M10 ─► M11 ─► M12 ─► M13 ─► M14
+M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► M8 ─► M9 ─► M10 ─► M11 ─► M12 ─► M13 ─► M14 ─► M15
                   │           │
                   └─ 只读工具  └─ 插件必须先有稳定工具目录
 ```
@@ -481,7 +518,7 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 
 ## 5. 发布与版本
 
-- 仓库版本 `0.1.0-SNAPSHOT`，M11 发布 `0.1.0`；
+- 仓库版本 `0.2.0`，v0.2.0 待创建 tag；
 - tag 只在用户确认后创建；不自动 push；
 - 每次里程碑提交使用 Conventional Commits；
 - 发布说明包含：新增能力、已知限制、启动方式、验收结果。
@@ -497,8 +534,8 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
    撤销上一轮、未跟踪文件处理与提交建议；变更展示同时进入 Web 与 CLI。
 3. **M14 计划、待办与自动验证**（已完成 2026-10-26）：计划/待办条目与工具、
    验证命令自动执行、失败后带上下文重试；避免代理“改完不验”。
-4. **M15 工程化与 v0.2.0**：GitHub Actions、Docker 镜像、OpenAPI 生成、
-   发布说明与 tag。
+4. **M15 工程化与 v0.2.0**（已完成 2026-10-26）：GitHub Actions、Docker 镜像、
+   OpenAPI 生成、发布说明与版本号；tag 与 GitHub Release 待用户确认。
 
 明确推迟到 v0.3：
 

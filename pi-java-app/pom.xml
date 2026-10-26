@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.piagent</groupId>
         <artifactId>pi-java</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.2.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -32,6 +32,10 @@
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

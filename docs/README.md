@@ -12,12 +12,13 @@
 6. [05 API 与 CLI](05-api-and-cli.md)：REST/SSE 契约、CLI 命令、Web UI
 7. [06 插件 SDK](06-plugin-sdk.md)：插件契约、生命周期、类加载隔离、示例
 8. [07 测试与质量](07-testing-and-quality.md)：测试策略、质量门禁、验收
-9. [08 路线图](08-roadmap.md)：M0–M14 与 v0.2 规划、依赖、风险、完成定义
+9. [08 路线图](08-roadmap.md)：M0–M15 与 v0.3 规划、依赖、风险、完成定义
 10. [09 快速上手](09-quick-start.md)：启动脚本、接入真实模型、技能与常见问题
 11. [10 MCP 客户端](10-mcp.md)：配置、传输、命名空间、风险映射、断线与超时
 12. [11 界面设计](11-interface-design.md)：设计原则、视觉令牌、Web/TUI 交互与可访问性
 13. [12 Git 检查点与撤销](12-git.md)：快照、逐轮 diff、撤销语义、API/CLI/Web 与限制
 14. [13 计划、待办与自动验证](13-plans-and-verification.md)：`todo` 工具、验证命令、失败回写与展示
+15. [14 部署、容器与 CI](14-deployment.md)：构建产物、Docker/Compose、OpenAPI、GitHub Actions
 
 ## 架构决策记录
 
@@ -44,6 +45,11 @@
 - [M12：MCP 客户端](milestones/M12.md)
 - [M13：Git 检查点](milestones/M13.md)
 - [M14：计划、待办与自动验证](milestones/M14.md)
+- [M15：工程化与 v0.2.0](milestones/M15.md)
+
+## 发布说明
+
+- [v0.2.0](releases/v0.2.0.md)
 
 ## 模块文档
 
