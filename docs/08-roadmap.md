@@ -4,7 +4,7 @@
 > 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26，M15 工程化与 v0.2.0
 > 于 2026-10-26）。详见 [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
 > [M13 记录](milestones/M13.md)、[M14 记录](milestones/M14.md) 与
-> [M15 记录](milestones/M15.md)；`v0.2.0` tag 与 GitHub Release 待用户确认。
+> [M15 记录](milestones/M15.md)；`v0.2.0` tag 与 GitHub Release 已于 2026-10-26 发布。
 > v0.2 已完成，`v0.3` 候选见第 6 节。
 
 ## 1. 交付策略
@@ -535,7 +535,7 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 3. **M14 计划、待办与自动验证**（已完成 2026-10-26）：计划/待办条目与工具、
    验证命令自动执行、失败后带上下文重试；避免代理“改完不验”。
 4. **M15 工程化与 v0.2.0**（已完成 2026-10-26）：GitHub Actions、Docker 镜像、
-   OpenAPI 生成、发布说明与版本号；tag 与 GitHub Release 待用户确认。
+   OpenAPI 生成、发布说明与版本号；tag 与 GitHub Release 已于 2026-10-26 发布。
 
 明确推迟到 v0.3：
 

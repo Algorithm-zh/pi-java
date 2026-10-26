@@ -22,7 +22,7 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
 > v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具、Git 检查点、
 > 计划/待办/自动验证，以及 GitHub Actions、Docker 镜像与 OpenAPI 文档。
-> `v0.2.0` tag 与 GitHub Release 待用户确认后创建。
+> `v0.2.0` tag 与 GitHub Release 已发布（2026-10-26）。
 
 ![欢迎页与示例任务](docs/images/welcome.png)
 
