@@ -720,6 +720,18 @@
     border-color: rgba(176, 71, 47, .45);
 }
 
+.plugin-desc {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.65;
+}
+
+.settings-meta dd.is-plain {
+    font-family: inherit;
+    font-size: 12px;
+}
+
 /* ---------- 策略 ---------- */
 
 .policy-card-head {

@@ -8,6 +8,7 @@
 import * as api from "./api.js";
 import { el } from "./render.js";
 import { toast } from "./store.js";
+import * as tools from "./tools.js";
 import {
     actionButton, codeBlock, emptyState, field, formatInstant, pill, sectionHeader, textInput
 } from "./settings-ui.js";
@@ -29,6 +30,7 @@ let containerRef = null;
 export async function render(container) {
     containerRef = container;
     const plugins = await api.listPlugins();
+    await tools.load(true);
     container.replaceChildren();
     container.append(sectionHeader("插件",
         "插件扩展工具与运行时行为。安装不会执行代码，启用才会加载进当前进程。", [
@@ -38,7 +40,7 @@ export async function render(container) {
     container.append(installer());
     if (!plugins.length) {
         container.append(emptyState("还没有安装插件",
-            "先打包 examples/pi-plugin-example，再把生成的 jar 绝对路径粘贴到上方。"));
+            "先打包插件模块，再把生成的 jar 绝对路径粘贴到上方。"));
         return;
     }
     const list = el("div", "plugin-list");
@@ -54,14 +56,14 @@ function guide() {
     box.append(el("p", "",
         "安装后状态为 INSTALLED；点击“启用”才会加载。停用会从工具目录中移除，"
         + "但安装记录保留。加载失败时 lastError 会显示在卡片上。"));
-    box.append(codeBlock("examples/pi-plugin-example/target/*.jar"));
+    box.append(codeBlock("examples/pi-plugin-timer/target/*.jar"));
     box.append(el("small", "", "路径必须是服务进程可读的本地绝对路径。"));
     return box;
 }
 
 function installer() {
     const form = el("form", "settings-form plugin-install");
-    const path = textInput("", "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\....jar");
+    const path = textInput("", "D:\\code\\pi-java\\examples\\pi-plugin-timer\\target\\....jar");
     const error = el("p", "settings-form-error hidden");
     const submit = actionButton("安装插件", () => {}, "primary");
     submit.type = "submit";
@@ -80,7 +82,8 @@ function installer() {
         submit.disabled = true;
         try {
             const installed = await api.installPlugin(jarPath);
-            toast(`插件 ${installed.id} 已安装，启用后生效`);
+            toast(`插件「${installed.name || installed.id}」已安装，启用后生效`);
+            tools.invalidate();
             await render(containerRef);
         } catch (requestError) {
             error.textContent = requestError.message || "安装失败";
@@ -93,18 +96,29 @@ function installer() {
 
 function pluginCard(plugin) {
     const status = STATUS[plugin.status] || { label: plugin.status, tone: "muted" };
+    const name = plugin.name || plugin.id;
     const card = el("article", "plugin-card" + (plugin.status === "FAILED" ? " is-failed" : ""));
     const head = el("div", "plugin-card-head");
-    head.append(el("span", "plugin-mark", "PL"));
+    head.append(el("span", "plugin-mark", name.slice(0, 2)));
     const copy = el("div", "plugin-card-title");
-    copy.append(el("strong", "", plugin.id));
+    copy.append(el("strong", "", name));
     copy.append(el("small", "", `${plugin.version} · API ${plugin.apiVersion}`));
     head.append(copy, pill(status.label, status.tone));
     card.append(head);
+    if (plugin.description) {
+        card.append(el("p", "plugin-desc", plugin.description));
+    }
 
     const meta = el("dl", "settings-meta");
+    meta.append(metaRow("插件标识", plugin.id));
+    const provided = tools.current()
+        .filter((tool) => tool.pluginId === plugin.id)
+        .map((tool) => tool.displayName);
+    if (provided.length) {
+        meta.append(metaRow("提供的工具", provided.join("、"), false));
+    }
     meta.append(metaRow("jar 路径", plugin.jarPath));
-    meta.append(metaRow("更新时间", formatInstant(plugin.updatedAt) || "—"));
+    meta.append(metaRow("更新时间", formatInstant(plugin.updatedAt) || "—", false));
     card.append(meta);
     if (plugin.lastError) {
         const failure = el("div", "settings-callout is-danger");
@@ -127,17 +141,21 @@ function pluginCard(plugin) {
     return card;
 }
 
-function metaRow(label, value) {
+function metaRow(label, value, mono = true) {
     const row = el("div");
-    row.append(el("dt", "", label), el("dd", "", value || "—"));
+    const definition = el("dd", mono ? "" : "is-plain", value || "—");
+    row.append(el("dt", "", label), definition);
     return row;
 }
 
 async function toggle(plugin, enabled, busy) {
+    const name = plugin.name || plugin.id;
     busy.textContent = enabled ? "正在加载…" : "正在停用…";
     try {
         await api.setPluginEnabled(plugin.id, enabled);
-        toast(`${plugin.id} 已${enabled ? "启用" : "停用"}`);
+        toast(`插件「${name}」已${enabled ? "启用" : "停用"}`);
+        tools.invalidate();
+        await tools.load(true);
         await render(containerRef);
     } catch (error) {
         busy.textContent = "";

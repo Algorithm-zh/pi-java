@@ -1,0 +1,8 @@
+{
+  "id": "com.piagent.example.timer",
+  "name": "定时器",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "mainClass": "com.piagent.example.timer.TimerPlugin",
+  "description": "可取消的倒计时工具，支持 0.1 到 300 秒"
+}

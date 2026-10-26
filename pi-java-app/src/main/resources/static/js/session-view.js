@@ -72,6 +72,35 @@ export async function refreshSessions(redraw = true) {
 }
 
 /**
+ * 同步服务端自动生成的会话标题。
+ *
+ * <p>空会话的首条消息发出后，后端会把占位标题换成消息摘要；这里只更新标题，
+ * 不打断正在进行的流式渲染。</p>
+ */
+export async function syncSessionTitle() {
+    const sessionId = state.session?.id;
+    if (!sessionId) {
+        return;
+    }
+    try {
+        const session = await api.getSession(sessionId);
+        if (!state.session || state.session.id !== sessionId
+            || state.session.title === session.title) {
+            return;
+        }
+        state.session = session;
+        const listed = state.sessions.find((item) => item.id === sessionId);
+        if (listed) {
+            listed.title = session.title;
+        }
+        updateHeader();
+        renderSessionList();
+    } catch {
+        // 标题同步失败不影响对话，本轮结束时 reloadSession 还会再取一次。
+    }
+}
+
+/**
  * 按搜索框过滤后重绘侧栏会话列表。
  */
 export function renderSessionList() {

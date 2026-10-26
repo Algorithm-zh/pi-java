@@ -17,6 +17,7 @@ import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.port.SessionEntryStore;
 import com.piagent.domain.session.port.SessionRepository;
+import com.piagent.domain.session.service.SessionTitles;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.Guard;
@@ -64,7 +65,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 追加用户消息并把会话切到 RUNNING。
+     * 追加用户消息并把会话切到 RUNNING；空会话的首条消息顺带把占位标题换成消息摘要。
      *
      * @param sessionId 会话标识
      * @param text 用户文本
@@ -75,7 +76,14 @@ public class SessionEntryAppender {
         ChatSession session = require(sessionId);
         Guard.require(session.status() == SessionStatus.IDLE, DomainErrorCode.INVALID_STATE_TRANSITION,
                 "只有空闲会话可以开始 run，当前状态: " + session.status());
+        boolean firstEntry = entryStore.countBySession(sessionId) == 0;
         ChatSession running = session.markRunning();
+        if (firstEntry && SessionTitles.isPlaceholder(session.title())) {
+            String generated = SessionTitles.fromText(text);
+            if (!generated.isBlank()) {
+                running = running.rename(generated);
+            }
+        }
         Instant now = clock.instant();
         AgentMessage message = new UserMessage(List.of(new TextBlock(text)), now);
         SessionEntry entry = append(running, new MessagePayload(message), estimate(message), now);
@@ -97,11 +105,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 追加压缩摘要 entry。
-     *
-     * <p>自动压缩发生在 run 内，用 {@code advanceLeaf} 推进叶子；手动压缩发生在
-     * IDLE，用 {@code moveLeaf} 把叶子移动到新 entry。等待审批时拒绝压缩，
-     * 避免审批上下文与投影结果错位。</p>
+     * 追加压缩摘要 entry：运行中用 advanceLeaf，空闲手动压缩用 moveLeaf，等待审批时拒绝压缩。
      *
      * @param sessionId 会话标识
      * @param payload 压缩载荷
@@ -127,10 +131,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 在同一事务中追加一批工具结果。
-     *
-     * <p>批次要么全部落库、要么全部回滚，避免 assistant 消息中的工具调用出现
-     * 只配对了一部分结果的中间状态。结果按传入顺序形成父子链。</p>
+     * 在同一事务中追加一批工具结果，按传入顺序形成父子链。
      *
      * @param sessionId 会话标识
      * @param results 工具结果
@@ -283,11 +284,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 估算消息 token。
-     *
-     * <p>M7 起统一使用领域的 {@link EntryTokenCounter}：过去这里按“3 字符 1 token”估算，
-     * 而投影与压缩按“CJK 1 字符 1 token”估算，中文会话会被系统性低估约 3 倍，
-     * 导致压缩永远不触发。现在两者同源。</p>
+     * 估算消息 token；M7 起与投影、压缩共用 {@link EntryTokenCounter}，避免中文被低估。
      */
     private int estimate(AgentMessage message) {
         return TOKEN_COUNTER.countMessage(message);

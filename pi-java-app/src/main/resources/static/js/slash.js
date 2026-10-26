@@ -2,12 +2,14 @@
  * 输入框斜杠命令提示。
  *
  * 只在输入以命令 token 开头时出现；支持过滤、方向键、回车/Tab 选择与 Esc 关闭。
- * 技能列表按需从服务端加载，正文不会在此处读取。
+ * 输入 `/tool ` 后切换为工具目录：直接列出所有工具的中文名称与说明，选中后
+ * 交给参数表单，用户不必手写 JSON。
  */
 
 import * as api from "./api.js";
 import { el } from "./dom.js";
 import { dom } from "./store.js";
+import * as tools from "./tools.js";
 
 const COMMANDS = [
     {name: "/read", insert: "/read ", args: "<路径>", group: "工具指令", desc: "读取工作区文件"},
@@ -17,8 +19,8 @@ const COMMANDS = [
         desc: "创建或覆盖文件（需要审批）"
     },
     {
-        name: "/tool", insert: "/tool ", args: "<工具名> <JSON>", group: "工具指令",
-        desc: "调用已注册的工具或插件"
+        name: "/tool", insert: "/tool ", args: "", group: "工具指令",
+        desc: "选择工具并填写参数，无需手写 JSON"
     }
 ];
 
@@ -27,10 +29,13 @@ let skillsLoading = false;
 let options = [];
 let active = -1;
 let open = false;
+let toolsLoading = false;
 let onResize = () => {};
+let onToolChosen = () => {};
 
 export function init(optionsHandler = {}) {
     onResize = optionsHandler.onResize || onResize;
+    onToolChosen = optionsHandler.onToolChosen || onToolChosen;
     dom.input.setAttribute("aria-autocomplete", "list");
     dom.input.setAttribute("aria-controls", "slash-menu");
     dom.input.setAttribute("aria-expanded", "false");
@@ -100,36 +105,88 @@ export function hide() {
 
 function update() {
     const query = currentQuery();
-    if (query === null) {
+    if (!query) {
         hide();
+        return;
+    }
+    if (query.mode === "tools") {
+        updateTools(query.filter);
         return;
     }
     if (!skills && !skillsLoading) {
         loadSkills();
     }
-    const matches = matchCommands(query);
+    const matches = matchCommands(query.filter);
     if (!matches.length) {
         hide();
         return;
     }
     open = true;
     active = 0;
-    render(matches, query);
+    render(matches);
 }
 
 function currentQuery() {
     const value = dom.input.value;
-    if (!value.startsWith("/") || /\s/.test(value)) {
+    if (!value.startsWith("/")) {
         return null;
     }
-    return value.toLowerCase();
+    const toolMatch = /^\/tool(?:\s+([\s\S]*))?$/i.exec(value);
+    if (toolMatch) {
+        return {mode: "tools", filter: (toolMatch[1] || "").trim().toLowerCase()};
+    }
+    if (/\s/.test(value)) {
+        return null;
+    }
+    return {mode: "commands", filter: value.toLowerCase()};
 }
 
-function matchCommands(query) {
+function updateTools(filter) {
+    if (!tools.isLoaded()) {
+        open = true;
+        active = -1;
+        renderMessage("正在加载工具…");
+        loadTools();
+        return;
+    }
+    const matches = tools.current().filter((tool) => !filter || tool.search.includes(filter));
+    if (!matches.length) {
+        hide();
+        return;
+    }
+    open = true;
+    active = 0;
+    render(matches.map((tool) => ({
+        kind: "tool",
+        tool,
+        group: tool.group,
+        primary: tool.displayName,
+        secondary: tool.description,
+        badge: tool.requiresApproval ? "需审批" : ""
+    })));
+}
+
+async function loadTools() {
+    if (toolsLoading) {
+        return;
+    }
+    toolsLoading = true;
+    try {
+        await tools.load(true);
+    } finally {
+        toolsLoading = false;
+        if (open && dom.input.value.startsWith("/tool")) {
+            update();
+        }
+    }
+}
+
+function matchCommands(filter) {
     const list = [...COMMANDS];
     if (skills) {
         for (const skill of skills) {
             list.push({
+                kind: "command",
                 name: `/skill:${skill.name}`,
                 insert: `/skill:${skill.name} `,
                 args: "<任务>",
@@ -139,11 +196,17 @@ function matchCommands(query) {
             });
         }
     }
-    if (query === "/") {
-        return list;
+    const commands = [];
+    for (const item of list) {
+        const entry = {kind: "command", ...item};
+        const text = `${entry.name} ${entry.key || ""}`.toLowerCase();
+        if (filter === "/" || text.startsWith(filter)) {
+            entry.primary = [entry.name, entry.args].filter(Boolean).join(" ");
+            entry.secondary = entry.desc;
+            commands.push(entry);
+        }
     }
-    return list.filter((item) => `${item.name} ${item.key || ""}`.toLowerCase()
-        .startsWith(query));
+    return commands;
 }
 
 async function loadSkills() {
@@ -160,7 +223,13 @@ async function loadSkills() {
     }
 }
 
-function render(items, query) {
+function renderMessage(text) {
+    dom.slashMenu.replaceChildren(el("div", "slash-empty", text));
+    dom.slashMenu.classList.remove("hidden");
+    dom.input.setAttribute("aria-expanded", "true");
+}
+
+function render(items) {
     dom.slashMenu.replaceChildren();
     options = [];
     let group = "";
@@ -169,20 +238,23 @@ function render(items, query) {
             group = item.group;
             dom.slashMenu.append(el("div", "slash-group", group));
         }
-        const button = el("button", "slash-item");
+        const button = el("button", item.kind === "tool" ? "slash-item is-tool" : "slash-item");
         button.type = "button";
         button.id = `slash-option-${options.length}`;
         button.dataset.index = String(options.length);
         button.setAttribute("role", "option");
+        if (item.kind === "tool") {
+            button.title = item.tool.name;
+        }
         button.append(
-            el("span", "slash-command", [item.name, item.args].filter(Boolean).join(" ")),
-            el("span", "slash-desc", item.desc)
+            el("span", "slash-command", item.primary),
+            el("span", "slash-desc", item.secondary || "")
         );
+        if (item.badge) {
+            button.append(el("span", "slash-badge", item.badge));
+        }
         options.push({button, item});
         dom.slashMenu.append(button);
-    }
-    if (query.startsWith("/skill:") && skills && !skills.length) {
-        dom.slashMenu.append(el("div", "slash-empty", "未发现技能，可在设置中心查看技能目录"));
     }
     active = Math.min(active, options.length - 1);
     dom.slashMenu.classList.remove("hidden");
@@ -214,10 +286,23 @@ function choose(index) {
     if (!option) {
         return;
     }
-    dom.input.value = option.item.insert;
+    if (option.item.kind === "tool") {
+        dom.input.value = "";
+        onResize();
+        hide();
+        dom.input.focus();
+        onToolChosen(option.item.tool);
+        return;
+    }
+    const insert = option.item.insert;
+    dom.input.value = insert;
     onResize();
-    hide();
     dom.input.focus();
     const end = dom.input.value.length;
     dom.input.setSelectionRange(end, end);
+    if (insert === "/tool ") {
+        update();
+    } else {
+        hide();
+    }
 }

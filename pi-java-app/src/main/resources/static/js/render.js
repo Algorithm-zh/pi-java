@@ -8,6 +8,7 @@
 import {
     basename, blocksText, el, formatDuration, formatNumber, glyphOf, statusLabel, stopReasonLabel
 } from "./dom.js";
+import { describeCommand } from "./tools.js";
 import {renderNote, renderTurn} from "./turn-view.js";
 
 export {
@@ -272,7 +273,26 @@ function groupTurns(entries) {
 
 export function renderUserBubble(inner, text) {
     const row = el("div", "message user");
-    row.append(el("div", "user-bubble", text));
+    const command = describeCommand(text);
+    if (!command) {
+        row.append(el("div", "user-bubble", text));
+        inner.append(row);
+        return;
+    }
+    const bubble = el("div", "user-bubble is-tool-call");
+    const head = el("div", "user-tool-head");
+    head.append(el("span", "user-tool-label", `调用工具 · ${command.displayName}`));
+    if (command.summary) {
+        head.append(el("span", "user-tool-summary", command.summary));
+    }
+    bubble.append(head);
+    const details = document.createElement("details");
+    details.className = "user-tool-raw";
+    const summary = document.createElement("summary");
+    summary.textContent = "查看原始命令";
+    details.append(summary, el("code", "user-tool-raw-text", command.raw));
+    bubble.append(details);
+    row.append(bubble);
     inner.append(row);
 }
 

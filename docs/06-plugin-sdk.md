@@ -175,6 +175,10 @@ public interface PluginLogger {
   任一不一致即拒绝加载（防止安装后替换 jar）；
 - `config` JSON 随安装记录保存，但 M5 的 `PluginContext` 不读取它，留到 v0.2。
 
+`GET /api/v1/plugins` 与安装/启停响应会附带清单里的 `name` 与 `description`
+（由控制器读取 jar 补全），Web 设置页直接展示这两个字段；jar 被删除或损坏时
+名称回退为插件标识，安装记录本身仍然可见。
+
 ## 5. 生命周期
 
 ```text

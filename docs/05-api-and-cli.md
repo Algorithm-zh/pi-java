@@ -60,6 +60,8 @@ Content-Type: application/json
 - `thinkingLevel` 可省略，默认 `OFF`；取值 `OFF / LOW / MEDIUM / HIGH`；
   实际能力在每次 run 启动时校验，模型不支持思考却配置了非 `OFF` 级别会返回
   400 `MODEL_CAPABILITY_MISSING`；
+- `title` 可省略或留空：先落为占位标题“新会话”，首条用户消息发出时自动
+  换成消息摘要（最长 24 个字符）；手动填写的标题不会被覆盖；
 - `cwd` 必须存在且为目录，服务端规范化后作为沙箱根；
 - 根会话的 `parentSessionId` 为 null、`rootSessionId` 等于自身、`depth=0`、`origin=USER`。
 

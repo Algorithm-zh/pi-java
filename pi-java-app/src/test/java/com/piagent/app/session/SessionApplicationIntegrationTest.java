@@ -4,16 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.piagent.app.PiJavaApplication;
+import com.piagent.application.agent.service.SessionEntryAppender;
 import com.piagent.application.session.command.AppendUserMessageCommand;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.command.ForkSessionCommand;
 import com.piagent.application.session.command.MoveBranchCommand;
 import com.piagent.application.session.service.SessionApplicationService;
+import com.piagent.application.session.service.SessionTitleBackfillService;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.Origin;
 import com.piagent.domain.session.model.ProjectedContext;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
+import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.message.BranchSummaryMessage;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.UserMessage;
@@ -44,6 +47,12 @@ class SessionApplicationIntegrationTest {
 
     @Autowired
     private SessionRepository repository;
+
+    @Autowired
+    private SessionEntryAppender appender;
+
+    @Autowired
+    private SessionTitleBackfillService titleBackfill;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -127,6 +136,40 @@ class SessionApplicationIntegrationTest {
         assertThatThrownBy(() -> service.projectContext(missing, null))
                 .isInstanceOfSatisfying(DomainException.class,
                         error -> assertThat(error.code()).isEqualTo(DomainErrorCode.SESSION_NOT_FOUND));
+    }
+
+    @Test
+    void blankTitleFallsBackToPlaceholder() {
+        ChatSession session = createSession(null);
+
+        assertThat(session.title()).isEqualTo("新会话");
+    }
+
+    @Test
+    void firstMessageNamesPlaceholderSession() {
+        ChatSession session = createSession("新会话");
+
+        appender.appendUserAndStart(session.identity().id(), "帮我看看这个项目为什么启动失败");
+
+        ChatSession reloaded = repository.findById(session.identity().id()).orElseThrow();
+        assertThat(reloaded.title()).isEqualTo("帮我看看这个项目为什么启动失败");
+        assertThat(reloaded.status()).isEqualTo(SessionStatus.RUNNING);
+    }
+
+    @Test
+    void backfillRenamesOnlyPlaceholderTitles() {
+        ChatSession placeholder = createSession("新会话");
+        append(placeholder, "把文档里的旧链接清理一下");
+        ChatSession manual = createSession("排障记录");
+        append(manual, "第一轮");
+
+        int renamed = titleBackfill.backfill();
+
+        assertThat(renamed).isEqualTo(1);
+        assertThat(repository.findById(placeholder.identity().id()).orElseThrow().title())
+                .isEqualTo("把文档里的旧链接清理一下");
+        assertThat(repository.findById(manual.identity().id()).orElseThrow().title())
+                .isEqualTo("排障记录");
     }
 
     private ChatSession createSession(String title) {

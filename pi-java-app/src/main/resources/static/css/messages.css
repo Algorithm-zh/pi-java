@@ -281,6 +281,71 @@
     background: var(--surface-soft);
 }
 
+.user-bubble.is-tool-call {
+    max-width: min(82%, 640px);
+    white-space: normal;
+}
+
+.user-tool-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+}
+
+.user-tool-label {
+    color: var(--accent-strong);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.user-tool-summary {
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.user-tool-raw {
+    margin-top: 7px;
+    color: var(--muted-2);
+    font-size: 11px;
+}
+
+.user-tool-raw summary {
+    display: inline-flex;
+    cursor: pointer;
+    list-style: none;
+}
+
+.user-tool-raw summary::-webkit-details-marker {
+    display: none;
+}
+
+.user-tool-raw summary::before {
+    margin-right: 5px;
+    content: "›";
+    transition: transform .16s ease;
+}
+
+.user-tool-raw[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.user-tool-raw-text {
+    display: block;
+    margin-top: 6px;
+    overflow-wrap: anywhere;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--code-text);
+    background: var(--code-bg);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
 .assistant-body {
     min-width: 0;
     flex: 1;

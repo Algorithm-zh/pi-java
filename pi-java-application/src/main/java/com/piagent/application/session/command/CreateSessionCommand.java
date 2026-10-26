@@ -1,6 +1,7 @@
 package com.piagent.application.session.command;
 
 import com.piagent.domain.session.model.ThinkingLevel;
+import com.piagent.domain.session.service.SessionTitles;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.Guard;
 import java.nio.file.Path;
@@ -9,7 +10,7 @@ import java.util.Objects;
 /**
  * 创建用户会话命令。
  *
- * @param title 会话标题
+ * @param title 会话标题；为空时使用占位标题，首条消息发出后自动命名
  * @param cwd 工作目录，必须是绝对路径
  * @param modelProfileId 模型档案标识
  * @param thinkingLevel 思考级别；为 null 时使用 OFF
@@ -25,7 +26,7 @@ public record CreateSessionCommand(String title, Path cwd, String modelProfileId
      * @param thinkingLevel 思考级别
      */
     public CreateSessionCommand {
-        title = Guard.notBlank(title, DomainErrorCode.INVALID_ARGUMENT, "会话标题不能为空");
+        title = title == null || title.isBlank() ? SessionTitles.DEFAULT_TITLE : title.strip();
         Objects.requireNonNull(cwd, "cwd 不能为空");
         Guard.require(cwd.isAbsolute(), DomainErrorCode.INVALID_ARGUMENT, "cwd 必须是绝对路径");
         cwd = cwd.normalize();

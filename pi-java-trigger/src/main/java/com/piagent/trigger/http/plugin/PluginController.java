@@ -3,6 +3,8 @@ package com.piagent.trigger.http.plugin;
 import com.piagent.application.plugin.command.InstallPluginCommand;
 import com.piagent.application.plugin.service.PluginApplicationService;
 import com.piagent.domain.extension.model.PluginInstallation;
+import com.piagent.domain.extension.model.PluginPackage;
+import com.piagent.domain.extension.port.PluginPackageInspector;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,14 +26,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class PluginController {
 
     private final PluginApplicationService service;
+    private final PluginPackageInspector inspector;
 
     /**
      * 创建控制器。
      *
      * @param service 插件用例服务
+     * @param inspector 插件包检查端口，用于读取展示名称与描述
      */
-    public PluginController(PluginApplicationService service) {
+    public PluginController(PluginApplicationService service, PluginPackageInspector inspector) {
         this.service = service;
+        this.inspector = inspector;
     }
 
     /**
@@ -41,7 +46,7 @@ public class PluginController {
      */
     @GetMapping
     public List<PluginResponse> list() {
-        return service.list().stream().map(PluginResponse::from).toList();
+        return service.list().stream().map(this::respond).toList();
     }
 
     /**
@@ -55,7 +60,7 @@ public class PluginController {
     public PluginResponse install(@RequestBody InstallPluginRequest request) {
         PluginInstallation installed = service.install(
                 new InstallPluginCommand(request.path(), request.configJson()));
-        return PluginResponse.from(installed);
+        return respond(installed);
     }
 
     /**
@@ -66,7 +71,7 @@ public class PluginController {
      */
     @PostMapping("/{id}/enable")
     public PluginResponse enable(@PathVariable String id) {
-        return PluginResponse.from(service.enable(id));
+        return respond(service.enable(id));
     }
 
     /**
@@ -77,6 +82,16 @@ public class PluginController {
      */
     @PostMapping("/{id}/disable")
     public PluginResponse disable(@PathVariable String id) {
-        return PluginResponse.from(service.disable(id));
+        return respond(service.disable(id));
+    }
+
+    private PluginResponse respond(PluginInstallation installation) {
+        try {
+            PluginPackage pkg = inspector.inspect(installation.artifact().jarPath());
+            return PluginResponse.from(installation, pkg.name(), pkg.description());
+        } catch (RuntimeException unreadable) {
+            // jar 被删除或损坏时仍展示安装记录，名称回退到标识。
+            return PluginResponse.from(installation, null, null);
+        }
     }
 }

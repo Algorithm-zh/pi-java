@@ -17,6 +17,8 @@ import {
 import * as sessionSettings from "./session-settings.js";
 import * as settings from "./settings.js";
 import * as slash from "./slash.js";
+import * as toolForm from "./tool-form.js";
+import * as tools from "./tools.js";
 import { dom, setServer, state, toast } from "./store.js";
 
 const THEME_KEY = "pi-java-theme";
@@ -37,7 +39,8 @@ async function init() {
     settings.init();
     sessionSettings.init();
     contextMeter.init({ onReload: reloadSession });
-    slash.init({ onResize: resizeInput });
+    toolForm.init({onRun: sendText});
+    slash.init({onResize: resizeInput, onToolChosen: toolForm.open});
     wireEvents();
     try {
         const [system, models] = await Promise.all([api.systemInfo(), api.listModels()]);
@@ -45,6 +48,7 @@ async function init() {
         state.models = models;
         setServer(true, system.version);
         dom.workspaceHint.textContent = system.workspaceRoot;
+        await tools.load();
         await refreshSessions(false);
         const requested = new URLSearchParams(location.search).get("session");
         const target = state.sessions.find((item) => item.id === requested) || state.sessions[0];
@@ -87,6 +91,18 @@ function submitComposer() {
     slash.hide();
     dom.input.value = "";
     resizeInput();
+    sendText(text);
+}
+
+function sendText(text) {
+    if (!text) {
+        return;
+    }
+    if (!state.session) {
+        pendingPrompt = text;
+        dialog.open(state.models, state.system);
+        return;
+    }
     const busy = state.streaming
         || state.session.status === "RUNNING"
         || state.session.status === "WAITING_APPROVAL";

@@ -11,6 +11,7 @@ import {
 } from "./dom.js";
 import { renderMarkdownInto } from "./markdown.js";
 import { toast } from "./store.js";
+import { displayNameOf } from "./tools.js";
 
 const APPROVAL_LABELS = {
     APPROVED: "已批准",
@@ -417,9 +418,11 @@ function toolCard(tool) {
     }
     const head = document.createElement("summary");
     head.className = "tool-head";
+    const name = el("span", "tool-name", displayNameOf(tool.toolName));
+    name.title = tool.toolName || "";
     head.append(
         el("span", "tool-glyph", glyphOf(tool.toolName)),
-        el("span", "tool-name", tool.toolName || "tool"),
+        name,
         el("span", "tool-args", summarizeArgs(tool.args)),
         el("span", "tool-status"),
         el("span", "tool-chevron", "›")
@@ -484,7 +487,7 @@ function approvalNote(entry) {
     const note = el("div", "history-note approval-note"
         + (extra.decision === "DENIED" ? " is-denied" : ""));
     note.append(el("span", "history-note-title",
-        `审批：${entry.body?.toolName || "工具"}`), el("span", "history-note-state", decision));
+        `审批：${displayNameOf(entry.body?.toolName)}`), el("span", "history-note-state", decision));
     if (extra.decidedBy) {
         note.append(el("span", "history-note-meta", `由 ${extra.decidedBy} 决定`));
     }

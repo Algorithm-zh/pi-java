@@ -9,6 +9,7 @@
 import * as api from "./api.js";
 import { glyphOf } from "./render.js";
 import { dom, state, toast } from "./store.js";
+import { displayNameOf } from "./tools.js";
 
 const RISK_LABELS = {
     LOW: "低风险",
@@ -140,7 +141,8 @@ function renderCurrent(resetReason) {
     dom.approvalRisk.textContent = RISK_LABELS[risk] || risk;
     dom.approvalRisk.title = "风险等级由工具类型和参数自动评估";
     dom.approvalRisk.className = `risk-badge risk-${risk.toLowerCase()}`;
-    dom.approvalToolName.textContent = current.toolName || "tool";
+    dom.approvalToolName.textContent = displayNameOf(current.toolName) || "工具";
+    dom.approvalToolName.title = current.toolName || "";
     dom.approvalGlyph.textContent = glyphOf(current.toolName);
     dom.approvalToolCall.textContent = current.toolCallId || "";
     dom.approvalArguments.textContent = formatArguments(current.arguments);
@@ -165,7 +167,7 @@ async function decide(decision) {
     deciding = true;
     setButtonsEnabled(false);
     const approvalId = current.approvalId;
-    const toolName = current.toolName || "工具";
+    const toolName = displayNameOf(current.toolName) || "工具";
     try {
         await api.decideApproval(approvalId, decision, dom.approvalReason.value.trim());
         toast(decision === "APPROVE" ? `${toolName} 已批准` : `${toolName} 已拒绝`);

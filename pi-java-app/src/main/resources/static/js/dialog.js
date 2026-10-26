@@ -57,7 +57,7 @@ export function init(handler, onManageModels, onDismiss) {
  */
 export function open(models, system) {
     dom.error.classList.add("hidden");
-    dom.title.value = "新会话";
+    dom.title.value = "";
     dom.cwd.value = system?.workspaceRoot || "";
     dom.thinking.value = "OFF";
     dom.model.replaceChildren();
@@ -97,8 +97,8 @@ async function submit(event) {
     const cwd = dom.cwd.value.trim();
     const modelProfileId = dom.model.value;
     const thinkingLevel = dom.thinking.value;
-    if (!title || !cwd || !modelProfileId) {
-        showError("标题、工作目录与模型都不能为空");
+    if (!cwd || !modelProfileId) {
+        showError("工作目录与模型都不能为空");
         return;
     }
     dom.submit.disabled = true;

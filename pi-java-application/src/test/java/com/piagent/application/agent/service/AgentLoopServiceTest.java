@@ -33,6 +33,7 @@ import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
+import com.piagent.domain.session.service.SessionTitles;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.tool.model.ExecutionMode;
@@ -343,6 +344,30 @@ class AgentLoopServiceTest {
                 .isInstanceOfSatisfying(DomainException.class,
                         error -> assertThat(error.code())
                                 .isEqualTo(DomainErrorCode.INVALID_STATE_TRANSITION));
+    }
+
+    @Test
+    void firstMessageRenamesPlaceholderSession() {
+        AgentLoopFixture fixture = new AgentLoopFixture();
+        ChatSession session = fixture.createSession();
+        fixture.sessions.update(session.rename(SessionTitles.DEFAULT_TITLE));
+        fixture.gateway.enqueue(ScriptedLlmGateway.text("好的"));
+
+        fixture.run(session.identity().id(), "帮我看看这个项目为什么启动失败");
+
+        assertThat(fixture.session(session.identity().id()).title())
+                .isEqualTo("帮我看看这个项目为什么启动失败");
+    }
+
+    @Test
+    void keepsManualTitleAfterFirstMessage() {
+        AgentLoopFixture fixture = new AgentLoopFixture();
+        ChatSession session = fixture.createSession();
+        fixture.gateway.enqueue(ScriptedLlmGateway.text("好的"));
+
+        fixture.run(session.identity().id(), "帮我看看这个项目为什么启动失败");
+
+        assertThat(fixture.session(session.identity().id()).title()).isEqualTo("Loop 测试");
     }
 
     private static ToolCallBlock call(String id, String name) {

@@ -28,6 +28,7 @@
         <module>pi-java-trigger</module>
         <module>pi-java-app</module>
         <module>examples/pi-plugin-example</module>
+        <module>examples/pi-plugin-timer</module>
     </modules>
 
     <properties>

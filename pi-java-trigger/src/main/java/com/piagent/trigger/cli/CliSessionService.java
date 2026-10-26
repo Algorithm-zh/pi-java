@@ -9,6 +9,7 @@ import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.ThinkingLevel;
+import com.piagent.domain.session.service.SessionTitles;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import java.nio.file.Files;
@@ -26,8 +27,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class CliSessionService {
-
-    private static final int TITLE_LIMIT = 40;
 
     private final SessionApplicationService sessions;
     private final ModelProfileApplicationService models;
@@ -158,11 +157,7 @@ public class CliSessionService {
      * @return 折叠空白后的短标题
      */
     public static String defaultTitle(String text) {
-        String flattened = text == null ? "" : text.replaceAll("\\s+", " ").strip();
-        if (flattened.isBlank()) {
-            return "CLI 会话";
-        }
-        return flattened.length() <= TITLE_LIMIT
-                ? flattened : flattened.substring(0, TITLE_LIMIT) + "…";
+        String title = SessionTitles.fromText(text);
+        return title.isBlank() ? "CLI 会话" : title;
     }
 }

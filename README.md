@@ -181,10 +181,14 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M13 已验证通过：`mvn -q verify -Dspring-boot.repackage.skip=true` 全绿，
-715 个测试（2 个符号链接用例条件跳过），Checkstyle/ArchUnit 与覆盖率门槛通过。
-本机 8080 实例占用了 jar，因此本次未执行 repackage；停止实例后 `mvn -q verify`
-可正常产出可执行 jar。打包前需停止正在运行的实例（Windows 会锁住 jar）。
+当前 M13 已验证通过：715 个测试（2 个符号链接用例条件跳过），
+Checkstyle/ArchUnit 与覆盖率门槛通过。
+
+> **验证前先停止正在运行的服务。** `verify` 包含 `package`，会重写
+> `pi-java-app/target/*.jar`；运行中的实例随后无法再惰性加载类与静态资源，
+> 表现为端口可连但页面一直转圈。`-Dspring-boot.repackage.skip=true` 并不能
+> 避免这一点：它只跳过 repackage，`jar:jar` 仍会把可执行 jar 覆盖成瘦 jar。
+> 只想跑测试而不打包时用 `mvn -q test`。
 
 ## 文档
 

@@ -11,7 +11,7 @@ import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import { el } from "./dom.js";
 import { resetForConversation, renderUserBubble, stopReasonLabel } from "./render.js";
-import { reloadSession, scrollToBottom } from "./session-view.js";
+import { reloadSession, scrollToBottom, syncSessionTitle } from "./session-view.js";
 import { dom, setRunState, state, toast } from "./store.js";
 import { createStreamingTurn } from "./turn-view.js";
 import * as usage from "./usage.js";
@@ -210,6 +210,7 @@ function handleEvent({ name, payload }) {
         case "run.started":
             state.modelName = data.modelName || state.modelName;
             setRunState("生成中");
+            syncSessionTitle();
             break;
         case "turn.started":
             state.turn?.setTurn(data.turn);

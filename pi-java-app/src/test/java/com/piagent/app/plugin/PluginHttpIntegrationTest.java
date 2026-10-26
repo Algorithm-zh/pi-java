@@ -68,6 +68,8 @@ class PluginHttpIntegrationTest {
                         .content(installRequest()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(SamplePlugin.ID))
+                .andExpect(jsonPath("$.name").value("Sample"))
+                .andExpect(jsonPath("$.description").value("HTTP 集成测试插件"))
                 .andExpect(jsonPath("$.status").value("INSTALLED"))
                 .andExpect(jsonPath("$.jarPath").isNotEmpty());
 

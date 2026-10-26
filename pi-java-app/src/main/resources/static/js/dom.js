@@ -68,6 +68,9 @@ export function glyphOf(toolName) {
     if (known[name]) {
         return known[name];
     }
+    if (name.includes(".")) {
+        return "PL";
+    }
     return name.slice(0, 2).toUpperCase() || "T";
 }
 
