@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class SessionSettingsControllerTest {
 
     private static final SessionId SESSION_ID = SessionId.parse("01TST000000000000000000001");
+    private static final Path WORKSPACE = Path.of(System.getProperty("java.io.tmpdir"), "pi-test-workspace");
 
     private final ObjectMapper json = new ObjectMapper();
     private SessionSettingsApplicationService settings;
@@ -128,6 +129,6 @@ class SessionSettingsControllerTest {
 
     private static ChatSession session() {
         return ChatSession.createRoot(SESSION_ID, "测试会话",
-                SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"));
+                SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
     }
 }

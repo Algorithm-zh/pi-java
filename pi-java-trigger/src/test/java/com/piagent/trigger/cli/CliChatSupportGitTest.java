@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 class CliChatSupportGitTest {
 
     private static final SessionId SESSION_ID = SessionId.parse("01TST000000000000000000001");
+    private static final Path WORKSPACE = Path.of(System.getProperty("java.io.tmpdir"), "pi-test-workspace");
 
     private final CliSessionService sessions = mock(CliSessionService.class);
     private final SessionSettingsApplicationService settings =
@@ -45,7 +46,7 @@ class CliChatSupportGitTest {
     private final CliChatSupport support =
             new CliChatSupport(sessions, settings, compaction, checkpoints, undo, plans);
     private final ChatSession session = ChatSession.createRoot(SESSION_ID, "Git 命令测试",
-            SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"));
+            SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
     private final StringWriter out = new StringWriter();
     private final CliTerminal terminal = new CliTerminal(
             new BufferedReader(new StringReader("")), new PrintWriter(out, true),

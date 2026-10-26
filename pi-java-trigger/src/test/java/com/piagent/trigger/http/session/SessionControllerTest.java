@@ -42,6 +42,7 @@ class SessionControllerTest {
 
     private static final SessionId SESSION_ID = SessionId.parse("01TST000000000000000000001");
     private static final RunId RUN_ID = RunId.parse("01TST000000000000000000002");
+    private static final Path WORKSPACE = Path.of(System.getProperty("java.io.tmpdir"), "pi-test-workspace");
 
     private final ObjectMapper json = new ObjectMapper();
     private SessionApplicationService sessions;
@@ -89,11 +90,11 @@ class SessionControllerTest {
 
     @Test
     void listsAndFindsSessions() throws Exception {
-        when(sessions.list(Path.of("D:/demo"), 20)).thenReturn(List.of(session()));
+        when(sessions.list(WORKSPACE, 20)).thenReturn(List.of(session()));
         when(sessions.find(SESSION_ID)).thenReturn(session());
 
         MvcResult listResult = mvc.perform(get("/api/v1/sessions")
-                        .param("cwd", "D:/demo").param("limit", "20"))
+                        .param("cwd", WORKSPACE.toString()).param("limit", "20"))
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat(bodyOf(listResult).get(0).path("id").asText())
@@ -102,7 +103,7 @@ class SessionControllerTest {
         MvcResult detailResult = mvc.perform(get("/api/v1/sessions/{id}", SESSION_ID))
                 .andExpect(status().isOk())
                 .andReturn();
-        assertThat(bodyOf(detailResult).path("cwd").asText()).isEqualTo("D:\\demo");
+        assertThat(bodyOf(detailResult).path("cwd").asText()).isEqualTo(WORKSPACE.toString());
     }
 
     @Test
@@ -154,6 +155,6 @@ class SessionControllerTest {
 
     private static ChatSession session() {
         return ChatSession.createRoot(SESSION_ID, "测试会话",
-                SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"));
+                SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
     }
 }
