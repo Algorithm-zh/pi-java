@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 class InterruptedToolCallCloserTest {
 
     private static final SessionId SESSION_ID = SessionEntryFactory.sessionId(1);
+    private static final Path WORKSPACE = Path.of(System.getProperty("java.io.tmpdir"), "pi-test-workspace");
 
     private InMemorySessionRepository sessions;
     private InMemorySessionEntryStore entries;
@@ -128,7 +129,7 @@ class InterruptedToolCallCloserTest {
 
     private ChatSession restore(SessionStatus status, EntryId leaf) {
         return ChatSession.restore(SessionIdentity.root(SESSION_ID), "测试会话",
-                SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"),
+                SessionConfig.forWorkspace(WORKSPACE, "fake-demo"),
                 status, leaf, ChatSession.INITIAL_VERSION);
     }
 }

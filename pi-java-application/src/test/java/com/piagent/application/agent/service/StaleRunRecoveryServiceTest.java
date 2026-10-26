@@ -35,6 +35,7 @@ class StaleRunRecoveryServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     private static final SessionId SESSION_ID = new SessionId(Ulid.generate(NOW));
+    private static final Path WORKSPACE = Path.of(System.getProperty("java.io.tmpdir"), "pi-test-workspace");
 
     private SessionRepository sessions;
     private RunRuntime runtime;
@@ -86,7 +87,7 @@ class StaleRunRecoveryServiceTest {
     @Test
     void repairsDanglingCallsOnIdleSession() {
         ChatSession idle = ChatSession.restore(SessionIdentity.root(SESSION_ID), "空闲会话",
-                SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"),
+                SessionConfig.forWorkspace(WORKSPACE, "fake-demo"),
                 SessionStatus.IDLE, null, ChatSession.INITIAL_VERSION);
         when(sessions.findRecent(500)).thenReturn(List.of(idle));
         when(runtime.findActiveBySession(SESSION_ID)).thenReturn(Optional.empty());
@@ -99,7 +100,7 @@ class StaleRunRecoveryServiceTest {
 
     private static ChatSession runningSession() {
         return ChatSession.restore(SessionIdentity.root(SESSION_ID), "运行中的会话",
-                SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"),
+                SessionConfig.forWorkspace(WORKSPACE, "fake-demo"),
                 SessionStatus.RUNNING, null, ChatSession.INITIAL_VERSION);
     }
 }

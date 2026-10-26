@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 class SessionSettingsApplicationServiceTest {
 
     private static final SessionId SESSION_ID = SessionId.parse("01TST000000000000000000001");
+    private static final Path WORKSPACE = Path.of(System.getProperty("java.io.tmpdir"), "pi-test-workspace");
 
     private InMemorySessionRepository sessions;
     private InMemoryModelProfileRepository models;
@@ -41,7 +42,7 @@ class SessionSettingsApplicationServiceTest {
         models = new InMemoryModelProfileRepository();
         service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
         session = ChatSession.createRoot(SESSION_ID, "旧标题",
-                SessionConfig.forWorkspace(Path.of("D:/demo"), "fake-demo"));
+                SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
         sessions.insert(session);
         models.insert(ModelProfile.create(new ModelId("fake-demo"), "Fake Demo",
                 ModelEndpoint.fake("fake")));
