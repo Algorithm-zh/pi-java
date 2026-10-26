@@ -109,14 +109,19 @@ MySQL 首次启动需要初始化数据目录；应用会等待健康检查通�
 |---|---|
 | `verify` | JDK 21 + `mvn verify`（测试、Checkstyle、ArchUnit、JaCoCo、repackage） |
 | `docker` | 构建镜像 → 启动容器 → 校验版本、OpenAPI 路径与首页 → 清理容器 |
-| `mysql` | 启动 MySQL 8.4 服务 → 打包 → 以 `mysql` profile 启动 → 通过 HTTP 建会话并读回 |
+| `mysql` | 启动 MySQL 8.4 服务 → 打包 → 以 `demo,mysql` profile 启动 → 通过 HTTP 建会话并读回 |
 
 失败时 `verify` 会上传 surefire/failsafe 报告，便于定位平台差异。
 
+2026-10-26 的 `main` 构建三个作业全部通过：`verify` 1m32s、`mysql` 55s、
+`docker` 3m17s（Ubuntu runner，JDK 21）。Docker 镜像构建与容器启动因此不再
+只靠本地结构检查。
+
 ## 6. 已知限制
 
-- 本地开发环境未安装 Docker，镜像构建与容器启动由 CI 的 `docker` 作业校验；
-  本地只验证了 Dockerfile 语法与运行时参数（`PI_DATA_DIR`、监听地址、工作目录）；
+- 本地开发环境未安装 Docker；镜像构建与容器启动由 CI 的 `docker` 作业校验，
+  2026-10-26 已在 Ubuntu runner 上通过；本地只验证了运行时参数
+  （`PI_DATA_DIR`、监听地址、工作目录）；
 - 不提供镜像仓库发布与自动打 tag；发布 tag 需用户确认；
 - 单实例、单 JVM，不支持横向扩展；
 - v0.2 无鉴权，容器端口默认只映射回环地址；
