@@ -69,6 +69,12 @@ pi:
   attachments:
     # 图片附件落盘目录；与 H2 文件库共用 PI_DATA_DIR，便于一起备份或迁移。
     dir: "${PI_DATA_DIR:./data}/attachments"
+    # 总配额，按清洗后的图片字节数计算；0 表示不限制。
+    max-total-bytes: 536870912
+    # 未被任何会话引用且超过该时长的图片才会被回收。
+    gc-min-age: 1h
+    # 每日回收时间；手动清理接口为 POST /api/v1/attachments/gc。
+    gc-cron: "0 40 3 * * *"
   git:
     # 运行前后快照与逐轮 diff；工作区不是 Git 仓库时自动跳过。
     enabled: true

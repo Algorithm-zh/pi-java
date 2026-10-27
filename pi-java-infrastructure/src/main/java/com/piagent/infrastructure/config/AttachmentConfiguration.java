@@ -2,12 +2,15 @@ package com.piagent.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.application.attachment.port.AttachmentStore;
+import com.piagent.application.attachment.port.ImageSanitizer;
 import com.piagent.domain.shared.IdGenerator;
 import com.piagent.infrastructure.attachment.FileSystemAttachmentStore;
+import com.piagent.infrastructure.attachment.ImageMetadataStripper;
 import java.nio.file.Path;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 附件存储装配。
@@ -16,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
  * {@code /app/data} 一起挂载即可保留图片。</p>
  */
 @Configuration
+@EnableScheduling
 public class AttachmentConfiguration {
 
     /**
@@ -30,5 +34,15 @@ public class AttachmentConfiguration {
     public AttachmentStore attachmentStore(@Value("${pi.attachments.dir}") String directory,
             IdGenerator idGenerator, ObjectMapper mapper) {
         return new FileSystemAttachmentStore(Path.of(directory), idGenerator, mapper);
+    }
+
+    /**
+     * 图片元数据清洗器。
+     *
+     * @return 清洗器
+     */
+    @Bean
+    public ImageSanitizer imageSanitizer() {
+        return new ImageMetadataStripper();
     }
 }

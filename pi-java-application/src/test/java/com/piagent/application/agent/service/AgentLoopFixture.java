@@ -170,7 +170,8 @@ final class AgentLoopFixture {
         DirectExecutorService executor = new DirectExecutorService();
         appender = new SessionEntryAppender(sessions, entries, ids, clock);
         attachmentStore = new InMemoryAttachmentStore(ids);
-        attachments = new AttachmentApplicationService(attachmentStore);
+        attachments = new AttachmentApplicationService(attachmentStore,
+                (content, format) -> content, 0);
         compactionState = new ContextCompactionState();
         runtime = new RunRuntime(new RunRuntimeDependencies(registry, hub, appender, tools,
                 compactionState, sessions, ids, clock));

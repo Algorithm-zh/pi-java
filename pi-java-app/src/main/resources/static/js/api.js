@@ -68,6 +68,24 @@ export async function uploadAttachment(file) {
 }
 
 /**
+ * 查询附件存储统计。
+ *
+ * @returns {Promise<{count: number, bytes: number, quotaBytes: number}>} 统计
+ */
+export function attachmentStats() {
+    return request("/api/v1/attachments/stats");
+}
+
+/**
+ * 立即清理未被会话引用的附件。
+ *
+ * @returns {Promise<{scanned: number, deleted: number, freedBytes: number}>} 结果
+ */
+export function reclaimAttachments() {
+    return request("/api/v1/attachments/gc", { method: "POST" });
+}
+
+/**
  * 查询最近一次运行的文件改动。
  *
  * @param {string} sessionId 会话 ID

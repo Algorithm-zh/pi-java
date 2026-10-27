@@ -37,6 +37,14 @@ public interface SessionEntryMapper {
     List<SessionEntryPO> findAllBySession(@Param("sessionId") String sessionId);
 
     /**
+     * 加载全部会话的 payload JSON，供附件引用扫描使用。
+     *
+     * @return payload JSON 列表
+     */
+    @Select("SELECT payload_json FROM pi_session_entry")
+    List<String> findAllPayloads();
+
+    /**
      * 查询单条 entry。
      *
      * @param sessionId 会话标识

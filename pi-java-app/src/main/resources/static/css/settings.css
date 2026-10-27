@@ -152,6 +152,10 @@
     border-bottom: 1px solid var(--line);
 }
 
+.settings-storage {
+    margin-top: 26px;
+}
+
 .settings-section-copy h3 {
     margin-bottom: 4px;
     color: var(--ink);

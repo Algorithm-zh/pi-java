@@ -7,7 +7,10 @@
 
 import * as api from "./api.js";
 import { el } from "./render.js";
-import { copyButton, definitionList, sectionHeader } from "./settings-ui.js";
+import { toast } from "./store.js";
+import {
+    actionButton, copyButton, definitionList, sectionHeader
+} from "./settings-ui.js";
 
 /**
  * 渲染系统信息。
@@ -15,10 +18,12 @@ import { copyButton, definitionList, sectionHeader } from "./settings-ui.js";
  * @param {HTMLElement} container 面板容器
  */
 export async function render(container) {
-    const info = await api.systemInfo();
+    const [info, stats] = await Promise.all([
+        api.systemInfo(), api.attachmentStats()
+    ]);
     container.replaceChildren();
     container.append(sectionHeader("运行环境",
-        "v0.1 是本机演示形态：只监听回环地址，不提供登录与多用户隔离。", []));
+        "当前是本机演示形态：只监听回环地址，不提供登录与多用户隔离。", []));
     container.append(definitionList([
         ["应用版本", info.version],
         ["操作系统", info.osName],
@@ -27,7 +32,49 @@ export async function render(container) {
     const copy = el("div", "settings-inline-actions");
     copy.append(copyButton(info.workspaceRoot, "复制工作目录路径"));
     container.append(copy);
+    container.append(storageSection(stats, container));
     container.append(securityNotes());
+}
+
+function storageSection(stats, container) {
+    const section = el("section", "settings-storage");
+    section.append(sectionHeader("附件存储",
+        "图片保存在数据目录的 attachments 下；未被任何会话引用的图片会按计划自动清理。", [
+            actionButton("清理未引用附件", () => reclaim(container), "ghost")
+        ]));
+    section.append(definitionList([
+        ["已保存", `${stats.count} 张`],
+        ["占用空间", formatBytes(stats.bytes)],
+        ["总配额", stats.quotaBytes > 0 ? formatBytes(stats.quotaBytes) : "不限制"]
+    ]));
+    return section;
+}
+
+async function reclaim(container) {
+    try {
+        const result = await api.reclaimAttachments();
+        if (result.deleted > 0) {
+            toast(`已清理 ${result.deleted} 个附件，释放 ${formatBytes(result.freedBytes)}`);
+        } else {
+            toast("没有需要清理的附件");
+        }
+        await render(container);
+    } catch (error) {
+        toast(error.message || "清理失败", true);
+    }
+}
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+        return "0 KB";
+    }
+    if (bytes >= 1024 * 1024 * 1024) {
+        return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    }
+    if (bytes >= 1024 * 1024) {
+        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function securityNotes() {

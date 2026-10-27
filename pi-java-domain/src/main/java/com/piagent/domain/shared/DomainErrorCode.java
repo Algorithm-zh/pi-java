@@ -128,6 +128,9 @@ public enum DomainErrorCode {
     /** 附件类型不受支持、超出大小限制或参数不合法。 */
     ATTACHMENT_INVALID,
 
+    /** 附件存储总量已超过配额。 */
+    ATTACHMENT_QUOTA_EXCEEDED,
+
     /** 附件写入或读取失败。 */
     ATTACHMENT_STORE_FAILED
 }

@@ -8,7 +8,7 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M16 图片与多模态输入已完成**（2026-10-27，v0.3 首个里程碑）。已具备树形会话日志、
+> 当前状态：**M17 附件生命周期与压缩已完成**（2026-10-27，v0.3 第二个里程碑）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理、会话设置与上下文用量仪表，以及工作区检查点、
@@ -16,6 +16,8 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > 失败时把真实输出交回模型修复一次。
 > 对话支持图片输入：可选择、粘贴或拖拽 PNG/JPEG/WebP/GIF，发送前显示缩略图预览，
 > 模型具备视觉能力时以多模态消息送出，不具备时前端与后端都会先行拦下并给出提示。
+> 大图在浏览器内先缩放到 1568 px 并转 WebP；服务端按内容去重、剥离 EXIF/XMP
+> 等元数据、以 512 MB 总配额兜底，并在设置页展示用量、支持回收无人引用的附件。
 > Web UI 采用“纸面工作室”视觉：暖纸底色、苔绿主操作与圆角卡片，内置浅色/深色主题，
 > 字体离线可用；侧栏支持搜索与窄屏抽屉，对话区默认折叠思考与工具过程，
 > 支持斜杠命令提示、安全 Markdown 渲染、一键复制与回到底部。终端 TUI 使用同一套配色，
@@ -24,7 +26,8 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
 > v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具、Git 检查点、
 > 计划/待办/自动验证，以及 GitHub Actions、Docker 镜像与 OpenAPI 文档。
-> `v0.2.0` tag 与 GitHub Release 已发布（2026-10-26）；v0.3 从 M16 的图片输入开始。
+> `v0.2.0` tag 与 GitHub Release 已发布（2026-10-26）；v0.3 从 M16 的图片输入
+> 与 M17 的附件生命周期开始。
 
 ![欢迎页与示例任务](docs/images/welcome.png)
 
@@ -203,8 +206,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enab
 mvn -q verify
 ```
 
-当前 M16 已验证通过：818 个测试（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 与覆盖率门槛通过。
+当前 M17 已验证通过：828 个测试（2 个符号链接用例条件跳过），
+Checkstyle/ArchUnit 通过。
 
 > **验证前先停止正在运行的服务。** `verify` 包含 `package`，会重写
 > `pi-java-app/target/*.jar`；运行中的实例随后无法再惰性加载类与静态资源，
@@ -248,6 +251,7 @@ Checkstyle/ArchUnit 与覆盖率门槛通过。
 - [M14 里程碑记录（计划、待办与自动验证）](docs/milestones/M14.md)
 - [M15 里程碑记录（工程化与 v0.2.0）](docs/milestones/M15.md)
 - [M16 里程碑记录（图片与多模态输入）](docs/milestones/M16.md)
+- [M17 里程碑记录（附件生命周期与压缩）](docs/milestones/M17.md)
 
 架构决策：
 

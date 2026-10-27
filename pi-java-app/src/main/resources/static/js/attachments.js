@@ -12,6 +12,9 @@ import { dom, state, toast } from "./store.js";
 
 const MAX_IMAGES = 4;
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
+const MAX_EDGE = 1568;
+const COMPRESS_THRESHOLD = 1.5 * 1024 * 1024;
 const SUPPORTED_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const SUPPORTED_EXT = /\.(png|jpe?g|webp|gif)$/i;
 
@@ -122,14 +125,16 @@ function addFiles(fileList) {
         toast(`一条消息最多 ${MAX_IMAGES} 张图片，已保留前 ${room} 张`);
     }
     for (const file of images.slice(0, room)) {
-        if (file.size > MAX_BYTES) {
-            toast(`「${file.name || "图片"}」超过 5 MB`, true);
+        if (file.size > MAX_SOURCE_BYTES) {
+            toast(`「${file.name || "图片"}」超过 20 MB`, true);
             continue;
         }
         const item = {
             key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name: file.name || "image",
             size: file.size,
+            originalSize: file.size,
+            optimized: false,
             url: "",
             localUrl: URL.createObjectURL(file),
             status: "uploading"
@@ -142,11 +147,27 @@ function addFiles(fileList) {
 
 async function upload(item, file) {
     try {
-        const metadata = await api.uploadAttachment(file);
+        const prepared = await prepare(file);
+        if (prepared !== file) {
+            item.size = prepared.size;
+            item.optimized = true;
+            if (item.localUrl) {
+                URL.revokeObjectURL(item.localUrl);
+            }
+            item.localUrl = URL.createObjectURL(prepared);
+            render();
+        }
+        if (prepared.size > MAX_BYTES) {
+            throw new Error("图片压缩后仍超过 5 MB，请换一张更小的图片");
+        }
+        const metadata = await api.uploadAttachment(prepared);
         item.id = metadata.id;
         item.url = metadata.url;
-        item.name = metadata.name || item.name;
+        if (!item.optimized) {
+            item.name = metadata.name || item.name;
+        }
         item.mediaType = metadata.mediaType;
+        item.size = metadata.size || item.size;
         item.status = "ready";
         revoke(item);
     } catch (error) {
@@ -154,6 +175,67 @@ async function upload(item, file) {
         toast(error.message || "图片上传失败", true);
     }
     render();
+}
+
+/**
+ * 上传前缩放并转码，减少请求体积与模型 token 消耗。
+ *
+ * GIF 保留原样以维持动画；浏览器解码失败、Canvas 不可用或压缩后反而
+ * 更大时也回退原文件，交给服务端继续处理。
+ *
+ * @param {File} file 原始文件
+ * @returns {Promise<File>} 可直接上传的文件
+ */
+async function prepare(file) {
+    if (file.type === "image/gif" || typeof createImageBitmap !== "function") {
+        return file;
+    }
+    let bitmap;
+    try {
+        bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+        return file;
+    }
+    try {
+        const longest = Math.max(bitmap.width, bitmap.height);
+        if (longest <= MAX_EDGE && file.size <= COMPRESS_THRESHOLD) {
+            return file;
+        }
+        const scale = Math.min(1, MAX_EDGE / longest);
+        const width = Math.max(1, Math.round(bitmap.width * scale));
+        const height = Math.max(1, Math.round(bitmap.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+            return file;
+        }
+        context.drawImage(bitmap, 0, 0, width, height);
+        const blob = await toBlob(canvas);
+        if (!blob || blob.size >= file.size) {
+            return file;
+        }
+        return new File([blob], rename(file.name, blob.type), {
+            type: blob.type,
+            lastModified: Date.now()
+        });
+    } catch {
+        return file;
+    } finally {
+        bitmap.close?.();
+    }
+}
+
+function toBlob(canvas) {
+    return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.85));
+}
+
+function rename(name, mediaType) {
+    const extension = mediaType === "image/webp" ? "webp"
+        : mediaType === "image/png" ? "png" : "jpg";
+    const base = (name || "image").replace(/\.[^./\\]+$/, "") || "image";
+    return `${base}.${extension}`;
 }
 
 function removeItem(target) {
@@ -190,6 +272,9 @@ function renderChip(item) {
     const chip = el("div", "attachment-chip"
         + (item.status === "error" ? " is-error" : "")
         + (item.status === "uploading" ? " is-uploading" : ""));
+    if (item.optimized && item.status === "ready") {
+        chip.title = `原图 ${formatSize(item.originalSize)}，已压缩为 ${formatSize(item.size)}`;
+    }
     const thumb = document.createElement("img");
     thumb.src = item.localUrl || item.url;
     thumb.alt = item.name || "图片";
@@ -211,12 +296,13 @@ function renderChip(item) {
 
 function stateLabel(item) {
     if (item.status === "uploading") {
-        return "上传中…";
+        return "处理中…";
     }
     if (item.status === "error") {
         return "上传失败";
     }
-    return formatSize(item.size);
+    const size = formatSize(item.size);
+    return item.optimized ? `${size} · 已优化` : size;
 }
 
 function formatSize(bytes) {

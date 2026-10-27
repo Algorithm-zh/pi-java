@@ -299,7 +299,9 @@ MySQL 脚本位于 `.../mysql/`；Flyway 按 profile 选择 `locations`，互不
 
 - entry 里只存附件引用，图片二进制落在 `${PI_DATA_DIR}/attachments/<id>.bin`，
   元数据在同目录 `<id>.json`；备份或迁移时数据目录要整体带走；
-- 删除会话不会清理附件文件，v0.2 没有回收策略；
+- 附件按清洗后内容去重，并受 `pi.attachments.max-total-bytes` 总量约束；
+  删除会话后图片成为孤儿，超过 `gc-min-age` 后由定时任务或
+  `POST /api/v1/attachments/gc` 回收（M17）；
 - 附件缺失时投影会降级为文本占位（`[图片 <name> 不可用]`），不会让历史读取失败；
 - 图片不进入 `payload_json` 的 base64，避免 entry 表随图片膨胀。
 

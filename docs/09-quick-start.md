@@ -308,20 +308,35 @@ MySQL 变体与手动 `docker build` / `docker run` 命令见
 容器内固定使用 `/app/data` 存 H2；本机运行可用 `PI_DATA_DIR` 改数据目录，
 例如 `$env:PI_DATA_DIR = "D:\pi-java-data"`。
 
-## 六点九、图片输入（M16）
+## 六点九、图片输入与附件管理（M16/M17）
 
 Web UI 输入框左侧的图片按钮、剪贴板粘贴或直接拖入，都可以添加图片；
-发送前会显示缩略图，点 × 可移除。Fake demo 不具备视觉能力，选择图片后会提示
-“当前模型不支持视觉输入”；换用支持 `vision` 的模型档案即可正常发送。
+发送前会显示缩略图，点 × 可移除。demo profile 自动创建的 `fake-demo`
+档案支持视觉能力，可以直接体验完整链路；自己创建模型档案时，只有
+`endpoint.capabilities.vision=true` 的模型才允许发送图片。
 
 ```text
 支持格式：PNG / JPEG / WebP / GIF
-单张上限：5 MB    单条上限：4 张    整个请求：6 MB
+单张上限：5 MB（压缩后）    单条上限：4 张    整个请求：6 MB
 ```
+
+超过 1.5 MB 的非 GIF 图片会先在浏览器里缩放到最长边 1568 px、转成 WebP，
+再上传；卡片显示压缩后大小，悬停可看原图大小。压缩失败或浏览器不支持时
+回退原图，服务端仍会按 5 MB 复核。
+
+服务端会：
+
+- 按文件头识别格式，剥离 EXIF/XMP/注释等元数据后再落盘；
+- 对清洗后的内容做 SHA-256 去重，相同图片只存一份；
+- 按 `pi.attachments.max-total-bytes`（默认 512 MB）限制总量，
+  超限返回 413 `ATTACHMENT_QUOTA_EXCEEDED`；
+- 每天 03:40 回收“没有会话引用、且超过 `gc-min-age`”的附件；
+  也可以在“设置 → 系统信息 → 附件存储”里查看用量并手动清理。
 
 图片先上传再随消息发送，只保存附件 id 引用，不把 base64 写进会话日志；
 存储位置为 `$PI_DATA_DIR/attachments/`，备份或迁移数据目录时要连同此目录一起复制。
-接口细节见 [05 API 与 CLI](05-api-and-cli.md)，实现记录见 [M16](milestones/M16.md)。
+接口细节见 [05 API 与 CLI](05-api-and-cli.md)，实现记录见
+[M16](milestones/M16.md) 与 [M17](milestones/M17.md)。
 
 ## 七、常见问题
 

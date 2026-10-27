@@ -9,6 +9,7 @@ import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -23,10 +24,14 @@ class AttachmentApplicationServiceTest {
     private static final byte[] PNG = {
         (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0
     };
+    private static final byte[] PNG_TWO = {
+        (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 1
+    };
 
     private final InMemoryAttachmentStore store =
             new InMemoryAttachmentStore(new SequentialIdGenerator());
-    private final AttachmentApplicationService service = new AttachmentApplicationService(store);
+    private final AttachmentApplicationService service =
+            new AttachmentApplicationService(store, (content, format) -> content, 0);
 
     @Test
     void uploadsImageAndReturnsMetadata() {
@@ -36,6 +41,43 @@ class AttachmentApplicationServiceTest {
         assertThat(metadata.mediaType()).isEqualTo("image/png");
         assertThat(metadata.size()).isEqualTo(PNG.length);
         assertThat(store.find(metadata.id())).contains(metadata);
+        assertThat(service.stats().count()).isEqualTo(1);
+        assertThat(service.stats().bytes()).isEqualTo(PNG.length);
+        assertThat(service.stats().quotaBytes()).isZero();
+    }
+
+    @Test
+    void deduplicatesIdenticalContent() {
+        AttachmentMetadata first = service.upload("one.png", PNG);
+        AttachmentMetadata second = service.upload("copy.png", PNG);
+
+        assertThat(second.id()).isEqualTo(first.id());
+        assertThat(store.list()).hasSize(1);
+        assertThat(store.totalBytes()).isEqualTo(PNG.length);
+    }
+
+    @Test
+    void storesSanitizedBytesInsteadOfOriginal() {
+        byte[] cleaned = Arrays.copyOf(PNG, PNG.length - 1);
+        AttachmentApplicationService sanitizing =
+                new AttachmentApplicationService(store, (content, format) -> cleaned, 0);
+
+        AttachmentMetadata metadata = sanitizing.upload("one.png", PNG);
+
+        assertThat(metadata.size()).isEqualTo(cleaned.length);
+        assertThat(sanitizing.load(metadata.id()).content()).containsExactly(cleaned);
+    }
+
+    @Test
+    void rejectsUploadsBeyondTotalQuota() {
+        AttachmentApplicationService limited = new AttachmentApplicationService(store,
+                (content, format) -> content, PNG.length - 1);
+
+        assertThatThrownBy(() -> limited.upload("one.png", PNG))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.ATTACHMENT_QUOTA_EXCEEDED));
+        assertThat(store.list()).isEmpty();
     }
 
     @Test
@@ -62,7 +104,7 @@ class AttachmentApplicationServiceTest {
     @Test
     void resolvesAttachmentIdsToImageBlocks() {
         AttachmentMetadata first = service.upload("one.png", PNG);
-        AttachmentMetadata second = service.upload("two.png", PNG);
+        AttachmentMetadata second = service.upload("two.png", PNG_TWO);
 
         List<ImageBlock> blocks = service.imageBlocks(List.of(first.id(), second.id()));
 

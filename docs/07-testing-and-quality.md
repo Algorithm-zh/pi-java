@@ -326,6 +326,20 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 
 黄金样本放 `pi-java-domain/src/test/resources/golden/`，只读，不修改原始文件。
 
+### 8.3 附件生命周期（M17）
+
+- 去重与配额：`AttachmentApplicationServiceTest` 用内存存储验证相同内容只写一次、
+  落盘的是清洗后字节、超配额抛 `ATTACHMENT_QUOTA_EXCEEDED`；
+- 元数据清理：`ImageMetadataStripperTest` 为 JPEG/PNG/WebP/GIF 各构造带元数据的最小
+  样本，断言元数据段被移除、像素字节保留，未知或损坏输入原样返回；
+- 回收：`AttachmentMaintenanceServiceTest` 用可变时钟验证“有引用不删、未超宽限期不删、
+  负宽限期归一化为 0”；
+- 文件存储：`FileSystemAttachmentStoreTest` 覆盖摘要去重、删除时清理索引、
+  新实例重建索引与旧元数据（无摘要）兼容；
+- 端到端：`AttachmentLifecycleIntegrationTest` 走真实 H2 + 文件存储 + Fake 模型，
+  验证上传去重、payload 引用扫描、统计与回收，且已引用图片不被删除。
+- M17 结束共 828 个测试（2 个符号链接用例条件跳过）；新增用例均可在无网络环境运行。
+
 ## 9. Windows 与跨平台
 
 - 路径测试用 `@EnabledOnOs` 区分 Windows/Unix；

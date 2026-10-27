@@ -397,7 +397,7 @@ GET /api/v1/sessions/{id}/plan
 
 详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
 
-### 2.12 图片附件（M16）
+### 2.12 图片附件（M16/M17）
 
 ```http
 POST /api/v1/attachments
@@ -426,16 +426,38 @@ GET /api/v1/attachments/{id}
   不信任客户端声明的 `Content-Type`；
 - 上限：单图 5 MB、单次请求 6 MB、单条消息 4 张；超限或格式不符返回
   400 `ATTACHMENT_INVALID`；
+- 落盘前移除 EXIF/XMP/注释等元数据，再按清洗后字节做 SHA-256 去重：
+  相同内容返回首次上传的记录，不重复占用磁盘；
+- 总配额由 `pi.attachments.max-total-bytes` 控制（默认 512 MB，0 表示不限制），
+  超出返回 413 `ATTACHMENT_QUOTA_EXCEEDED`；
 - 下载返回原始字节，`Content-Type` 取元数据，`Content-Disposition: inline`，
   `Cache-Control: private, max-age=86400`；ID 不存在返回 404
   `ATTACHMENT_NOT_FOUND`；
 - 存储位置 `${PI_DATA_DIR}/attachments/<id>.bin` 与 `<id>.json`（先写二进制再写
   元数据），备份数据目录时需要一并备份；
-- 附件不随会话删除而清理，v0.2 没有回收策略；
+- 未被任何 `pi_session_entry.payload_json` 引用、且超过 `pi.attachments.gc-min-age`
+  （默认 `1h`）的附件会被每日 03:40 的回收任务删除；删除会话后其图片会自然变成
+  孤儿，在宽限期后被回收；
 - v0.2 无鉴权，附件与其它接口一样只应通过回环地址访问。
 
-Web UI 支持点击选择、粘贴与拖拽三种方式添加图片：上传期间发送按钮保持禁用，
-消息区先显示本地预览，上传完成后改用服务端 URL；流式生成过程中不接受新附件。
+```http
+GET /api/v1/attachments/stats
+```
+
+返回 `{count, bytes, quotaBytes}`：已保存数量、实际占用字节与总配额
+（`0` 表示不限制）。设置页用它渲染“附件存储”卡片。
+
+```http
+POST /api/v1/attachments/gc
+```
+
+立即执行一轮回收，返回 `{scanned, deleted, freedBytes}`。只删除无引用且超过
+宽限期的附件；已随消息发送的图片不会受影响。
+
+Web UI 支持点击选择、粘贴与拖拽三种方式添加图片：超过 1.5 MB 的非 GIF 图片会
+先在浏览器缩放到最长边 1568 px、转 WebP 0.85 再上传，卡片显示压缩后大小；
+上传期间发送按钮保持禁用，消息区先显示本地预览，上传完成后改用服务端 URL；
+流式生成过程中不接受新附件。
 
 ## 3. 审批 API（M6）
 

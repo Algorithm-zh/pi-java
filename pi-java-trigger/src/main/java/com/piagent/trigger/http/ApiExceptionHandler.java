@@ -66,6 +66,7 @@ public class ApiExceptionHandler {
                     APPROVAL_INVALID_STATE, GIT_UNAVAILABLE -> HttpStatus.CONFLICT;
             case PLUGIN_INCOMPATIBLE, PLUGIN_LOAD_FAILED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case GIT_OPERATION_FAILED, ATTACHMENT_STORE_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case ATTACHMENT_QUOTA_EXCEEDED -> HttpStatus.PAYLOAD_TOO_LARGE;
             case AGENT_BUSY -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.BAD_REQUEST;
         };

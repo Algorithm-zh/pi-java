@@ -2,25 +2,33 @@ package com.piagent.application.attachment.service;
 
 import com.piagent.application.attachment.AttachmentContent;
 import com.piagent.application.attachment.AttachmentMetadata;
+import com.piagent.application.attachment.AttachmentStats;
 import com.piagent.application.attachment.ImageFormat;
 import com.piagent.application.attachment.ImageFormats;
 import com.piagent.application.attachment.port.AttachmentStore;
+import com.piagent.application.attachment.port.ImageSanitizer;
 import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.Guard;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
  * 附件应用服务。
  *
  * <p>统一收紧图片输入的边界：格式按文件头识别、单张不超过 5 MB、一条消息最多
- * 4 张；读取时把不存在的附件映射为明确的领域错误。</p>
+ * 4 张；落盘前移除 EXIF 等元数据，内容相同的图片复用同一份记录，并用总配额
+ * 兜住磁盘占用。读取时把不存在的附件映射为明确的领域错误。</p>
  */
 @Service
 public class AttachmentApplicationService {
@@ -31,19 +39,29 @@ public class AttachmentApplicationService {
     /** 单张图片允许的最大字节数。 */
     public static final long MAX_IMAGE_BYTES = 5L * 1024 * 1024;
 
+    /** 默认附件总配额：512 MB。 */
+    public static final long DEFAULT_MAX_TOTAL_BYTES = 512L * 1024 * 1024;
+
     private final AttachmentStore store;
+    private final ImageSanitizer sanitizer;
+    private final long maxTotalBytes;
 
     /**
      * 创建服务。
      *
      * @param store 附件存储
+     * @param sanitizer 图片元数据清洗器
+     * @param maxTotalBytes 附件总配额，0 表示不限制
      */
-    public AttachmentApplicationService(AttachmentStore store) {
+    public AttachmentApplicationService(AttachmentStore store, ImageSanitizer sanitizer,
+            @Value("${pi.attachments.max-total-bytes:536870912}") long maxTotalBytes) {
         this.store = Objects.requireNonNull(store, "store 不能为空");
+        this.sanitizer = Objects.requireNonNull(sanitizer, "sanitizer 不能为空");
+        this.maxTotalBytes = Math.max(0, maxTotalBytes);
     }
 
     /**
-     * 校验并保存图片。
+     * 校验、清洗并保存图片；相同内容直接复用已有附件。
      *
      * @param fileName 原始文件名
      * @param content 二进制内容
@@ -60,7 +78,15 @@ public class AttachmentApplicationService {
         ImageFormat format = ImageFormats.detect(content)
                 .orElseThrow(() -> new DomainException(DomainErrorCode.ATTACHMENT_INVALID,
                         "不支持的图片格式，仅接受 PNG、JPEG、WebP 或 GIF"));
-        return store.save(fileName, content, format);
+        byte[] cleaned = Objects.requireNonNull(sanitizer.strip(content, format),
+                "sanitizer 不能返回 null");
+        String digest = sha256(cleaned);
+        Optional<AttachmentMetadata> existing = store.findByDigest(digest);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        requireQuota(cleaned.length);
+        return store.save(fileName, cleaned, format, digest);
     }
 
     /**
@@ -72,6 +98,15 @@ public class AttachmentApplicationService {
     public AttachmentContent load(String id) {
         return store.load(id).orElseThrow(() -> new DomainException(
                 DomainErrorCode.ATTACHMENT_NOT_FOUND, "附件不存在: " + id));
+    }
+
+    /**
+     * 查询附件存储统计。
+     *
+     * @return 数量、占用字节与配额
+     */
+    public AttachmentStats stats() {
+        return new AttachmentStats(store.list().size(), store.totalBytes(), maxTotalBytes);
     }
 
     /**
@@ -98,5 +133,30 @@ public class AttachmentApplicationService {
             blocks.add(new ImageBlock(metadata.id(), metadata.mediaType(), metadata.name()));
         }
         return List.copyOf(blocks);
+    }
+
+    private void requireQuota(long incomingBytes) {
+        if (maxTotalBytes <= 0) {
+            return;
+        }
+        long used = store.totalBytes();
+        if (used + incomingBytes <= maxTotalBytes) {
+            return;
+        }
+        throw new DomainException(DomainErrorCode.ATTACHMENT_QUOTA_EXCEEDED,
+                "附件存储已用 " + megabytes(used) + "，超过 " + megabytes(maxTotalBytes)
+                        + " 配额，请先清理未引用图片");
+    }
+
+    private static String megabytes(long bytes) {
+        return String.format("%.1f MB", bytes / 1024.0 / 1024.0);
+    }
+
+    private static String sha256(byte[] content) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("JVM 缺少 SHA-256", error);
+        }
     }
 }

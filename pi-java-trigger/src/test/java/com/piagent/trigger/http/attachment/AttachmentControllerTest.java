@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,7 +14,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.application.attachment.AttachmentContent;
 import com.piagent.application.attachment.AttachmentMetadata;
+import com.piagent.application.attachment.AttachmentReclaimResult;
+import com.piagent.application.attachment.AttachmentStats;
 import com.piagent.application.attachment.service.AttachmentApplicationService;
+import com.piagent.application.attachment.service.AttachmentMaintenanceService;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.trigger.http.ApiExceptionHandler;
@@ -39,12 +43,14 @@ class AttachmentControllerTest {
 
     private final ObjectMapper json = new ObjectMapper();
     private AttachmentApplicationService attachments;
+    private AttachmentMaintenanceService maintenance;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         attachments = mock(AttachmentApplicationService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new AttachmentController(attachments))
+        maintenance = mock(AttachmentMaintenanceService.class);
+        mvc = MockMvcBuilders.standaloneSetup(new AttachmentController(attachments, maintenance))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -77,6 +83,41 @@ class AttachmentControllerTest {
 
         mvc.perform(multipart("/api/v1/attachments").file(file))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsQuotaExceededAsPayloadTooLarge() throws Exception {
+        MockMultipartFile file =
+                new MockMultipartFile("file", "shot.png", "image/png", PNG);
+        when(attachments.upload(any(), any())).thenThrow(new DomainException(
+                DomainErrorCode.ATTACHMENT_QUOTA_EXCEEDED, "附件存储已满"));
+
+        mvc.perform(multipart("/api/v1/attachments").file(file))
+                .andExpect(status().isPayloadTooLarge());
+    }
+
+    @Test
+    void reportsStorageStatsAndReclaimsOrphans() throws Exception {
+        when(attachments.stats()).thenReturn(new AttachmentStats(2, 4096, 8192));
+        when(maintenance.reclaim()).thenReturn(new AttachmentReclaimResult(3, 1, 1024));
+
+        MvcResult stats = mvc.perform(get("/api/v1/attachments/stats"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode statsBody = json.readTree(
+                stats.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(statsBody.path("count").asInt()).isEqualTo(2);
+        assertThat(statsBody.path("bytes").asLong()).isEqualTo(4096);
+        assertThat(statsBody.path("quotaBytes").asLong()).isEqualTo(8192);
+
+        MvcResult gc = mvc.perform(post("/api/v1/attachments/gc"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode gcBody = json.readTree(
+                gc.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(gcBody.path("scanned").asInt()).isEqualTo(3);
+        assertThat(gcBody.path("deleted").asInt()).isEqualTo(1);
+        assertThat(gcBody.path("freedBytes").asLong()).isEqualTo(1024);
     }
 
     @Test

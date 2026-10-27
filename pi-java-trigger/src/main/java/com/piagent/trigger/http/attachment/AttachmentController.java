@@ -3,6 +3,7 @@ package com.piagent.trigger.http.attachment;
 import com.piagent.application.attachment.AttachmentContent;
 import com.piagent.application.attachment.AttachmentMetadata;
 import com.piagent.application.attachment.service.AttachmentApplicationService;
+import com.piagent.application.attachment.service.AttachmentMaintenanceService;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import java.io.IOException;
@@ -32,14 +33,18 @@ import org.springframework.web.multipart.MultipartFile;
 public class AttachmentController {
 
     private final AttachmentApplicationService attachments;
+    private final AttachmentMaintenanceService maintenance;
 
     /**
      * 创建控制器。
      *
      * @param attachments 附件应用服务
+     * @param maintenance 附件回收服务
      */
-    public AttachmentController(AttachmentApplicationService attachments) {
+    public AttachmentController(AttachmentApplicationService attachments,
+            AttachmentMaintenanceService maintenance) {
         this.attachments = attachments;
+        this.maintenance = maintenance;
     }
 
     /**
@@ -62,6 +67,26 @@ public class AttachmentController {
         }
         AttachmentMetadata metadata = attachments.upload(file.getOriginalFilename(), content);
         return AttachmentResponse.from(metadata);
+    }
+
+    /**
+     * 查询附件存储统计。
+     *
+     * @return 数量、占用与配额
+     */
+    @GetMapping("/stats")
+    public AttachmentStatsResponse stats() {
+        return AttachmentStatsResponse.from(attachments.stats());
+    }
+
+    /**
+     * 立即回收未被会话引用且超过宽限期的附件。
+     *
+     * @return 回收结果
+     */
+    @PostMapping("/gc")
+    public AttachmentGcResponse reclaim() {
+        return AttachmentGcResponse.from(maintenance.reclaim());
     }
 
     /**
