@@ -26,6 +26,7 @@ import com.piagent.domain.model.llm.LlmGatewayException;
 import com.piagent.domain.model.llm.LlmRequest;
 import com.piagent.domain.model.llm.LlmResponse;
 import com.piagent.domain.model.llm.LlmStream;
+import com.piagent.domain.model.llm.LlmTool;
 import com.piagent.domain.model.llm.TextDelta;
 import com.piagent.domain.model.llm.ToolCallDelta;
 import com.piagent.domain.session.model.ThinkingLevel;
@@ -127,6 +128,30 @@ class OpenAiCompatibleProviderTest {
         assertThat(response.content()).containsExactly(
                 new ToolCallBlock("call_1", "read", Map.of("path", "a.txt")));
         assertThat(response.stopReason()).isEqualTo(AssistantStopReason.TOOL_USE);
+    }
+
+    @Test
+    void roundTripsSanitizedNamesForNamespacedTools() {
+        WIREMOCK.stubFor(post(urlEqualTo(PATH)).willReturn(ok(sse(
+                "{\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,"
+                        + "\"id\":\"call_1\",\"function\":{\"name\":\"echo_search\","
+                        + "\"arguments\":\"{}\"}}]}}]}",
+                "{\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}",
+                "[DONE]"))));
+        LlmTool tool = new LlmTool("echo.search", "远程搜索",
+                "{\"type\":\"object\",\"properties\":{}}");
+
+        LlmStream stream = provider().stream(request(API_KEY_VAR, List.of(tool)), context());
+        List<LlmDelta> deltas = drain(stream);
+
+        assertThat(deltas).filteredOn(ToolCallDelta.class::isInstance)
+                .extracting(delta -> ((ToolCallDelta) delta).toolName())
+                .contains("echo.search");
+        LlmResponse response = stream.response().orElseThrow();
+        assertThat(response.content()).containsExactly(
+                new ToolCallBlock("call_1", "echo.search", Map.of()));
+        WIREMOCK.verify(postRequestedFor(urlEqualTo(PATH))
+                .withRequestBody(containing("\"name\":\"echo_search\"")));
     }
 
     @Test
@@ -238,10 +263,14 @@ class OpenAiCompatibleProviderTest {
     }
 
     private static LlmRequest request(String apiKeyEnv) {
+        return request(apiKeyEnv, List.of());
+    }
+
+    private static LlmRequest request(String apiKeyEnv, List<LlmTool> tools) {
         ModelProfile profile = ModelProfile.create(new ModelId("test-model"), "测试模型",
                 ModelEndpoint.openAiCompatible(WIREMOCK.baseUrl() + "/v1", apiKeyEnv,
                         "test-model", 128_000, 8_192));
-        return new LlmRequest(profile, "你是测试助手", List.of(), List.of(), ThinkingLevel.OFF);
+        return new LlmRequest(profile, "你是测试助手", List.of(), tools, ThinkingLevel.OFF);
     }
 
     private static LlmCallContext context() {

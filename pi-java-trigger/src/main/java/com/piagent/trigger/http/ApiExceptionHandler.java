@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * 领域异常到 HTTP 响应的统一映射。
@@ -41,17 +42,30 @@ public class ApiExceptionHandler {
                 .body(new ApiErrorResponse(DomainErrorCode.INVALID_ARGUMENT.name(), "请求体缺失或不是合法 JSON"));
     }
 
+    /**
+     * 上传图片超过 multipart 上限时返回 413。
+     *
+     * @param error 上传大小异常
+     * @return 错误响应
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException error) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ApiErrorResponse(DomainErrorCode.ATTACHMENT_INVALID.name(),
+                        "图片不能超过 5 MB"));
+    }
+
     private HttpStatus statusOf(DomainErrorCode code) {
         return switch (code) {
             case MODEL_NOT_FOUND, SESSION_NOT_FOUND, ENTRY_NOT_FOUND, RUN_NOT_FOUND,
                     PLUGIN_NOT_FOUND, TOOL_NOT_FOUND, APPROVAL_NOT_FOUND,
-                    SKILL_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                    SKILL_NOT_FOUND, ATTACHMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case MODEL_ALREADY_EXISTS, CONCURRENT_MODIFICATION, MODEL_DISABLED,
                     INVALID_STATE_TRANSITION, SESSION_ARCHIVED, RUN_ALREADY_ACTIVE,
                     PLUGIN_ALREADY_EXISTS, PLUGIN_INVALID_STATE, PLUGIN_TOOL_CONFLICT,
                     APPROVAL_INVALID_STATE, GIT_UNAVAILABLE -> HttpStatus.CONFLICT;
             case PLUGIN_INCOMPATIBLE, PLUGIN_LOAD_FAILED -> HttpStatus.UNPROCESSABLE_ENTITY;
-            case GIT_OPERATION_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case GIT_OPERATION_FAILED, ATTACHMENT_STORE_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
             case AGENT_BUSY -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.BAD_REQUEST;
         };

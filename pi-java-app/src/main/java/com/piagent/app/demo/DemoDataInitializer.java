@@ -1,9 +1,12 @@
 package com.piagent.app.demo;
 
+import com.piagent.domain.model.ModelCapabilities;
 import com.piagent.domain.model.ModelEndpoint;
 import com.piagent.domain.model.ModelId;
 import com.piagent.domain.model.ModelProfile;
+import com.piagent.domain.model.ProviderType;
 import com.piagent.domain.model.port.ModelProfileRepository;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -40,10 +43,28 @@ public class DemoDataInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         ModelId id = new ModelId(DEMO_MODEL_ID);
-        if (models.findById(id).isPresent()) {
+        Optional<ModelProfile> existing = models.findById(id);
+        if (existing.isPresent()) {
+            upgradeVision(existing.get());
             return;
         }
         models.insert(ModelProfile.create(id, "Fake Demo（离线）", ModelEndpoint.fake(DEMO_MODEL_ID)));
         LOG.info("已创建 demo 模型档案: {}", DEMO_MODEL_ID);
+    }
+
+    /**
+     * 旧版本创建的 demo 档案没有 vision 能力标记；这里只补齐该标记，
+     * 保留用户对显示名、启用状态等其他字段的修改。
+     */
+    private void upgradeVision(ModelProfile profile) {
+        ModelEndpoint endpoint = profile.endpoint();
+        if (endpoint.provider() != ProviderType.FAKE || endpoint.capabilities().vision()) {
+            return;
+        }
+        ModelEndpoint upgraded = new ModelEndpoint(endpoint.provider(), endpoint.baseUrl(),
+                endpoint.apiKeyEnv(), endpoint.modelName(), endpoint.contextWindow(),
+                endpoint.maxOutputTokens(), ModelCapabilities.demo());
+        models.update(profile.updateEndpoint(upgraded));
+        LOG.info("已为 demo 模型档案补上图片能力: {}", DEMO_MODEL_ID);
     }
 }

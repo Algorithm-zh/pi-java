@@ -2,12 +2,15 @@ package com.piagent.application.agent.service;
 
 import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
+import com.piagent.application.attachment.service.AttachmentApplicationService;
 import com.piagent.application.context.CompactionComponents;
 import com.piagent.application.context.CompactionSummarizer;
 import com.piagent.application.context.ContextCompactionService;
 import com.piagent.application.context.ContextMeasurementFactory;
 import com.piagent.application.git.GitCheckpointService;
-import com.piagent.application.testsupport.DirectExecutorService;import com.piagent.application.testsupport.InMemoryModelProfileRepository;
+import com.piagent.application.testsupport.DirectExecutorService;
+import com.piagent.application.testsupport.InMemoryAttachmentStore;
+import com.piagent.application.testsupport.InMemoryModelProfileRepository;
 import com.piagent.application.testsupport.InMemorySessionEntryStore;
 import com.piagent.application.testsupport.InMemorySessionRepository;
 import com.piagent.application.testsupport.InMemorySkillSource;
@@ -101,6 +104,8 @@ final class AgentLoopFixture {
     final RecordingToolInvoker invoker = new RecordingToolInvoker();
     final StubApprovalGate approvals = new StubApprovalGate();
     final SessionEntryAppender appender;
+    final InMemoryAttachmentStore attachmentStore;
+    final AttachmentApplicationService attachments;
     final RunRuntime runtime;
     final TurnPipeline pipeline;
     final RunDispatcher dispatcher;
@@ -164,6 +169,8 @@ final class AgentLoopFixture {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         DirectExecutorService executor = new DirectExecutorService();
         appender = new SessionEntryAppender(sessions, entries, ids, clock);
+        attachmentStore = new InMemoryAttachmentStore(ids);
+        attachments = new AttachmentApplicationService(attachmentStore);
         compactionState = new ContextCompactionState();
         runtime = new RunRuntime(new RunRuntimeDependencies(registry, hub, appender, tools,
                 compactionState, sessions, ids, clock));
@@ -194,7 +201,7 @@ final class AgentLoopFixture {
                 new RunAuxEvents(runtime, hub), options, clock);
         loop = new AgentLoopService(new AgentLoopDependencies(
                 new ActiveModelResolver(models, new ModelSelectionPolicy()),
-                runtime, pipeline, dispatcher, compactionStep, git, verification));
+                runtime, pipeline, dispatcher, compactionStep, git, verification, attachments));
     }
 
     private static VerificationRunner passingRunner() {
@@ -217,6 +224,23 @@ final class AgentLoopFixture {
     AgentRun run(SessionId sessionId, String text) {
         RunHandle handle = loop.start(new SendMessageCommand(sessionId, text));
         return loop.awaitTerminal(handle.runId(), Duration.ofSeconds(2));
+    }
+
+    AgentRun run(SessionId sessionId, String text, String... attachmentIds) {
+        RunHandle handle = loop.start(new SendMessageCommand(sessionId, text,
+                List.of(attachmentIds)));
+        return loop.awaitTerminal(handle.runId(), Duration.ofSeconds(2));
+    }
+
+    /**
+     * 上传一张最小 PNG 并返回附件 ID。
+     *
+     * @param name 文件名
+     * @return 附件标识
+     */
+    String attachPng(String name) {
+        byte[] png = {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        return attachments.upload(name, png).id();
     }
 
     ChatSession session(SessionId sessionId) {

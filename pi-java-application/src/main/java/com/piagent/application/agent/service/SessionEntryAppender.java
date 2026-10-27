@@ -7,6 +7,7 @@ import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.message.AgentMessage;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
 import com.piagent.domain.session.model.message.UserMessage;
@@ -33,10 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 运行期的会话 entry 追加器。
- *
- * <p>每次追加都是一个短事务：先插入 entry，再以 CAS 推进 leaf 与 version。
- * LLM 与工具执行发生在事务之外，避免长事务占住数据库连接。会话状态在 run
- * 开始时置为 RUNNING，在写入 RUN_SUMMARY 的同一次事务里回到 IDLE。
+ * <p>每次追加是短事务：先插入 entry，再以 CAS 推进 leaf 与 version；LLM 与工具执行在事务之外。
+ * 会话状态在 run 开始时置为 RUNNING，写入 RUN_SUMMARY 的同一次事务里回到 IDLE。</p>
  */
 @Service
 public class SessionEntryAppender {
@@ -65,7 +64,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 追加用户消息并把会话切到 RUNNING；空会话的首条消息顺带把占位标题换成消息摘要。
+     * 追加纯文本用户消息。
      *
      * @param sessionId 会话标识
      * @param text 用户文本
@@ -73,19 +72,33 @@ public class SessionEntryAppender {
      */
     @Transactional
     public SessionEntry appendUserAndStart(SessionId sessionId, String text) {
+        return appendUserAndStart(sessionId, text, List.of());
+    }
+
+    /**
+     * 追加用户消息并把会话切到 RUNNING；空会话的首条消息顺带把占位标题换成消息摘要。
+     *
+     * @param sessionId 会话标识
+     * @param text 用户文本，可为空串
+     * @param images 图片块
+     * @return 新 entry
+     */
+    @Transactional
+    public SessionEntry appendUserAndStart(SessionId sessionId, String text, List<ImageBlock> images) {
+        Objects.requireNonNull(images, "images 不能为空");
         ChatSession session = require(sessionId);
         Guard.require(session.status() == SessionStatus.IDLE, DomainErrorCode.INVALID_STATE_TRANSITION,
                 "只有空闲会话可以开始 run，当前状态: " + session.status());
         boolean firstEntry = entryStore.countBySession(sessionId) == 0;
         ChatSession running = session.markRunning();
         if (firstEntry && SessionTitles.isPlaceholder(session.title())) {
-            String generated = SessionTitles.fromText(text);
+            String generated = SessionTitles.fromMessage(text, images.size());
             if (!generated.isBlank()) {
                 running = running.rename(generated);
             }
         }
         Instant now = clock.instant();
-        AgentMessage message = new UserMessage(List.of(new TextBlock(text)), now);
+        AgentMessage message = UserMessage.create(text, images, now);
         SessionEntry entry = append(running, new MessagePayload(message), estimate(message), now);
         repository.update(running.advanceLeaf(entry.id()));
         return entry;
@@ -158,10 +171,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 把运行中的会话切到等待审批。
-     *
-     * <p>重复调用是幂等的：前一个待办已决策、会话仍在等待下一个审批时，
-     * 不再做无意义的状态迁移。</p>
+     * 把运行中的会话切到等待审批；已处于等待状态时幂等返回。
      *
      * @param sessionId 会话标识
      */
@@ -187,8 +197,7 @@ public class SessionEntryAppender {
         ChatSession session = require(sessionId);
         requireRunning(session);
         Instant now = clock.instant();
-        int tokens = estimateText(payload.decision()
-                + (payload.reason() == null ? "" : payload.reason()));
+        int tokens = estimateText(payload.decision() + (payload.reason() == null ? "" : payload.reason()));
         SessionEntry entry = append(session, payload, tokens, now);
         ChatSession next = session.advanceLeaf(entry.id());
         if (session.status() == SessionStatus.WAITING_APPROVAL) {
@@ -199,9 +208,7 @@ public class SessionEntryAppender {
     }
 
     /**
-     * 追加不进入模型上下文的运行期元数据 entry。
-     *
-     * <p>Git 检查点与逐轮改动只用于展示和撤销，token 估算固定为 0。</p>
+     * 追加不进入模型上下文的运行期元数据 entry；Git 检查点与逐轮改动只用于展示和撤销，token 估算为 0。
      *
      * @param sessionId 会话标识
      * @param payload 元数据载荷
@@ -240,12 +247,10 @@ public class SessionEntryAppender {
      */
     @Transactional
     public void forceIdle(SessionId sessionId) {
-        repository.findById(sessionId).ifPresent(session -> {
-            if (session.status() == SessionStatus.RUNNING
-                    || session.status() == SessionStatus.WAITING_APPROVAL) {
-                repository.update(session.markIdle());
-            }
-        });
+        repository.findById(sessionId)
+                .filter(session -> session.status() == SessionStatus.RUNNING
+                        || session.status() == SessionStatus.WAITING_APPROVAL)
+                .ifPresent(session -> repository.update(session.markIdle()));
     }
 
     private SessionEntry appendRunning(SessionId sessionId, EntryPayload payload, int tokenEstimate) {
@@ -283,9 +288,6 @@ public class SessionEntryAppender {
         return new EntryId(Ulid.parse(idGenerator.newId()));
     }
 
-    /**
-     * 估算消息 token；M7 起与投影、压缩共用 {@link EntryTokenCounter}，避免中文被低估。
-     */
     private int estimate(AgentMessage message) {
         return TOKEN_COUNTER.countMessage(message);
     }

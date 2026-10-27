@@ -57,6 +57,21 @@ public final class SessionTitles {
         return truncate(line);
     }
 
+    /**
+     * 从首条用户消息生成短标题；只有图片时用图片数量代替文本。
+     *
+     * @param text 用户文本
+     * @param imageCount 图片数量
+     * @return 短标题；没有可读内容时返回空串
+     */
+    public static String fromMessage(String text, int imageCount) {
+        String title = fromText(text);
+        if (!title.isBlank()) {
+            return title;
+        }
+        return imageCount > 0 ? imageCount + " 张图片" : "";
+    }
+
     private static String firstContentLine(String text) {
         for (String line : text.split("\\R")) {
             if (!line.isBlank()) {

@@ -40,8 +40,8 @@ public record SessionEntry(
         int tokenEstimate,
         Instant createdAt) {
 
-    /** 当前载荷模式版本。 */
-    public static final int CURRENT_PAYLOAD_VERSION = 1;
+    /** 当前载荷模式版本；版本 2 起消息可包含图片块。 */
+    public static final int CURRENT_PAYLOAD_VERSION = 2;
 
     /**
      * 校验 entry 结构。

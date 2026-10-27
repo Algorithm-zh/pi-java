@@ -7,6 +7,7 @@ import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.BranchSummaryMessage;
 import com.piagent.domain.session.model.message.CompactionSummaryMessage;
 import com.piagent.domain.session.model.message.ContentBlock;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ThinkingBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
@@ -34,12 +35,16 @@ import java.util.Set;
  *       审批、运行摘要、标签、模型切换等审计 entry 计为 0，不占上下文预算；</li>
  *   <li>文本按 {@link TokenEstimator} 的字符启发式（CJK 1:1，其余 4:1）；</li>
  *   <li>工具调用额外计入工具名与参数 JSON 的字符；</li>
+ *   <li>图片按固定估算计入，避免视觉上下文被当作零成本；</li>
  *   <li>参与上下文的 entry 至少计 1 token，避免空消息被估算为 0 后无限拟合。</li>
  * </ul>
  *
  * <p>纯函数、无状态、线程安全。</p>
  */
 public final class EntryTokenCounter {
+
+    /** 单张图片的保守 token 估算，用于上下文预算而非计费。 */
+    public static final int IMAGE_TOKENS = 1_000;
 
     private final TokenEstimator estimator;
 
@@ -150,17 +155,23 @@ public final class EntryTokenCounter {
         Objects.requireNonNull(blocks, "blocks 不能为空");
         long cjk = 0;
         long other = 0;
+        long images = 0;
         for (ContentBlock block : blocks) {
+            if (block instanceof ImageBlock) {
+                images++;
+                continue;
+            }
             String text = switch (block) {
                 case TextBlock value -> value.text();
                 case ThinkingBlock value -> value.thinking();
                 case ToolCallBlock value -> value.name() + String.valueOf(value.arguments());
+                case ImageBlock ignored -> "";
             };
             long[] chars = countChars(text);
             cjk += chars[0];
             other += chars[1];
         }
-        return estimator.estimateChars(cjk, other).tokens();
+        return cap(images * IMAGE_TOKENS + estimator.estimateChars(cjk, other).tokens());
     }
 
     private long[] countChars(String text) {

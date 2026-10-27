@@ -54,6 +54,8 @@ class OpenApiDocumentIntegrationTest {
         assertThat(paths.has("/api/v1/runs/{runId}/events")).isTrue();
         assertThat(paths.has("/api/v1/models")).isTrue();
         assertThat(paths.has("/api/v1/tools")).isTrue();
+        assertThat(paths.has("/api/v1/attachments")).isTrue();
+        assertThat(paths.has("/api/v1/attachments/{id}")).isTrue();
         assertThat(document.at("/components/schemas").size()).isPositive();
     }
 

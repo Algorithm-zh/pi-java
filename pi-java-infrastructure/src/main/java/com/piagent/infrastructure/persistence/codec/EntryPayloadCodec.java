@@ -34,7 +34,8 @@ import java.util.List;
 /**
  * entry 载荷 JSON 编解码入口。
  *
- * <p>顶层结构由 {@code payload_version} 解释；当前版本为 1，只允许新增字段。
+ * <p>顶层结构由 {@code payload_version} 解释；当前版本为 2（新增图片内容块），
+ * 解码仍接受旧版本，后续只允许新增字段。
  * 解码时按 {@link EntryType} 选择分支，未知类型明确失败，不猜测语义。
  */
 public final class EntryPayloadCodec {

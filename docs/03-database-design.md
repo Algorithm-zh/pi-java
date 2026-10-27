@@ -250,8 +250,9 @@ MySQL 脚本位于 `.../mysql/`；Flyway 按 profile 选择 `locations`，互不
 
 ## 5. Session entry payload
 
-`payload_json` 的顶层结构由 `payload_version` 解释，当前为 1。
+`payload_json` 的顶层结构由 `payload_version` 解释，当前为 2。
 只允许新增字段，禁止改变已有字段语义；读取方必须忽略未知字段。
+版本 1 的记录仍可正常读取（M16 起写入版本 2，差异仅为新增 `image` 内容块）。
 
 ### 5.1 消息
 
@@ -282,6 +283,25 @@ MySQL 脚本位于 `.../mysql/`；Flyway 按 profile 选择 `locations`，互不
   "timestamp": "2026-10-21T06:00:01Z"
 }
 ```
+
+带图片的用户消息（M16）：
+
+```json
+{
+  "role": "user",
+  "content": [
+    {"type": "text", "text": "这张截图哪里错了？"},
+    {"type": "image", "attachmentId": "01JATT...", "mediaType": "image/png", "name": "shot.png"}
+  ],
+  "timestamp": "2026-10-27T06:00:00Z"
+}
+```
+
+- entry 里只存附件引用，图片二进制落在 `${PI_DATA_DIR}/attachments/<id>.bin`，
+  元数据在同目录 `<id>.json`；备份或迁移时数据目录要整体带走；
+- 删除会话不会清理附件文件，v0.2 没有回收策略；
+- 附件缺失时投影会降级为文本占位（`[图片 <name> 不可用]`），不会让历史读取失败；
+- 图片不进入 `payload_json` 的 base64，避免 entry 表随图片膨胀。
 
 ### 5.2 压缩
 

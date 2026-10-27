@@ -4,6 +4,7 @@
 
 import * as api from "./api.js";
 import * as approval from "./approval.js";
+import * as attachments from "./attachments.js";
 import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
@@ -29,7 +30,10 @@ async function init() {
     initTheme();
     bindReconnect(reconnectRun);
     bindDetach(detach);
-    bindSessionReady(syncQueue);
+    bindSessionReady(() => {
+        syncQueue();
+        syncComposerState();
+    });
     changes.initChanges();
     changes.bindReload(reloadSession);
     plan.initPlan();
@@ -43,6 +47,7 @@ async function init() {
     contextMeter.init({ onReload: reloadSession });
     toolForm.init({onRun: sendText});
     slash.init({onResize: resizeInput, onToolChosen: toolForm.open});
+    attachments.init({onChange: syncComposerState});
     wireEvents();
     try {
         const [system, models] = await Promise.all([api.systemInfo(), api.listModels()]);
@@ -59,6 +64,7 @@ async function init() {
         } else {
             // 还没会话时也允许输入：提交后会引导创建，草稿不会丢。
             setComposerEnabled(true);
+            syncComposerState();
         }
     } catch (error) {
         setServer(false);
@@ -76,13 +82,18 @@ async function createSession(payload) {
         pendingPrompt = "";
         dom.input.value = "";
         resizeInput();
-        startRun(text);
+        deliver(text, attachments.ready());
     }
 }
 
 function submitComposer() {
     const text = dom.input.value.trim();
-    if (!text) {
+    const images = attachments.ready();
+    if (!text && !images.length) {
+        return;
+    }
+    if (attachments.isUploading()) {
+        toast("图片还在上传，请稍候");
         return;
     }
     if (!state.session) {
@@ -90,10 +101,36 @@ function submitComposer() {
         dialog.open(state.models, state.system);
         return;
     }
+    if (isBusy() && images.length) {
+        toast("图片消息需要等本轮结束后再发送", true);
+        return;
+    }
     slash.hide();
     dom.input.value = "";
     resizeInput();
-    sendText(text);
+    deliver(text, images);
+    syncComposerState();
+}
+
+function isBusy() {
+    return state.streaming
+        || state.session?.status === "RUNNING"
+        || state.session?.status === "WAITING_APPROVAL";
+}
+
+function deliver(text, images) {
+    if (isBusy()) {
+        if (!text) {
+            return;
+        }
+        // 运行中的工具调用无法再插话，先排队，本轮结束后自动发出。
+        enqueue(text);
+        toast("已排队，本轮结束后自动发送");
+        return;
+    }
+    attachments.clear();
+    startRun(text, images.map((image) => image.id),
+        images.map(({url, name}) => ({url, name})));
 }
 
 function sendText(text) {
@@ -105,16 +142,20 @@ function sendText(text) {
         dialog.open(state.models, state.system);
         return;
     }
-    const busy = state.streaming
-        || state.session.status === "RUNNING"
-        || state.session.status === "WAITING_APPROVAL";
-    if (busy) {
-        // 运行中的工具调用无法再插话，先排队，本轮结束后自动发出。
-        enqueue(text);
-        toast("已排队，本轮结束后自动发送");
+    deliver(text, []);
+}
+
+function syncComposerState() {
+    if (!dom.sendButton || !dom.input) {
         return;
     }
-    startRun(text);
+    if (dom.input.disabled) {
+        dom.sendButton.disabled = true;
+        return;
+    }
+    const hasText = dom.input.value.trim().length > 0;
+    dom.sendButton.disabled = attachments.isUploading()
+        || (!hasText && !attachments.hasReady());
 }
 
 function resizeInput() {
@@ -159,7 +200,10 @@ function wireEvents() {
         event.preventDefault();
         submitComposer();
     });
-    dom.input.addEventListener("input", resizeInput);
+    dom.input.addEventListener("input", () => {
+        resizeInput();
+        syncComposerState();
+    });
     dom.input.addEventListener("keydown", (event) => {
         if (slash.handleKeydown(event)) {
             return;

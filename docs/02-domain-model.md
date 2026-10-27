@@ -103,7 +103,8 @@ AgentMessage
 ContentBlock
 ├── TextBlock(text)
 ├── ThinkingBlock(thinking, signature?)
-└── ToolCallBlock(id, name, arguments: Map<String,Object>)
+├── ToolCallBlock(id, name, arguments: Map<String,Object>)
+└── ImageBlock(attachmentId, mediaType, name)
 ```
 
 后两种消息只由投影器根据 `COMPACTION` / `BRANCH_SUMMARY` entry 生成，
@@ -115,7 +116,8 @@ ContentBlock
 - `ToolResultMessage.toolCallId` 必须能在**同一分支**上找到对应 tool call；
 - `details` 只允许 JSON 可序列化值（String/Number/Boolean/List/Map），由基础设施负责落库；
 - `AssistantMessage.usage` 使用会话侧的 `TokenUsage`，由模型侧 `Usage` 映射而来；
-- 图片/音频块 v0.1 不支持，模型层遇到直接返回明确错误。
+- `ImageBlock` 只保存附件 id、媒体类型与文件名，图片字节由附件存储管理，不进入 entry；
+- 音频、视频与 PDF 暂不支持，模型层遇到未知块类型直接返回明确错误。
 
 ### 2.4 值对象
 

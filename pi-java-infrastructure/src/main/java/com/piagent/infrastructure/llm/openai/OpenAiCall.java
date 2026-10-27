@@ -16,7 +16,8 @@ import java.net.http.HttpRequest;
  * @param context 调用上下文
  * @param mapper Jackson 映射器
  * @param errorMapper HTTP 错误映射器
+ * @param names 工具名编解码器，用于还原模型返回的工具名
  */
 record OpenAiCall(HttpClient client, HttpRequest request, LlmCallContext context,
-        ObjectMapper mapper, OpenAiErrorMapper errorMapper) {
+        ObjectMapper mapper, OpenAiErrorMapper errorMapper, ToolNameCodec names) {
 }

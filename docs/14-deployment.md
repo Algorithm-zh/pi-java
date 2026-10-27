@@ -23,6 +23,11 @@ mvn -q -DskipTests package
 PI_DATA_DIR=/var/lib/pi-java java -jar pi-java-app-0.2.0.jar
 ```
 
+M16 起图片附件也写入数据目录：`${PI_DATA_DIR}/attachments/<id>.bin` 与
+`<id>.json`。备份、迁移或升级时要把整个数据目录一起带走，只备份 H2 文件会丢图。
+单图上限 5 MB、单次上传 6 MB、单条消息 4 张；`demo` 与 `mysql` profile 共用同一套
+附件目录，切换数据库不会迁移附件。
+
 服务默认只监听 `127.0.0.1:8080`。容器或内网访问需要显式设置
 `PI_SERVER_ADDRESS=0.0.0.0`；v0.2 仍无鉴权，不要直接暴露公网。
 
@@ -39,6 +44,7 @@ PI_DATA_DIR=/var/lib/pi-java java -jar pi-java-app-0.2.0.jar
 |---|---|
 | `/workspace` | 进程工作目录，也是代理的默认读写根；挂载宿主项目到这里 |
 | `/app/data` | H2 数据目录（命名卷）；与工作区分离，避免把数据库写进用户仓库 |
+| `/app/data/attachments` | 图片附件（ULID 命名的 `.bin` + `.json`），随数据卷一起备份 |
 | `/app/app.jar` | 可执行 jar |
 | `PI_SERVER_ADDRESS=0.0.0.0` | 镜像内固定值，容器外仍需端口映射 |
 | `PI_DATA_DIR=/app/data` | 镜像内固定值 |

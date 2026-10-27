@@ -6,6 +6,7 @@ import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.BranchSummaryMessage;
 import com.piagent.domain.session.model.message.CompactionSummaryMessage;
 import com.piagent.domain.session.model.message.ContentBlock;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ThinkingBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
@@ -139,6 +140,7 @@ public final class CompactionPromptBuilder {
                     // 思考过程不进入压缩请求：它通常是噪声，且可能极长。
                 }
                 case ToolCallBlock value -> text.append(" [调用 ").append(value.name()).append(']');
+                case ImageBlock value -> text.append(" [图片 ").append(value.name()).append(']');
             }
         }
         return text.toString().strip();

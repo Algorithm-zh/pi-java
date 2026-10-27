@@ -273,12 +273,24 @@
                      aria-label="斜杠命令"></div>
                 <div id="composer-queue" class="composer-queue hidden" role="status"
                      aria-live="polite"></div>
+                <div id="composer-attachments" class="composer-attachments hidden"
+                     aria-label="待发送图片"></div>
                 <form id="composer-form" class="composer-box">
                     <textarea id="composer-input" rows="1" maxlength="100000"
                               aria-label="消息"
-                              placeholder="问点什么，或者粘贴一段代码…"></textarea>
+                              placeholder="问点什么，可以粘贴或拖入图片…"></textarea>
                     <div class="composer-side">
                         <span id="composer-model" class="composer-model"></span>
+                        <button id="attach-button" class="attach-button" type="button"
+                                title="添加图片" aria-label="添加图片">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none"
+                                 stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+                                 stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="4.5" width="18" height="15" rx="3"></rect>
+                                <circle cx="8.5" cy="9.5" r="1.6"></circle>
+                                <path d="M21 15.5l-4.6-4.4-6.1 6.4-3-2.8L3 19"></path>
+                            </svg>
+                        </button>
                         <button id="send-button" class="send-button" type="submit"
                                 title="发送" aria-label="发送">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
@@ -289,6 +301,8 @@
                         </button>
                     </div>
                 </form>
+                <input id="composer-file" class="hidden" type="file" multiple
+                       accept="image/png,image/jpeg,image/webp,image/gif">
             </div>
             <div class="composer-hint">
                 <span><kbd>Enter</kbd> 发送 <span class="hint-sep">·</span>

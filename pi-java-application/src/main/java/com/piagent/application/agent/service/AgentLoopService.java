@@ -2,6 +2,7 @@ package com.piagent.application.agent.service;
 
 import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
+import com.piagent.application.attachment.service.AttachmentApplicationService;
 import com.piagent.application.git.GitCheckpointService;
 import com.piagent.application.git.RunGitTracker;
 import com.piagent.application.verify.VerificationService;
@@ -18,9 +19,11 @@ import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
+import com.piagent.domain.shared.Guard;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -58,6 +61,7 @@ public class AgentLoopService {
     private final RunCompactionStep compactionStep;
     private final GitCheckpointService gitCheckpoints;
     private final VerificationService verification;
+    private final AttachmentApplicationService attachments;
     private final TurnStreamer streamer;
     private final SkillInvocationResolver skills;
     private final RunSteps steps;
@@ -75,6 +79,7 @@ public class AgentLoopService {
         this.compactionStep = deps.compactionStep();
         this.gitCheckpoints = deps.gitCheckpoints();
         this.verification = deps.verification();
+        this.attachments = deps.attachments();
         this.streamer = new TurnStreamer(pipeline, compactionStep, runtime);
         this.skills = new SkillInvocationResolver(pipeline);
         this.steps = new RunSteps(runtime, pipeline);
@@ -88,6 +93,7 @@ public class AgentLoopService {
      */
     public RunHandle start(SendMessageCommand command) {
         ChatSession session = recoverStaleSession(requireSession(command.sessionId()));
+        List<ImageBlock> images = attachments.imageBlocks(command.attachmentIds());
         if (!dispatcher.tryAcquire()) {
             throw new DomainException(DomainErrorCode.AGENT_BUSY,
                     "并发运行数已达上限，请稍后重试");
@@ -98,9 +104,10 @@ public class AgentLoopService {
             EntryId baseLeafId = session.leafEntryId();
             reserved = runtime.reserve(session.identity().id());
             SkillInvocationResolver.Resolved resolved = skills.resolve(command.text());
-            runtime.appendUserAndStart(session.identity().id(), resolved.text());
             ModelProfile profile = models.resolve(session.config().modelProfileId(),
                     session.config().thinkingLevel(), !reserved.tools().descriptors().isEmpty());
+            requireVision(profile, images);
+            runtime.appendUserAndStart(session.identity().id(), resolved.text(), images);
             RunGitTracker git = new RunGitTracker(gitCheckpoints, session.identity().id(),
                     session.config().cwd(), reserved.runId(), baseLeafId);
             RunContext context = new RunContext(session.identity().id(), profile, reserved,
@@ -195,7 +202,7 @@ public class AgentLoopService {
                     context.events());
             int turn = run.turns() + 1;
             EntryId turnBaseLeaf = requireSession(context.sessionId()).leafEntryId();
-            TurnResult result = streamTurn(context, session, turn);
+            TurnResult result = streamer.stream(context, session, turn);
             if (result == null) {
                 return;
             }
@@ -232,15 +239,6 @@ public class AgentLoopService {
         }
     }
 
-    /**
-     * 执行一次流式模型调用；遇到上下文溢出时压缩一次后重试。
-     *
-     * @return 流式结果；无法继续时返回 null（run 已收尾）
-     */
-    private TurnResult streamTurn(RunContext context, ChatSession session, int turn) {
-        return streamer.stream(context, session, turn);
-    }
-
     private TokenUsage appendAssistant(SessionId sessionId, ModelProfile profile,
             TurnResult result, RunEventPublisher events) {
         AssistantMessage message = AssistantMessageFactory.from(profile, result, runtime.now());
@@ -262,6 +260,12 @@ public class AgentLoopService {
 
     private ChatSession requireSession(SessionId sessionId) {
         return runtime.requireSession(sessionId);
+    }
+
+    private void requireVision(ModelProfile profile, List<ImageBlock> images) {
+        Guard.require(images.isEmpty() || profile.endpoint().capabilities().vision(),
+                DomainErrorCode.MODEL_CAPABILITY_MISSING,
+                "模型「" + profile.displayName() + "」未声明图片输入能力，请改用支持视觉的模型");
     }
 
     /**

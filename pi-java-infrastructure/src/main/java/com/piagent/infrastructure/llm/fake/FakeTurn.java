@@ -10,6 +10,7 @@ import com.piagent.domain.model.llm.LlmResponse;
 import com.piagent.domain.model.llm.TextDelta;
 import com.piagent.domain.model.llm.ToolCallDelta;
 import com.piagent.domain.session.model.message.AssistantStopReason;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.UserMessage;
@@ -153,7 +154,16 @@ public record FakeTurn(List<LlmDelta> deltas, LlmResponse response, Failure fail
      */
     public static FakeTurn echo(LlmRequest request) {
         String input = lastUserText(request);
-        String text = input.isBlank() ? "（Fake 模型）我已经收到请求。" : "（Fake 模型）收到：" + input;
+        int images = lastUserImageCount(request);
+        String text;
+        if (input.isBlank()) {
+            text = images == 0
+                    ? "（Fake 模型）我已经收到请求。"
+                    : "（Fake 模型）我已经收到 " + images + " 张图片。";
+        } else {
+            text = "（Fake 模型）收到：" + input
+                    + (images == 0 ? "" : "（另附 " + images + " 张图片）");
+        }
         long tokens = Math.max(1, text.length() / 4);
         LlmResponse response = new LlmResponse(List.of(new TextBlock(text)),
                 new Usage(tokens, tokens, 0, 0, tokens * 2), AssistantStopReason.STOP, null);
@@ -217,5 +227,16 @@ public record FakeTurn(List<LlmDelta> deltas, LlmResponse response, Failure fail
             }
         }
         return "";
+    }
+
+    static int lastUserImageCount(LlmRequest request) {
+        for (int index = request.messages().size() - 1; index >= 0; index--) {
+            if (request.messages().get(index) instanceof UserMessage user) {
+                return (int) user.content().stream()
+                        .filter(ImageBlock.class::isInstance)
+                        .count();
+            }
+        }
+        return 0;
     }
 }

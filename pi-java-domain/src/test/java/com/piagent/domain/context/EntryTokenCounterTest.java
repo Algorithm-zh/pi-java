@@ -8,6 +8,9 @@ import com.piagent.domain.session.SessionFixtures;
 import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.ThinkingLevel;
+import com.piagent.domain.session.model.message.ImageBlock;
+import com.piagent.domain.session.model.message.TextBlock;
+import com.piagent.domain.session.model.message.UserMessage;
 import com.piagent.domain.session.model.payload.BranchSummaryPayload;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.ModelChangePayload;
@@ -36,6 +39,18 @@ class EntryTokenCounterTest {
         assertThat(counter.countMessage(SessionFixtures.user("hello world")))
                 .isEqualTo(estimator.estimate("hello world").tokens());
         assertThat(counter.countMessage(SessionFixtures.user("你好世界"))).isEqualTo(4);
+    }
+
+    @Test
+    void countsEachImageAsFixedCost() {
+        UserMessage message = new UserMessage(List.of(
+                new TextBlock("看这两张图"),
+                new ImageBlock("att-1", "image/png", "a.png"),
+                new ImageBlock("att-2", "image/jpeg", "b.jpg")), SessionFixtures.NOW);
+
+        assertThat(counter.countMessage(message))
+                .isEqualTo(estimator.estimate("看这两张图").tokens()
+                        + 2 * EntryTokenCounter.IMAGE_TOKENS);
     }
 
     @Test

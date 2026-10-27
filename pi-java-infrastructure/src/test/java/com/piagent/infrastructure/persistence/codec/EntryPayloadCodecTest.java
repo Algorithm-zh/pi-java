@@ -15,6 +15,7 @@ import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
@@ -92,6 +93,9 @@ class EntryPayloadCodecTest {
         TokenUsage usage = new TokenUsage(10, 20, 5, 0, 30);
         return List.of(
                 new MessagePayload(new UserMessage(List.of(new TextBlock("你好")), NOW)),
+                new MessagePayload(new UserMessage(List.of(
+                        new TextBlock("看看这张图"),
+                        new ImageBlock("att-1", "image/png", "shot.png")), NOW)),
                 new MessagePayload(new AssistantMessage(
                         List.of(new TextBlock("调用"), new ToolCallBlock("call-1", "read",
                                 Map.of("path", "README.md"))),

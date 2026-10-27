@@ -13,6 +13,8 @@ spring:
 pi:
   git:
     enabled: false
+  attachments:
+    dir: "target/test-attachments"
 
 logging:
   level:

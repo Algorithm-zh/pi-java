@@ -37,6 +37,7 @@ public final class ModelCapabilitiesCodec {
         node.put("streaming", capabilities.streaming());
         node.put("toolCalls", capabilities.toolCalls());
         node.put("thinking", capabilities.thinking());
+        node.put("vision", capabilities.vision());
         try {
             return mapper.writeValueAsString(node);
         } catch (Exception error) {
@@ -59,7 +60,8 @@ public final class ModelCapabilitiesCodec {
             return new ModelCapabilities(
                     node.path("streaming").asBoolean(false),
                     node.path("toolCalls").asBoolean(false),
-                    node.path("thinking").asBoolean(false));
+                    node.path("thinking").asBoolean(false),
+                    node.path("vision").asBoolean(false));
         } catch (DomainException error) {
             throw error;
         } catch (Exception error) {

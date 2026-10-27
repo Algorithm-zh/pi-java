@@ -26,6 +26,11 @@ spring:
         cachecontrol:
           # 本地单机工具：静态资源始终回源，升级后浏览器不会继续用旧的 CSS/JS。
           no-store: true
+  servlet:
+    multipart:
+      # 与应用服务里的单张 5 MB 限制保持一致。
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 server:
   address: "${PI_SERVER_ADDRESS:127.0.0.1}"
@@ -61,6 +66,9 @@ pi:
   mcp:
     # MCP 服务器默认不启用；配置与示例见 docs/10-mcp.md。
     servers: []
+  attachments:
+    # 图片附件落盘目录；与 H2 文件库共用 PI_DATA_DIR，便于一起备份或迁移。
+    dir: "${PI_DATA_DIR:./data}/attachments"
   git:
     # 运行前后快照与逐轮 diff；工作区不是 Git 仓库时自动跳过。
     enabled: true

@@ -235,9 +235,13 @@ export function renderEntries(container, entries) {
     }
     for (const group of groupTurns(entries)) {
         if (group.user) {
-            const text = blocksText(group.user.body?.content);
-            if (text) {
-                renderUserBubble(inner, text);
+            const content = group.user.body?.content || [];
+            const text = blocksText(content);
+            const images = content
+                .filter((block) => block.type === "image" && block.url)
+                .map((block) => ({url: block.url, name: block.name || "图片"}));
+            if (text || images.length) {
+                renderUserBubble(inner, text, images);
             }
             if (group.items.length) {
                 inner.append(renderTurn(group.items, results));
@@ -271,15 +275,32 @@ function groupTurns(entries) {
     return groups;
 }
 
-export function renderUserBubble(inner, text) {
+/**
+ * 渲染用户消息气泡。
+ *
+ * @param {HTMLElement} inner 消息容器
+ * @param {string} text 用户文本
+ * @param {Array<{url: string, name: string}>} images 图片，可为空
+ */
+export function renderUserBubble(inner, text, images = []) {
     const row = el("div", "message user");
     const command = describeCommand(text);
     if (!command) {
-        row.append(el("div", "user-bubble", text));
+        const bubble = el("div", "user-bubble" + (images.length ? " has-images" : ""));
+        if (images.length) {
+            bubble.append(renderUserImages(images));
+        }
+        if (text) {
+            bubble.append(el("div", "user-text", text));
+        }
+        row.append(bubble);
         inner.append(row);
         return;
     }
     const bubble = el("div", "user-bubble is-tool-call");
+    if (images.length) {
+        bubble.append(renderUserImages(images));
+    }
     const head = el("div", "user-tool-head");
     head.append(el("span", "user-tool-label", `调用工具 · ${command.displayName}`));
     if (command.summary) {
@@ -294,6 +315,24 @@ export function renderUserBubble(inner, text) {
     bubble.append(details);
     row.append(bubble);
     inner.append(row);
+}
+
+function renderUserImages(images) {
+    const strip = el("div", "user-images" + (images.length === 1 ? " is-single" : ""));
+    for (const image of images) {
+        const link = el("a", "user-image");
+        link.href = image.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.title = image.name || "查看原图";
+        const thumb = document.createElement("img");
+        thumb.src = image.url;
+        thumb.alt = image.name || "用户上传的图片";
+        thumb.loading = "lazy";
+        link.append(thumb);
+        strip.append(link);
+    }
+    return strip;
 }
 
 export function lastRunSummary(entries) {

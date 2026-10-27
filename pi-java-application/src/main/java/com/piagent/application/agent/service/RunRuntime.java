@@ -10,6 +10,7 @@ import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.message.AgentMessage;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
@@ -19,6 +20,7 @@ import com.piagent.domain.tool.port.ToolRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -177,6 +179,18 @@ public class RunRuntime {
      */
     public SessionEntry appendUserAndStart(SessionId sessionId, String text) {
         return appender.appendUserAndStart(sessionId, text);
+    }
+
+    /**
+     * 追加图文用户消息并启动会话状态。
+     *
+     * @param sessionId 会话标识
+     * @param text 用户文本
+     * @param images 图片块
+     * @return entry
+     */
+    public SessionEntry appendUserAndStart(SessionId sessionId, String text, List<ImageBlock> images) {
+        return appender.appendUserAndStart(sessionId, text, images);
     }
 
     /**

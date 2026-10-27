@@ -36,20 +36,26 @@ public final class OpenAiCompatibleProvider implements LlmModelProvider {
      * 创建 provider。
      *
      * @param mapper Jackson 映射器
+     * @param imageBytes 图片字节读取器
      */
-    public OpenAiCompatibleProvider(ObjectMapper mapper) {
+    public OpenAiCompatibleProvider(ObjectMapper mapper, AttachmentBytesLoader imageBytes) {
         this(mapper, System::getenv, HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
                 .followRedirects(HttpClient.Redirect.NEVER)
-                .build());
+                .build(), imageBytes);
     }
 
     OpenAiCompatibleProvider(ObjectMapper mapper, Function<String, String> environment,
             HttpClient httpClient) {
+        this(mapper, environment, httpClient, attachmentId -> null);
+    }
+
+    OpenAiCompatibleProvider(ObjectMapper mapper, Function<String, String> environment,
+            HttpClient httpClient, AttachmentBytesLoader imageBytes) {
         this.mapper = mapper;
         this.environment = environment;
         this.httpClient = httpClient;
-        this.requestMapper = new OpenAiRequestMapper(mapper);
+        this.requestMapper = new OpenAiRequestMapper(mapper, imageBytes);
         this.errorMapper = new OpenAiErrorMapper(mapper);
     }
 
@@ -61,7 +67,8 @@ public final class OpenAiCompatibleProvider implements LlmModelProvider {
     @Override
     public LlmStream stream(LlmRequest request, LlmCallContext context) {
         String apiKey = resolveApiKey(request);
-        String json = requestMapper.toJson(request);
+        ToolNameCodec names = ToolNameCodec.of(request.tools());
+        String json = requestMapper.toJson(request, names);
         URI uri = URI.create(resolveUrl(request));
         HttpRequest httpRequest = HttpRequest.newBuilder(uri)
                 .timeout(context.timeout())
@@ -71,7 +78,8 @@ public final class OpenAiCompatibleProvider implements LlmModelProvider {
                 .header("User-Agent", "pi-java/0.1")
                 .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();
-        return new OpenAiEventStream(new OpenAiCall(httpClient, httpRequest, context, mapper, errorMapper));
+        return new OpenAiEventStream(new OpenAiCall(httpClient, httpRequest, context, mapper,
+                errorMapper, names));
     }
 
     private String resolveApiKey(LlmRequest request) {

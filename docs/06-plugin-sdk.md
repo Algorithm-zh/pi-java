@@ -78,6 +78,8 @@ public record PluginDescriptor(
 - `descriptor()` 必须与 jar 内清单一致（id、entry class、version、apiVersion），
   否则拒绝加载；
 - 完整工具名由宿主生成为 `pluginId + "." + toolName`，插件不能自带前缀。
+  内部名称保留点号；发送给 OpenAI-compatible 模型时适配层会清洗成合法函数名
+  （非法字符换成 `_`、超长截断），收到工具调用后再还原，策略与审批仍按完整名称匹配。
 
 ### 3.3 工具
 

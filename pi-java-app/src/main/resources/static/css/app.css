@@ -928,6 +928,101 @@
     border-color: var(--danger);
 }
 
+.composer-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 14px 8px;
+    padding: 9px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 16px;
+    background: var(--surface-soft);
+}
+
+.attachment-chip {
+    position: relative;
+    display: flex;
+    max-width: 250px;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 32px 5px 5px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    transition: border-color .16s ease, opacity .16s ease;
+}
+
+.attachment-chip img {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 9px;
+    background: var(--surface-sunken);
+    object-fit: cover;
+}
+
+.attachment-meta {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.attachment-name {
+    max-width: 136px;
+    overflow: hidden;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attachment-state {
+    color: var(--muted-2);
+    font-size: 10.5px;
+}
+
+.attachment-chip.is-uploading {
+    opacity: .66;
+}
+
+.attachment-chip.is-uploading img {
+    filter: saturate(.65);
+}
+
+.attachment-chip.is-error {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.attachment-chip.is-error .attachment-state {
+    color: var(--danger);
+}
+
+.attachment-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: var(--surface-soft);
+    font-size: 12px;
+    line-height: 1;
+}
+
+.attachment-remove:hover {
+    color: var(--accent-ink);
+    border-color: var(--danger);
+    background: var(--danger);
+}
+
 .composer-box {
     display: flex;
     width: 100%;
@@ -939,7 +1034,14 @@
     border-radius: 22px;
     background: var(--surface);
     box-shadow: var(--shadow-md);
-    transition: border-color .16s ease, box-shadow .16s ease;
+    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.composer-box.is-dragging {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    outline: 2px dashed var(--accent);
+    outline-offset: -6px;
 }
 
 .composer-box:focus-within {
@@ -984,6 +1086,28 @@
     font-size: 10.5px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.attach-button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--muted);
+    background: transparent;
+    transition: color .16s ease, background .16s ease;
+}
+
+.attach-button:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.attach-button:active {
+    transform: scale(.94);
 }
 
 .send-button {

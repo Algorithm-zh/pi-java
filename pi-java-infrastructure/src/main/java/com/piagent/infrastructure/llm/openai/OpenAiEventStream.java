@@ -46,7 +46,7 @@ final class OpenAiEventStream implements LlmStream {
 
     OpenAiEventStream(OpenAiCall call) {
         this.call = call;
-        this.parser = new OpenAiSseParser(call.mapper());
+        this.parser = new OpenAiSseParser(call.mapper(), call.names());
         this.deadlineNanos = System.nanoTime() + call.context().timeout().toNanos();
     }
 

@@ -11,6 +11,7 @@ import com.piagent.application.agent.service.RunRuntime;
 import com.piagent.application.agent.service.RunRuntimeDependencies;
 import com.piagent.application.agent.service.SessionEntryAppender;
 import com.piagent.application.agent.service.TurnPipeline;
+import com.piagent.application.attachment.service.AttachmentApplicationService;
 import com.piagent.application.git.GitCheckpointService;
 import com.piagent.application.verify.VerificationService;
 import com.piagent.domain.session.port.SessionRepository;
@@ -90,6 +91,7 @@ public class AgentRuntimeConfiguration {
      * @param compactionStep 压缩步骤
      * @param gitCheckpoints Git 检查点服务
      * @param verification 自动验证服务
+     * @param attachments 附件服务
      * @return 依赖集合
      */
     @Bean
@@ -97,8 +99,8 @@ public class AgentRuntimeConfiguration {
     public AgentLoopDependencies agentLoopDependencies(ActiveModelResolver models,
             RunRuntime runtime, TurnPipeline pipeline, RunDispatcher dispatcher,
             RunCompactionStep compactionStep, GitCheckpointService gitCheckpoints,
-            VerificationService verification) {
+            VerificationService verification, AttachmentApplicationService attachments) {
         return new AgentLoopDependencies(models, runtime, pipeline, dispatcher, compactionStep,
-                gitCheckpoints, verification);
+                gitCheckpoints, verification, attachments);
     }
 }

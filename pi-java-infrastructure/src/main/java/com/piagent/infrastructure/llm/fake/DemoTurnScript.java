@@ -83,7 +83,12 @@ final class DemoTurnScript {
             return text("（Fake 模型 · demo）已载入技能指令。真实模型会按技能说明执行；"
                     + "Fake 模型不会解析技能正文。用 `/skills` 查看可用技能。");
         }
-        return text("（Fake 模型 · demo）我收到：" + (input.isBlank() ? "（空消息）" : input)
+        int images = FakeTurn.lastUserImageCount(request);
+        String received = input.isBlank()
+                ? (images == 0 ? "（空消息）" : images + " 张图片")
+                : input + (images == 0 ? "" : "（另附 " + images + " 张图片）");
+        return text("（Fake 模型 · demo）我收到：" + received
+                + (images == 0 ? "" : "\n\nFake 模型不会真正解析图片内容；接入支持视觉的模型后即可看图回答。")
                 + "\n\n试试输入 `/read README.md`、`/ls .`、`/write notes.txt 你好`"
                 + "（写操作会先触发审批）、`/skill:技能名 任务`，或用 "
                 + "`/tool <工具名> <JSON参数>` 调用已启用的插件工具。");

@@ -30,6 +30,7 @@ import java.util.TreeMap;
 public final class OpenAiSseParser {
 
     private final ObjectMapper mapper;
+    private final ToolNameCodec names;
     private final StringBuilder text = new StringBuilder();
     private final StringBuilder thinking = new StringBuilder();
     private final Map<Integer, ToolCallBuilder> toolCalls = new TreeMap<>();
@@ -43,7 +44,18 @@ public final class OpenAiSseParser {
      * @param mapper Jackson 映射器
      */
     public OpenAiSseParser(ObjectMapper mapper) {
+        this(mapper, ToolNameCodec.of(List.of()));
+    }
+
+    /**
+     * 创建解析器，并把模型返回的工具名还原为内部名称。
+     *
+     * @param mapper Jackson 映射器
+     * @param names 工具名编解码器
+     */
+    public OpenAiSseParser(ObjectMapper mapper, ToolNameCodec names) {
         this.mapper = mapper;
+        this.names = names;
     }
 
     /**
@@ -89,7 +101,7 @@ public final class OpenAiSseParser {
         }
         boolean hasToolCalls = false;
         for (ToolCallBuilder builder : toolCalls.values()) {
-            content.add(builder.toBlock(mapper));
+            content.add(builder.toBlock(mapper, names));
             hasToolCalls = true;
         }
         AssistantStopReason stopReason = resolveStopReason(hasToolCalls);
@@ -136,7 +148,7 @@ public final class OpenAiSseParser {
             ToolCallBuilder builder = toolCalls.computeIfAbsent(index, ignored -> new ToolCallBuilder());
             builder.append(id, name, arguments);
             if (!id.isEmpty() || !name.isEmpty() || !arguments.isEmpty()) {
-                deltas.add(new ToolCallDelta(index, id, name, arguments));
+                deltas.add(new ToolCallDelta(index, id, names.internal(name), arguments));
             }
         }
     }
@@ -196,12 +208,12 @@ public final class OpenAiSseParser {
             arguments.append(fragment);
         }
 
-        ToolCallBlock toBlock(ObjectMapper mapper) {
+        ToolCallBlock toBlock(ObjectMapper mapper, ToolNameCodec names) {
             if (id.isBlank() || name.isBlank()) {
                 throw new LlmGatewayException(LlmErrorCode.MALFORMED_RESPONSE,
                         "工具调用缺少 id 或 name");
             }
-            return new ToolCallBlock(id, name, parseArguments(mapper));
+            return new ToolCallBlock(id, names.internal(name), parseArguments(mapper));
         }
 
         private Map<String, Object> parseArguments(ObjectMapper mapper) {

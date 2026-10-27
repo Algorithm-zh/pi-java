@@ -308,6 +308,21 @@ MySQL 变体与手动 `docker build` / `docker run` 命令见
 容器内固定使用 `/app/data` 存 H2；本机运行可用 `PI_DATA_DIR` 改数据目录，
 例如 `$env:PI_DATA_DIR = "D:\pi-java-data"`。
 
+## 六点九、图片输入（M16）
+
+Web UI 输入框左侧的图片按钮、剪贴板粘贴或直接拖入，都可以添加图片；
+发送前会显示缩略图，点 × 可移除。Fake demo 不具备视觉能力，选择图片后会提示
+“当前模型不支持视觉输入”；换用支持 `vision` 的模型档案即可正常发送。
+
+```text
+支持格式：PNG / JPEG / WebP / GIF
+单张上限：5 MB    单条上限：4 张    整个请求：6 MB
+```
+
+图片先上传再随消息发送，只保存附件 id 引用，不把 base64 写进会话日志；
+存储位置为 `$PI_DATA_DIR/attachments/`，备份或迁移数据目录时要连同此目录一起复制。
+接口细节见 [05 API 与 CLI](05-api-and-cli.md)，实现记录见 [M16](milestones/M16.md)。
+
 ## 七、常见问题
 
 **Q：脚本报"表达式或语句中包含意外的标记"，满屏解析错误**
@@ -329,8 +344,8 @@ Key 是在**启动服务的那个终端**里设置的。如果换了终端，需
 `$env:PI_DEEPSEEK_KEY = "..."` 并重启服务。
 
 **Q：会话数据在哪**
-`.\data\pi-java.mv.db`（H2 文件库；可用 `PI_DATA_DIR` 改目录）。删除该目录即清空全部会话，
-下次启动会重新建表并创建 demo 档案。
+`.\data\pi-java.mv.db`（H2 文件库；可用 `PI_DATA_DIR` 改目录），图片附件在
+`.\data\attachments\`。删除该目录即清空全部会话，下次启动会重新建表并创建 demo 档案。
 
 **Q：想换成 MySQL**
 启动时加 `--spring.profiles.active=mysql`，并通过 `PI_MYSQL_URL`、

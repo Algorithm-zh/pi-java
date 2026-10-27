@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.piagent.domain.session.model.message.ContentBlock;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ThinkingBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
@@ -37,6 +38,10 @@ final class ContentBlockCodec {
                 node.put("type", "toolCall").put("id", call.id()).put("name", call.name());
                 node.set("arguments", mapper.valueToTree(call.arguments()));
             }
+            case ImageBlock image -> node.put("type", "image")
+                    .put("attachmentId", image.attachmentId())
+                    .put("mediaType", image.mediaType())
+                    .put("name", image.name());
         }
         return node;
     }
@@ -48,6 +53,8 @@ final class ContentBlockCodec {
             case "thinking" -> new ThinkingBlock(requiredText(node, "thinking"), nullableText(node, "signature"));
             case "toolCall" -> new ToolCallBlock(requiredText(node, "id"), requiredText(node, "name"),
                     decodeArguments(node.get("arguments")));
+            case "image" -> new ImageBlock(requiredText(node, "attachmentId"),
+                    requiredText(node, "mediaType"), requiredText(node, "name"));
             default -> throw invalid("未知的内容块类型: " + type);
         };
     }

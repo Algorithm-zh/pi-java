@@ -15,11 +15,13 @@ import com.piagent.domain.model.llm.LlmDelta;
 import com.piagent.domain.model.llm.LlmErrorCode;
 import com.piagent.domain.model.llm.LlmGatewayException;
 import com.piagent.domain.model.llm.LlmRequest;
+import com.piagent.domain.model.llm.LlmResponse;
 import com.piagent.domain.model.llm.LlmStream;
 import com.piagent.domain.model.llm.TextDelta;
 import com.piagent.domain.model.llm.ToolCallDelta;
 import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.model.message.AssistantStopReason;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.UserMessage;
@@ -135,6 +137,28 @@ class FakeLlmProviderTest {
                 .containsExactly(new TextBlock("（Fake 模型）收到：你好"));
     }
 
+    @Test
+    void echoAcknowledgesImages() {
+        UserMessage imageOnly = new UserMessage(List.of(
+                new ImageBlock("att-1", "image/png", "a.png"),
+                new ImageBlock("att-2", "image/png", "b.png")),
+                Instant.parse("2026-10-21T00:00:00Z"));
+        UserMessage withText = new UserMessage(List.of(
+                new TextBlock("看图"),
+                new ImageBlock("att-3", "image/png", "c.png")),
+                Instant.parse("2026-10-21T00:00:00Z"));
+
+        LlmStream imageStream = new FakeLlmProvider()
+                .stream(requestOf(imageOnly), LlmCallContext.defaults());
+        LlmStream textStream = new FakeLlmProvider()
+                .stream(requestOf(withText), LlmCallContext.defaults());
+
+        assertThat(drainAndRespond(imageStream).content())
+                .containsExactly(new TextBlock("（Fake 模型）我已经收到 2 张图片。"));
+        assertThat(drainAndRespond(textStream).content())
+                .containsExactly(new TextBlock("（Fake 模型）收到：看图（另附 1 张图片）"));
+    }
+
     private List<LlmDelta> drain(LlmStream stream) {
         List<LlmDelta> deltas = new ArrayList<>();
         while (stream.hasNext()) {
@@ -148,11 +172,19 @@ class FakeLlmProviderTest {
     }
 
     private LlmRequest request(String text) {
+        return requestOf(new UserMessage(List.of(new TextBlock(text)),
+                Instant.parse("2026-10-21T00:00:00Z")));
+    }
+
+    private LlmRequest requestOf(UserMessage message) {
         ModelEndpoint endpoint = new ModelEndpoint(ProviderType.FAKE, "", "", "fake-coder",
                 16_000, 2_000, ModelCapabilities.defaults());
         ModelProfile profile = ModelProfile.create(new ModelId("fake-default"), "Fake", endpoint);
-        UserMessage message = new UserMessage(List.of(new TextBlock(text)),
-                Instant.parse("2026-10-21T00:00:00Z"));
         return new LlmRequest(profile, "", List.of(message), List.of(), ThinkingLevel.OFF);
+    }
+
+    private LlmResponse drainAndRespond(LlmStream stream) {
+        drain(stream);
+        return stream.response().orElseThrow();
     }
 }

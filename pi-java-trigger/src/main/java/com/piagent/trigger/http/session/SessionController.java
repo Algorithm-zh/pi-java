@@ -133,7 +133,7 @@ public class SessionController {
     public SseEmitter streamMessage(@PathVariable String id,
             @RequestBody SendMessageRequest request) {
         RunHandle handle = agentLoop.start(new SendMessageCommand(
-                SessionId.parse(id), request.text()));
+                SessionId.parse(id), request.text(), request.attachmentIds()));
         return streams.open(handle.runId(), 0);
     }
 

@@ -120,5 +120,14 @@ public enum DomainErrorCode {
     GIT_UNAVAILABLE,
 
     /** Git 命令失败、超时或输出无法解析。 */
-    GIT_OPERATION_FAILED
+    GIT_OPERATION_FAILED,
+
+    /** 附件不存在或已被清理。 */
+    ATTACHMENT_NOT_FOUND,
+
+    /** 附件类型不受支持、超出大小限制或参数不合法。 */
+    ATTACHMENT_INVALID,
+
+    /** 附件写入或读取失败。 */
+    ATTACHMENT_STORE_FAILED
 }

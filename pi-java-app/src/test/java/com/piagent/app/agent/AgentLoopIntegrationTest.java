@@ -6,6 +6,8 @@ import com.piagent.app.PiJavaApplication;
 import com.piagent.application.agent.command.SendMessageCommand;
 import com.piagent.application.agent.readmodel.RunHandle;
 import com.piagent.application.agent.service.AgentLoopService;
+import com.piagent.application.attachment.AttachmentMetadata;
+import com.piagent.application.attachment.service.AttachmentApplicationService;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
 import com.piagent.domain.agent.AgentRun;
@@ -23,9 +25,11 @@ import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.model.message.AgentMessage;
 import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
+import com.piagent.domain.session.model.message.UserMessage;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.port.SessionEntryStore;
@@ -74,6 +78,9 @@ class AgentLoopIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private AttachmentApplicationService attachments;
 
     private Path workspace;
 
@@ -157,6 +164,28 @@ class AgentLoopIntegrationTest {
                 .containsExactly(EntryType.MESSAGE, EntryType.MESSAGE, EntryType.RUN_SUMMARY);
         assertThat(text(messages(entries).get(1))).contains("我收到：你好");
         assertThat(requireSession(session).status()).isEqualTo(SessionStatus.IDLE);
+    }
+
+    @Test
+    void imageMessageReachesFakeModelAndKeepsAttachmentReference() throws IOException {
+        ChatSession session = createSession("图片链路");
+        byte[] png = {
+            (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0
+        };
+        AttachmentMetadata attachment = attachments.upload("shot.png", png);
+
+        RunHandle handle = agentLoop.start(new SendMessageCommand(session.identity().id(),
+                "这是什么图片", List.of(attachment.id())));
+        AgentRun run = agentLoop.awaitTerminal(handle.runId(), TIMEOUT);
+
+        assertThat(run.status()).isEqualTo(RunStatus.COMPLETED);
+        List<AgentMessage> messages = messages(currentBranch(session));
+        assertThat(messages.getFirst()).isInstanceOfSatisfying(UserMessage.class, user -> {
+            assertThat(user.content()).hasSize(2);
+            assertThat(user.content().get(1))
+                    .isEqualTo(new ImageBlock(attachment.id(), "image/png", "shot.png"));
+        });
+        assertThat(text(messages.get(1))).contains("另附 1 张图片");
     }
 
     private ChatSession createSession(String title) {

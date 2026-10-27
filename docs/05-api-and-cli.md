@@ -170,7 +170,20 @@ Content-Type: application/json
 Accept: application/json, text/event-stream
 
 {"text": "读取 pom.xml 并解释依赖"}
+
+{"text": "解释这张报错截图", "attachmentIds": ["01J-att-1"]}
 ```
+
+`attachmentIds` 为可选的图片引用列表（M16），规则如下：
+
+- 每项必须来自 `POST /api/v1/attachments`，最多 4 张；重复或未知 ID 返回
+  404 `ATTACHMENT_NOT_FOUND`；
+- `text` 可为空串（只发图片），但 `text` 与 `attachmentIds` 不能同时为空；
+- 当前模型 `capabilities.vision=false` 时，服务端在追加用户消息之前返回
+  400 `MODEL_CAPABILITY_MISSING`，会话保持 `IDLE`、可以继续发纯文本；
+  Web UI 依据 `endpoint.capabilities.vision` 提前禁用图片入口；
+- 会话 entry 里只保存 `attachmentId/mediaType/name` 引用，二进制在数据目录，
+  见 2.12。
 
 响应 `200 text/event-stream`。服务端先同步完成“追加用户消息 + 预留 run”，再返回
 emitter；run 在虚拟线程执行，响应体随事件持续输出，终态后关闭：
@@ -383,6 +396,46 @@ GET /api/v1/sessions/{id}/plan
 - 运行中的更新通过 SSE `plan.updated` 与 `verification.completed` 推送。
 
 详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
+
+### 2.12 图片附件（M16）
+
+```http
+POST /api/v1/attachments
+Content-Type: multipart/form-data
+
+file=@screenshot.png
+```
+
+上传成功返回 `201`：
+
+```json
+{
+  "id": "01JATT...",
+  "name": "screenshot.png",
+  "mediaType": "image/png",
+  "size": 20481,
+  "url": "/api/v1/attachments/01JATT..."
+}
+```
+
+```http
+GET /api/v1/attachments/{id}
+```
+
+- 上传字段名固定为 `file`；格式按文件头识别，只接受 PNG、JPEG、WebP、GIF，
+  不信任客户端声明的 `Content-Type`；
+- 上限：单图 5 MB、单次请求 6 MB、单条消息 4 张；超限或格式不符返回
+  400 `ATTACHMENT_INVALID`；
+- 下载返回原始字节，`Content-Type` 取元数据，`Content-Disposition: inline`，
+  `Cache-Control: private, max-age=86400`；ID 不存在返回 404
+  `ATTACHMENT_NOT_FOUND`；
+- 存储位置 `${PI_DATA_DIR}/attachments/<id>.bin` 与 `<id>.json`（先写二进制再写
+  元数据），备份数据目录时需要一并备份；
+- 附件不随会话删除而清理，v0.2 没有回收策略；
+- v0.2 无鉴权，附件与其它接口一样只应通过回环地址访问。
+
+Web UI 支持点击选择、粘贴与拖拽三种方式添加图片：上传期间发送按钮保持禁用，
+消息区先显示本地预览，上传完成后改用服务端 URL；流式生成过程中不接受新附件。
 
 ## 3. 审批 API（M6）
 

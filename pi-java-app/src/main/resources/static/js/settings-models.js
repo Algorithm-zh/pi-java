@@ -109,7 +109,8 @@ function capabilityText(capabilities = {}) {
     const parts = [
         capabilities.streaming ? "流式" : null,
         capabilities.toolCalls ? "工具" : null,
-        capabilities.thinking ? "思考" : null
+        capabilities.thinking ? "思考" : null,
+        capabilities.vision ? "图片" : null
     ].filter(Boolean);
     return parts.length ? parts.join(" · ") : "未声明";
 }
@@ -146,7 +147,7 @@ function openEditor(model) {
             modelName: "",
             contextWindow: DEFAULTS.contextWindow,
             maxOutputTokens: DEFAULTS.maxOutputTokens,
-            capabilities: { streaming: true, toolCalls: true, thinking: false }
+            capabilities: { streaming: true, toolCalls: true, thinking: false, vision: false }
         }
     };
     render(containerRef);
@@ -168,6 +169,7 @@ function editor() {
     const streaming = checkbox("流式输出", capabilities.streaming);
     const toolCalls = checkbox("工具调用", capabilities.toolCalls);
     const thinking = checkbox("思考输出", capabilities.thinking);
+    const vision = checkbox("图片输入", capabilities.vision);
     const error = el("p", "settings-form-error hidden");
 
     const grid = el("div", "settings-form-grid");
@@ -180,7 +182,7 @@ function editor() {
     grid.append(field("上下文窗口", contextWindow, "tokens"));
     grid.append(field("最大输出", maxOutputTokens, "不能超过上下文窗口"));
     const checks = el("div", "settings-checks");
-    checks.append(streaming.wrapper, toolCalls.wrapper, thinking.wrapper);
+    checks.append(streaming.wrapper, toolCalls.wrapper, thinking.wrapper, vision.wrapper);
     form.append(grid, checks, error);
 
     const syncProvider = () => {
@@ -277,7 +279,8 @@ function editor() {
                 capabilities: {
                     streaming: streaming.input.checked,
                     toolCalls: toolCalls.input.checked,
-                    thinking: thinking.input.checked
+                    thinking: thinking.input.checked,
+                    vision: vision.input.checked
                 }
             }
         };

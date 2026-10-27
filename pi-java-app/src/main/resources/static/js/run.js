@@ -26,12 +26,19 @@ function attach(sessionId) {
     return attachment;
 }
 
-export async function start(text) {
+/**
+ * 发送一条用户消息并跟踪本次 run。
+ *
+ * @param {string} text 用户文本，可为空串（只发图片时）
+ * @param {Array<string>} attachmentIds 图片附件 ID
+ * @param {Array<{url: string, name: string}>} images 用于立即渲染的图片
+ */
+export async function start(text, attachmentIds = [], images = []) {
     const sessionId = state.session.id;
     const token = attach(sessionId);
     approval.reset();
     const inner = resetForConversation(dom.messages);
-    renderUserBubble(inner, text);
+    renderUserBubble(inner, text, images);
     state.inner = inner;
     state.turn = createStreamingTurn(inner);
     scrollToBottom(true);
@@ -42,7 +49,8 @@ export async function start(text) {
     state.abortController = new AbortController();
     setStreamingUi(true);
     try {
-        await api.streamMessage(sessionId, text, handleEvent, state.abortController.signal);
+        await api.streamMessage(sessionId, text, attachmentIds, handleEvent,
+            state.abortController.signal);
         if (!state.terminalSeen) {
             toast("事件流提前结束，正在按数据库同步会话", true);
         }

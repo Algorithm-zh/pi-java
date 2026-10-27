@@ -69,7 +69,7 @@ public record ModelEndpoint(
      */
     public static ModelEndpoint fake(String modelName) {
         return new ModelEndpoint(ProviderType.FAKE, "", "", modelName, 128_000, 8_192,
-                ModelCapabilities.defaults());
+                ModelCapabilities.demo());
     }
 
     /**

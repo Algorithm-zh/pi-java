@@ -1,5 +1,6 @@
 package com.piagent.application.agent.service;
 
+import com.piagent.application.attachment.service.AttachmentApplicationService;
 import com.piagent.application.git.GitCheckpointService;
 import com.piagent.application.verify.VerificationService;
 import java.util.Objects;
@@ -17,6 +18,7 @@ import java.util.Objects;
  * @param compactionStep 上下文压缩步骤
  * @param gitCheckpoints Git 检查点服务
  * @param verification 自动验证服务
+ * @param attachments 附件服务
  */
 public record AgentLoopDependencies(
         ActiveModelResolver models,
@@ -25,7 +27,8 @@ public record AgentLoopDependencies(
         RunDispatcher dispatcher,
         RunCompactionStep compactionStep,
         GitCheckpointService gitCheckpoints,
-        VerificationService verification) {
+        VerificationService verification,
+        AttachmentApplicationService attachments) {
 
     /**
      * 校验依赖。
@@ -37,6 +40,7 @@ public record AgentLoopDependencies(
      * @param compactionStep 压缩步骤
      * @param gitCheckpoints Git 检查点
      * @param verification 验证服务
+     * @param attachments 附件服务
      */
     public AgentLoopDependencies {
         Objects.requireNonNull(models, "models 不能为空");
@@ -46,5 +50,6 @@ public record AgentLoopDependencies(
         Objects.requireNonNull(compactionStep, "compactionStep 不能为空");
         Objects.requireNonNull(gitCheckpoints, "gitCheckpoints 不能为空");
         Objects.requireNonNull(verification, "verification 不能为空");
+        Objects.requireNonNull(attachments, "attachments 不能为空");
     }
 }

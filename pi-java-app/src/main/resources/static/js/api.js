@@ -47,6 +47,27 @@ export function systemInfo() {
 }
 
 /**
+ * 上传一张图片附件。
+ *
+ * @param {File} file 浏览器文件对象
+ * @returns {Promise<{id: string, name: string, mediaType: string, size: number, url: string}>}
+ *     附件元数据
+ */
+export async function uploadAttachment(file) {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch("/api/v1/attachments", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body
+    });
+    if (!response.ok) {
+        throw await toError(response);
+    }
+    return response.json();
+}
+
+/**
  * 查询最近一次运行的文件改动。
  *
  * @param {string} sessionId 会话 ID
@@ -343,10 +364,11 @@ export function decideApproval(approvalId, decision, reason) {
  *
  * @param {string} sessionId 会话 ID
  * @param {string} text 用户消息
+ * @param {Array<string>} attachmentIds 图片附件 ID
  * @param {(event: {name: string, payload: object}) => void} onEvent 事件回调
  * @param {AbortSignal} signal 取消信号
  */
-export async function streamMessage(sessionId, text, onEvent, signal) {
+export async function streamMessage(sessionId, text, attachmentIds, onEvent, signal) {
     // 同时接受 JSON：run 启动前的领域错误会以 4xx JSON 返回，而不是 406。
     const response = await fetch(
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/messages/stream`,
@@ -356,7 +378,7 @@ export async function streamMessage(sessionId, text, onEvent, signal) {
                 "Content-Type": "application/json",
                 Accept: "application/json, text/event-stream"
             },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({ text, attachmentIds }),
             signal
         });
     if (!response.ok) {

@@ -8,8 +8,10 @@ import com.piagent.domain.model.ModelCapabilities;
  * @param streaming 是否支持流式
  * @param toolCalls 是否支持工具调用
  * @param thinking 是否支持思考
+ * @param vision 是否支持图片输入
  */
-public record ModelCapabilitiesDto(boolean streaming, boolean toolCalls, boolean thinking) {
+public record ModelCapabilitiesDto(boolean streaming, boolean toolCalls, boolean thinking,
+        boolean vision) {
 
     /**
      * 转为领域能力。
@@ -17,7 +19,7 @@ public record ModelCapabilitiesDto(boolean streaming, boolean toolCalls, boolean
      * @return 领域能力
      */
     public ModelCapabilities toDomain() {
-        return new ModelCapabilities(streaming, toolCalls, thinking);
+        return new ModelCapabilities(streaming, toolCalls, thinking, vision);
     }
 
     /**
@@ -28,6 +30,6 @@ public record ModelCapabilitiesDto(boolean streaming, boolean toolCalls, boolean
      */
     public static ModelCapabilitiesDto from(ModelCapabilities capabilities) {
         return new ModelCapabilitiesDto(capabilities.streaming(), capabilities.toolCalls(),
-                capabilities.thinking());
+                capabilities.thinking(), capabilities.vision());
     }
 }

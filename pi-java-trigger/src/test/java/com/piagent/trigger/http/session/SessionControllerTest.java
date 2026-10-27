@@ -125,6 +125,23 @@ class SessionControllerTest {
     }
 
     @Test
+    void passesAttachmentIdsToCommand() throws Exception {
+        when(agentLoop.start(any())).thenReturn(new RunHandle(RUN_ID, SESSION_ID));
+        when(streams.open(RUN_ID, 0)).thenReturn(new SseEmitter(0L));
+
+        mvc.perform(post("/api/v1/sessions/{id}/messages/stream", SESSION_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"看图\",\"attachmentIds\":[\"att-1\",\"att-2\"]}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<SendMessageCommand> captor =
+                ArgumentCaptor.forClass(SendMessageCommand.class);
+        verify(agentLoop).start(captor.capture());
+        assertThat(captor.getValue().text()).isEqualTo("看图");
+        assertThat(captor.getValue().attachmentIds()).containsExactly("att-1", "att-2");
+    }
+
+    @Test
     void returnsActiveRunOrNoContent() throws Exception {
         when(agentLoop.findActive(SESSION_ID))
                 .thenReturn(Optional.of(new RunHandle(RUN_ID, SESSION_ID)));

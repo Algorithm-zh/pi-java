@@ -1,6 +1,8 @@
 package com.piagent.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.piagent.application.attachment.AttachmentContent;
+import com.piagent.application.attachment.port.AttachmentStore;
 import com.piagent.domain.model.llm.LlmGateway;
 import com.piagent.infrastructure.llm.LlmModelProvider;
 import com.piagent.infrastructure.llm.RoutingLlmGateway;
@@ -37,11 +39,14 @@ public class LlmConfiguration {
      * OpenAI-compatible provider。
      *
      * @param mapper Jackson 映射器
+     * @param attachmentStore 附件存储，用于把图片附件编码为 data URI
      * @return OpenAI-compatible provider
      */
     @Bean
-    public OpenAiCompatibleProvider openAiCompatibleProvider(ObjectMapper mapper) {
-        return new OpenAiCompatibleProvider(mapper);
+    public OpenAiCompatibleProvider openAiCompatibleProvider(ObjectMapper mapper,
+            AttachmentStore attachmentStore) {
+        return new OpenAiCompatibleProvider(mapper,
+                id -> attachmentStore.load(id).map(AttachmentContent::content).orElse(null));
     }
 
     /**

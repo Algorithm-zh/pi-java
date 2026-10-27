@@ -13,6 +13,7 @@ import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.model.message.AgentMessage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
 import com.piagent.domain.session.model.message.ContentBlock;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
@@ -161,6 +162,25 @@ class DemoTurnScriptTest {
                 .contains("/write notes.txt");
     }
 
+    @Test
+    void imageOnlyInputIsAcknowledgedWithCount() {
+        FakeTurn turn = DemoTurnScript.next(request(imageUser("", 2)));
+
+        assertThat(turn.response().stopReason()).isEqualTo(AssistantStopReason.STOP);
+        assertThat(text(turn))
+                .contains("我收到：2 张图片")
+                .contains("不会真正解析图片内容");
+    }
+
+    @Test
+    void textWithImagesAppendsImageCount() {
+        FakeTurn turn = DemoTurnScript.next(request(imageUser("看图", 1)));
+
+        assertThat(text(turn))
+                .contains("我收到：看图（另附 1 张图片）")
+                .contains("/read README.md");
+    }
+
     private String text(FakeTurn turn) {
         return turn.response().content().stream()
                 .filter(TextBlock.class::isInstance)
@@ -196,6 +216,17 @@ class DemoTurnScriptTest {
 
     private UserMessage user(String text) {
         return new UserMessage(List.of(new TextBlock(text)), NOW);
+    }
+
+    private UserMessage imageUser(String text, int count) {
+        List<ContentBlock> blocks = new ArrayList<>();
+        if (!text.isBlank()) {
+            blocks.add(new TextBlock(text));
+        }
+        for (int index = 0; index < count; index++) {
+            blocks.add(new ImageBlock("att-" + index, "image/png", "image" + index + ".png"));
+        }
+        return new UserMessage(blocks, NOW);
     }
 
     private ToolResultMessage toolResult(String content, boolean error) {

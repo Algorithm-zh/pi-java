@@ -18,6 +18,11 @@ import com.piagent.domain.governance.model.ToolPolicyKey;
 import com.piagent.domain.governance.model.ToolPolicyRule;
 import com.piagent.domain.governance.model.ToolPolicySettings;
 import com.piagent.domain.governance.model.WorkspaceKey;
+import com.piagent.domain.model.ModelCapabilities;
+import com.piagent.domain.model.ModelEndpoint;
+import com.piagent.domain.model.ModelId;
+import com.piagent.domain.model.ModelProfile;
+import com.piagent.domain.model.ProviderType;
 import com.piagent.domain.model.llm.LlmErrorCode;
 import com.piagent.domain.model.llm.LlmGatewayException;
 import com.piagent.domain.session.model.ChatSession;
@@ -28,9 +33,11 @@ import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.message.AssistantMessage;
 import com.piagent.domain.session.model.message.AssistantStopReason;
 import com.piagent.domain.session.model.message.ContentBlock;
+import com.piagent.domain.session.model.message.ImageBlock;
 import com.piagent.domain.session.model.message.TextBlock;
 import com.piagent.domain.session.model.message.ToolCallBlock;
 import com.piagent.domain.session.model.message.ToolResultMessage;
+import com.piagent.domain.session.model.message.UserMessage;
 import com.piagent.domain.session.model.payload.MessagePayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.session.service.SessionTitles;
@@ -368,6 +375,84 @@ class AgentLoopServiceTest {
         fixture.run(session.identity().id(), "帮我看看这个项目为什么启动失败");
 
         assertThat(fixture.session(session.identity().id()).title()).isEqualTo("Loop 测试");
+    }
+
+    @Test
+    void acceptsImagesWhenModelSupportsVision() {
+        AgentLoopFixture fixture = new AgentLoopFixture();
+        ChatSession session = fixture.createSession();
+        String attachment = fixture.attachPng("shot.png");
+        fixture.gateway.enqueue(ScriptedLlmGateway.text("看到了"));
+
+        AgentRun run = fixture.run(session.identity().id(), "这是什么", attachment);
+
+        assertThat(run.status()).isEqualTo(RunStatus.COMPLETED);
+        UserMessage user = (UserMessage) message(
+                fixture.branch(session.identity().id()).getFirst());
+        assertThat(user.content()).hasSize(2);
+        assertThat(user.content().get(1)).isInstanceOfSatisfying(ImageBlock.class, image -> {
+            assertThat(image.attachmentId()).isEqualTo(attachment);
+            assertThat(image.mediaType()).isEqualTo("image/png");
+            assertThat(image.name()).isEqualTo("shot.png");
+        });
+    }
+
+    @Test
+    void rejectsImagesBeforeAppendingUserMessageWhenVisionMissing() {
+        AgentLoopFixture fixture = new AgentLoopFixture(noVisionProfile());
+        ChatSession session = fixture.createSession();
+        String attachment = fixture.attachPng("shot.png");
+
+        assertThatThrownBy(() -> fixture.loop.start(new SendMessageCommand(
+                session.identity().id(), "看图", List.of(attachment))))
+                .isInstanceOfSatisfying(DomainException.class, error -> {
+                    assertThat(error.code()).isEqualTo(DomainErrorCode.MODEL_CAPABILITY_MISSING);
+                    assertThat(error.getMessage()).contains("未声明图片输入能力");
+                });
+
+        assertThat(fixture.session(session.identity().id()).status()).isEqualTo(SessionStatus.IDLE);
+        assertThat(fixture.branch(session.identity().id())).isEmpty();
+        assertThat(fixture.registry.findActiveBySession(session.identity().id())).isEmpty();
+
+        fixture.gateway.enqueue(ScriptedLlmGateway.text("好的"));
+        assertThat(fixture.run(session.identity().id(), "纯文本").status())
+                .isEqualTo(RunStatus.COMPLETED);
+    }
+
+    @Test
+    void rejectsMissingAttachmentBeforeAppendingUserMessage() {
+        AgentLoopFixture fixture = new AgentLoopFixture();
+        ChatSession session = fixture.createSession();
+
+        assertThatThrownBy(() -> fixture.loop.start(new SendMessageCommand(
+                session.identity().id(), "看图", List.of("missing-attachment"))))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.ATTACHMENT_NOT_FOUND));
+        assertThat(fixture.branch(session.identity().id())).isEmpty();
+    }
+
+    @Test
+    void imageOnlyMessageUsesImageCountAsTitle() {
+        AgentLoopFixture fixture = new AgentLoopFixture();
+        ChatSession session = fixture.createSession();
+        fixture.sessions.update(session.rename(SessionTitles.DEFAULT_TITLE));
+        String attachment = fixture.attachPng("shot.png");
+        fixture.gateway.enqueue(ScriptedLlmGateway.text("收到"));
+
+        fixture.run(session.identity().id(), "", attachment);
+
+        assertThat(fixture.session(session.identity().id()).title()).isEqualTo("1 张图片");
+        UserMessage user = (UserMessage) message(
+                fixture.branch(session.identity().id()).getFirst());
+        assertThat(user.content())
+                .containsExactly(new ImageBlock(attachment, "image/png", "shot.png"));
+    }
+
+    private static ModelProfile noVisionProfile() {
+        ModelEndpoint endpoint = new ModelEndpoint(ProviderType.FAKE, "", "",
+                AgentLoopFixture.MODEL_ID, 16_000, 2_000, ModelCapabilities.defaults());
+        return ModelProfile.create(new ModelId(AgentLoopFixture.MODEL_ID), "No Vision", endpoint);
     }
 
     private static ToolCallBlock call(String id, String name) {
