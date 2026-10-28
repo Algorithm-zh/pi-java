@@ -124,6 +124,28 @@ class BuiltInToolInvokerTest {
         assertThat(result.details()).containsEntry("path", "hello.txt");
     }
 
+    @Test
+    void executesBuiltInRepoMapEndToEnd() throws IOException {
+        Path source = Files.createDirectories(workspace.resolve("src"));
+        Files.writeString(source.resolve("Greeting.java"), """
+                public class Greeting {
+                    public String hello() {
+                        return "hi";
+                    }
+                }
+                """);
+        Files.writeString(workspace.resolve("README.md"), "# Demo\n");
+        invoker = builtInInvoker();
+
+        ToolResult result = invoker.invoke(new ToolInvocation(new ToolCallId("call-map"),
+                new ToolName("repo_map"), Map.of("query", "hello"),
+                SandboxPolicy.readOnly(workspace)));
+
+        assertThat(result.error()).isFalse();
+        assertThat(result.content()).contains("src/Greeting.java", "hello");
+        assertThat(result.details()).containsEntry("indexedFiles", 2);
+    }
+
     private BuiltInToolInvoker builtInInvoker() {
         CatalogToolRegistry registry = new CatalogToolRegistry(BuiltInToolCatalog.descriptors());
         RealPathResolver resolver = new RealPathResolver(new PathSandbox());

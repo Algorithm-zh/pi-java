@@ -22,14 +22,16 @@ class BuiltInToolCatalogTest {
         List<ToolDescriptor> descriptors = BuiltInToolCatalog.descriptors();
 
         assertThat(descriptors).extracting(descriptor -> descriptor.name().value())
-                .containsExactly("read", "ls", "grep", "glob", "todo", "write", "edit", "bash");
+                .containsExactly("read", "ls", "grep", "glob", "repo_map", "todo",
+                        "write", "edit", "bash");
         assertThat(descriptors).allSatisfy(descriptor -> assertThat(descriptor.timeout())
                 .isPositive());
     }
 
     @Test
     void readOnlyToolsAreLowRiskAndParallel() {
-        assertThat(descriptors("read", "ls", "grep", "glob")).allSatisfy(descriptor -> {
+        assertThat(descriptors("read", "ls", "grep", "glob", "repo_map"))
+                .allSatisfy(descriptor -> {
             assertThat(descriptor.risk()).isEqualTo(ToolRisk.LOW);
             assertThat(descriptor.executionMode()).isEqualTo(ExecutionMode.PARALLEL);
         });
@@ -67,6 +69,7 @@ class BuiltInToolCatalogTest {
         assertThat(required("grep")).containsExactly("pattern");
         assertThat(required("glob")).containsExactly("pattern");
         assertThat(required("ls")).isEmpty();
+        assertThat(required("repo_map")).isEmpty();
         assertThat(required("write")).containsExactly("path", "content");
         assertThat(required("edit")).containsExactly("path", "oldText", "newText");
         assertThat(required("bash")).containsExactly("command");

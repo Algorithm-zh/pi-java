@@ -340,6 +340,19 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
   验证上传去重、payload 引用扫描、统计与回收，且已引用图片不被删除。
 - M17 结束共 828 个测试（2 个符号链接用例条件跳过）；新增用例均可在无网络环境运行。
 
+### 8.4 仓库地图与代码检索（M18）
+
+- 分词：`CodeTokenizerTest` 覆盖驼峰/下划线拆分、停用词、中文二元组、混合文本、
+  词频上限与路径词；
+- 符号：`SourceSymbolsTest` 覆盖 Java 类型/构造器/方法、控制流过滤、Python、JS、
+  Go、Rust、SQL、Markdown 标题、YAML `#` 注释不算结构；
+- 索引与排序：`WorkspaceCodeIndexTest` 覆盖概览、查询排名、目录/单文件范围、无命中、
+  显示上限、文件修改后重建与隐藏/构建目录跳过；
+- 工具：`RepoMapToolHandlerTest` 覆盖空参数概览、关键词检索、路径范围、单文件、
+  越界拒绝、`maxFiles` 边界与未知参数；`BuiltInToolInvokerTest` 增加端到端调用；
+- M18 结束共 861 个测试（2 个符号链接用例条件跳过）；索引测试全部使用 `@TempDir`，
+  不依赖网络或外部服务。
+
 ## 9. Windows 与跨平台
 
 - 路径测试用 `@EnabledOnOs` 区分 Windows/Unix；

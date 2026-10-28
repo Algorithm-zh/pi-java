@@ -8,6 +8,7 @@ import com.piagent.infrastructure.tool.handler.GlobToolHandler;
 import com.piagent.infrastructure.tool.handler.GrepToolHandler;
 import com.piagent.infrastructure.tool.handler.LsToolHandler;
 import com.piagent.infrastructure.tool.handler.ReadToolHandler;
+import com.piagent.infrastructure.tool.handler.RepoMapToolHandler;
 import com.piagent.infrastructure.tool.handler.TodoToolHandler;
 import com.piagent.infrastructure.tool.handler.WriteToolHandler;
 import java.util.LinkedHashMap;
@@ -41,6 +42,7 @@ public final class BuiltInToolHandlers {
         handlers.put(name("ls"), new LsToolHandler(resolver));
         handlers.put(name("grep"), new GrepToolHandler(resolver));
         handlers.put(name("glob"), new GlobToolHandler(resolver));
+        handlers.put(name("repo_map"), new RepoMapToolHandler(resolver));
         handlers.put(name("todo"), new TodoToolHandler(plans));
         handlers.put(name("write"), new WriteToolHandler(resolver));
         handlers.put(name("edit"), new EditToolHandler(resolver));

@@ -10,8 +10,8 @@ import java.util.List;
 /**
  * 内置工具目录。
  *
- * <p>只读工具 {@code read}/{@code ls}/{@code grep}/{@code glob} 为低风险、
- * 可并行；写工具 {@code write}/{@code edit} 为高风险，{@code bash} 为最高风险，
+ * <p>只读工具 {@code read}/{@code ls}/{@code grep}/{@code glob}/{@code repo_map}
+ * 为低风险、可并行；写工具 {@code write}/{@code edit} 为高风险，{@code bash} 为最高风险，
  * 三者都必须顺序执行。风险级别只决定默认策略，最终效果仍由策略表解析。</p>
  */
 public final class BuiltInToolCatalog {
@@ -30,7 +30,7 @@ public final class BuiltInToolCatalog {
      * @return 工具定义
      */
     public static List<ToolDescriptor> descriptors() {
-        return List.of(read(), ls(), grep(), glob(), todo(), write(), edit(), bash());
+        return List.of(read(), ls(), grep(), glob(), repoMap(), todo(), write(), edit(), bash());
     }
 
     private static ToolDescriptor read() {
@@ -106,6 +106,27 @@ public final class BuiltInToolCatalog {
         return descriptor("glob", "Find files by glob pattern. "
                 + "Build output and hidden directories are skipped.", schema,
                 SCAN_TIMEOUT_SECONDS);
+    }
+
+    private static ToolDescriptor repoMap() {
+        String schema = """
+                {
+                  "type": "object",
+                  "properties": {
+                    "query": {"type": "string",
+                              "description": "Keywords or a task description, e.g. attachment quota. Omit for an overview."},
+                    "path": {"type": "string",
+                             "description": "Directory or file to limit the map, defaults to workspace root."},
+                    "maxFiles": {"type": "integer", "minimum": 1, "maximum": 50,
+                                 "description": "Maximum ranked files, defaults to 20."}
+                  },
+                  "additionalProperties": false
+                }
+                """;
+        return descriptor("repo_map", "Get a ranked, file-level map of the workspace. "
+                + "Without a query it returns language stats, directory layout and key files; "
+                + "with a query it returns relevant files with symbols and matching lines. "
+                + "Use it before reading many files.", schema, SCAN_TIMEOUT_SECONDS);
     }
 
     private static ToolDescriptor todo() {
