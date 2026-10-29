@@ -1,5 +1,6 @@
 package com.piagent.application.agent.service;
 
+import com.piagent.application.identity.AuthContext;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.Guard;
 import java.util.concurrent.ExecutorService;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>许可在提交任务前获取，任务结束时释放。并发数按 {@code pi.agent.max-concurrent-runs}
  * 配置；达到上限时立即拒绝而不是排队，避免用户看到“请求已接受但永远不开始”的状态。</p>
+ *
+ * <p>提交时会捕获调用线程的租户上下文，并在执行线程恢复。工具执行、会话追加与
+ * 附件读写都发生在执行线程上，没有这一步会回退到默认租户，导致跨租户访问。</p>
  */
 @Component
 public class RunDispatcher {
@@ -56,10 +60,11 @@ public class RunDispatcher {
      * @param task 运行任务
      */
     public void dispatch(Runnable task) {
+        Runnable scoped = AuthContext.wrap(task);
         try {
             executor.execute(() -> {
                 try {
-                    task.run();
+                    scoped.run();
                 } finally {
                     permits.release();
                 }

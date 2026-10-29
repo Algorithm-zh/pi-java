@@ -1,14 +1,14 @@
 # 08 路线图
 
-> 状态：M0–M18 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
+> 状态：M0–M19 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
 > 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26，M15 工程化与 v0.2.0
 > 于 2026-10-26，M16 图片与多模态输入、M17 附件生命周期与压缩于 2026-10-27，
-> M18 仓库地图与代码检索于 2026-10-28）。详见
+> M18 仓库地图与代码检索于 2026-10-28，M19 多租户与最小鉴权于 2026-10-29）。详见
 > [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
 > [M13 记录](milestones/M13.md)、[M14 记录](milestones/M14.md)、
 > [M15 记录](milestones/M15.md)、[M16 记录](milestones/M16.md)、
-> [M17 记录](milestones/M17.md) 与 [M18 记录](milestones/M18.md)；
-> `v0.2.0` tag 与 GitHub Release 已于 2026-10-26 发布。
+> [M17 记录](milestones/M17.md)、[M18 记录](milestones/M18.md) 与
+> [M19 记录](milestones/M19.md)；`v0.2.0` tag 与 GitHub Release 已于 2026-10-26 发布。
 > v0.2 已完成，v0.3 进展见第 6 节。
 
 ## 1. 交付策略
@@ -42,6 +42,7 @@
 | **M16** | 图片与多模态输入 | ImageBlock、附件存储与 API、视觉能力门禁、Web 图片输入与历史渲染 | 截图上传/发送/回读、视觉门禁、818 测试、浏览器走查 | `feat(attachment): image input and multimodal messages` |
 | **M17** | 附件生命周期与压缩 | 内容去重、总配额、EXIF 清理、孤儿回收与统计 API、上传前压缩 | 生命周期集成测试、10.3 MB→982 KB 浏览器验收、828 测试 | `feat(attachment): lifecycle, dedup and image compression` |
 | **M18** | 仓库地图与代码检索 | 文件级符号索引、BM25 风格检索、`repo_map` 工具、提示词与 Web 工具目录 | 分词/符号/排序/工具测试、890 文件真实仓库冒烟、861 测试 | `feat(tool): repo map and keyword code retrieval` |
+| **M19** | 多租户与最小鉴权 | 租户/账号/令牌领域、PBKDF2、鉴权过滤器、租户隔离、登录与账号设置 UI | 单元/触发/集成测试、两租户隔离走查、浏览器登录流程 | `feat(auth): local accounts, tenant isolation and login ui` |
 
 ## 3. 各里程碑详情
 
@@ -622,6 +623,47 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 - 索引持久化、跨进程共享与增量文件监听；
 - 按 `.gitignore` 过滤工作区内容。
 
+### M19 多租户与最小鉴权
+
+状态：已完成（2026-10-29），详见 [M19 记录](milestones/M19.md)。
+
+范围：
+
+- 领域：`Tenant`、`AppUser`、`AuthToken` 与三个仓储端口；
+- 应用：`AuthContext`、`AuthApplicationService`、`IdentityAdminService`、
+  `LoginThrottle`、`UserProvisioner`、`TenantTaskRunner`；
+- 基础设施：PBKDF2 密码哈希、SHA-256 令牌摘要、MyBatis 仓储、V6 迁移；
+- 触发层：`AuthFilter`、`AuthController`、`IdentityAdminController`、会话 Cookie；
+- 隔离：会话、工具策略、审批、附件与 run 全部按当前租户过滤；
+- Web：登录/初始化门禁、账号卡、设置中心“账号与空间”。
+
+关键设计：
+
+- **Cookie 与 Bearer 共用令牌**：浏览器用 HttpOnly、SameSite=Strict 的 `pi_session`，
+  脚本用 `Authorization: Bearer`；登出即吊销，令牌明文只在登录响应出现一次；
+- **只存哈希与慢哈希密码**：令牌落库是 SHA-256 摘要，密码是 210k 次 PBKDF2；
+  认证失败统一文案并做等成本校验，避免枚举账号；
+- **仓储层兜底隔离**：服务与控制器不手写租户条件，仓储统一从 `AuthContext` 取租户；
+  跨租户 id 查询表现为“不存在”；
+- **默认租户平滑升级**：V6 用固定 ULID 建默认租户，存量会话与策略自动归入；
+- **状态接口自行校验**：`/api/v1/auth/state` 是公开接口，由控制器解析令牌，
+  页面刷新后才能正确显示已登录。
+
+验收结果：
+
+- `mvn -q test`：923 个测试通过（2 个符号链接用例条件跳过），Checkstyle/ArchUnit 通过；
+- 新增领域/应用/基础设施/触发层用例，以及 `AuthHttpIntegrationTest` 与
+  `TenantIsolationIntegrationTest` 两组端到端测试；
+- 浏览器走查：首次初始化、登录、错误提示、账号卡、设置中心“账号与空间”、
+  创建空间与成员、成员只读视图与登出全部通过；
+- 两租户隔离集成测试覆盖会话、审批与 run、工具策略与附件。
+
+未包含（按计划后移）：
+
+- 模型档案、插件、MCP 与技能的租户隔离；
+- 改密、密码重置、多因素与 SSO；
+- 刷新令牌、设备管理与跨实例登录失败共享。
+
 ## 4. 关键依赖
 
 ```text
@@ -649,7 +691,7 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 ## 5. 发布与版本
 
 - 已发布 `v0.2.0`（2026-10-26，tag 与 GitHub Release 均在 `main` 上）；
-- 当前仓库版本号仍为 `0.2.0`，M16、M17 与 M18 是 v0.3 的前三个里程碑，版本号在 v0.3 收尾时统一升级；
+- 当前仓库版本号仍为 `0.2.0`，M16、M17、M18 与 M19 是 v0.3 的前四个里程碑，版本号在 v0.3 收尾时统一升级；
 - tag 只在用户确认后创建；不自动 push；
 - 每次里程碑提交使用 Conventional Commits；
 - 发布说明包含：新增能力、已知限制、启动方式、验收结果。
@@ -687,11 +729,14 @@ v0.3 以“多模态输入与更接近真实使用的交互”为主线，每项
    孤儿回收与存储统计，Web 上传前压缩；见 [M17 记录](milestones/M17.md)。
 3. **M18 仓库地图与代码检索**（已完成 2026-10-28）：文件级符号索引、BM25 风格
    关键词检索与 `repo_map` 工具；见 [M18 记录](milestones/M18.md)。
-4. 后续候选（未排期）：Anthropic 原生 provider、缩略图与对象存储、PDF 与音频输入、
+4. **M19 多租户与最小鉴权**（已完成 2026-10-29）：本地账号、Cookie/Bearer 令牌、
+   HTTP 鉴权过滤器、会话/策略/审批/附件/run 的租户隔离与 Web 登录界面；
+   见 [M19 记录](milestones/M19.md)。
+5. 后续候选（未排期）：Anthropic 原生 provider、缩略图与对象存储、PDF 与音频输入、
    并行子代理、LSP/跨文件引用、多实例与成本配额。
 
-约束不变：每个里程碑独立提交，tag 与发布需用户确认；v0.2 的回环监听与
-无鉴权边界在引入鉴权之前继续有效。
+约束不变：每个里程碑独立提交，tag 与发布需用户确认；鉴权已上线，默认仍只监听
+回环地址，公网部署必须置于 HTTPS 反向代理之后。
 
 ## 7. 风险与应对
 

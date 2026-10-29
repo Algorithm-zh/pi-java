@@ -13,6 +13,7 @@ import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -69,6 +70,17 @@ public class RunEventHub {
      */
     public boolean exists(RunId runId) {
         return channels.containsKey(runId);
+    }
+
+    /**
+     * 查询 run 所属会话。
+     *
+     * @param runId 运行标识
+     * @return 会话标识；通道不存在时为空
+     */
+    public Optional<SessionId> sessionOf(RunId runId) {
+        Channel channel = channels.get(runId);
+        return channel == null ? Optional.empty() : Optional.of(channel.sessionId);
     }
 
     /**

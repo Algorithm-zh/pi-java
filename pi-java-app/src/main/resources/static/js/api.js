@@ -15,14 +15,26 @@ export class ApiError extends Error {
 
 async function request(path, init = {}) {
     const response = await fetch(path, init);
-    if (!response.ok) {
-        throw await toError(response);
-    }
+    await ensureOk(response, path);
     if (response.status === 204) {
         return null;
     }
     const type = response.headers.get("content-type") || "";
     return type.includes("application/json") ? response.json() : response.text();
+}
+
+/*
+ * 统一处理鉴权失败：登录接口自身的 401 是密码错误，其余 401 表示会话过期，
+ * 交给登录门禁接管，避免各调用点各写一遍。
+ */
+async function ensureOk(response, path) {
+    if (response.ok) {
+        return;
+    }
+    if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
+        window.dispatchEvent(new CustomEvent("pi-auth-required"));
+    }
+    throw await toError(response);
 }
 
 async function toError(response) {
@@ -47,6 +59,92 @@ export function systemInfo() {
 }
 
 /**
+ * 查询初始化与登录状态；不需要令牌。
+ *
+ * @returns {Promise<{initialized: boolean, authenticated: boolean, user: object|null}>}
+ *     状态
+ */
+export function authState() {
+    return request("/api/v1/auth/state");
+}
+
+/**
+ * 首次创建管理员并直接登录。
+ *
+ * @param {{username: string, displayName?: string, password: string}} payload 管理员信息
+ * @returns {Promise<{token: string, user: object}>} 登录会话
+ */
+export function setupAdmin(payload) {
+    return request("/api/v1/auth/setup", jsonInit("POST", payload));
+}
+
+/**
+ * 登录。
+ *
+ * @param {{tenantSlug?: string, username: string, password: string}} payload 凭据
+ * @returns {Promise<{token: string, user: object}>} 登录会话
+ */
+export function login(payload) {
+    return request("/api/v1/auth/login", jsonInit("POST", payload));
+}
+
+/**
+ * 退出登录并清除 Cookie。
+ *
+ * @returns {Promise<null>} 204 无响应体
+ */
+export function logout() {
+    return request("/api/v1/auth/logout", { method: "POST" });
+}
+
+/**
+ * 查询当前登录账号。
+ *
+ * @returns {Promise<object>} 账号与租户信息
+ */
+export function currentUser() {
+    return request("/api/v1/auth/me");
+}
+
+/**
+ * 查询全部租户，仅管理员可用。
+ *
+ * @returns {Promise<Array<{id: string, slug: string, name: string}>>} 租户列表
+ */
+export function listTenants() {
+    return request("/api/v1/tenants");
+}
+
+/**
+ * 创建租户及其首个管理员，仅管理员可用。
+ *
+ * @param {object} payload 租户与管理员信息
+ * @returns {Promise<object>} 新租户
+ */
+export function createTenant(payload) {
+    return request("/api/v1/tenants", jsonInit("POST", payload));
+}
+
+/**
+ * 查询当前租户的账号，仅管理员可用。
+ *
+ * @returns {Promise<Array<object>>} 账号列表
+ */
+export function listUsers() {
+    return request("/api/v1/users");
+}
+
+/**
+ * 在当前租户内创建账号，仅管理员可用。
+ *
+ * @param {object} payload 账号信息
+ * @returns {Promise<object>} 新账号
+ */
+export function createUser(payload) {
+    return request("/api/v1/users", jsonInit("POST", payload));
+}
+
+/**
  * 上传一张图片附件。
  *
  * @param {File} file 浏览器文件对象
@@ -61,9 +159,7 @@ export async function uploadAttachment(file) {
         headers: { Accept: "application/json" },
         body
     });
-    if (!response.ok) {
-        throw await toError(response);
-    }
+    await ensureOk(response, "/api/v1/attachments");
     return response.json();
 }
 
@@ -399,9 +495,7 @@ export async function streamMessage(sessionId, text, attachmentIds, onEvent, sig
             body: JSON.stringify({ text, attachmentIds }),
             signal
         });
-    if (!response.ok) {
-        throw await toError(response);
-    }
+    await ensureOk(response, `/api/v1/sessions/${sessionId}/messages/stream`);
     await readSse(response, onEvent);
 }
 
@@ -421,9 +515,7 @@ export async function attachRun(runId, onEvent, signal) {
         },
         signal
     });
-    if (!response.ok) {
-        throw await toError(response);
-    }
+    await ensureOk(response, `/api/v1/runs/${runId}/events`);
     await readSse(response, onEvent);
 }
 

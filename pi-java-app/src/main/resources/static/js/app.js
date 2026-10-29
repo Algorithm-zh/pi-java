@@ -5,6 +5,7 @@
 import * as api from "./api.js";
 import * as approval from "./approval.js";
 import * as attachments from "./attachments.js";
+import * as auth from "./auth.js";
 import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
@@ -28,6 +29,21 @@ let pendingPrompt = "";
 
 async function init() {
     initTheme();
+    initShell();
+    auth.init({
+        onReady: startApp,
+        onExpired: () => {
+            state.abortController?.abort();
+            detach();
+        }
+    });
+    const account = await auth.ensureSession();
+    if (account) {
+        await startApp(account);
+    }
+}
+
+function initShell() {
     bindReconnect(reconnectRun);
     bindDetach(detach);
     bindSessionReady(() => {
@@ -49,6 +65,9 @@ async function init() {
     slash.init({onResize: resizeInput, onToolChosen: toolForm.open});
     attachments.init({onChange: syncComposerState});
     wireEvents();
+}
+
+async function startApp() {
     try {
         const [system, models] = await Promise.all([api.systemInfo(), api.listModels()]);
         state.system = system;

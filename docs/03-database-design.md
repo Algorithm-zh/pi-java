@@ -38,8 +38,12 @@
               └─────────────────┘   └────────────────────┘
 
   pi_model_profile ◄──── 逻辑引用 ──── pi_session.model_profile_id
-  pi_tool_policy       独立（scope + workspace_key + tool_name）
+  pi_tool_policy       独立（tenant_id + scope + workspace_key + tool_name）
   pi_plugin            独立（插件安装记录）
+
+  pi_tenant ◄── pi_app_user ◄── pi_auth_token
+        ▲
+        └── pi_session.tenant_id / pi_tool_policy.tenant_id
 ```
 
 | 关系 | 基数 | 物理约束 | 说明 |
@@ -50,6 +54,9 @@
 | model_profile → session | 1:N | 无 | 模型档案下线不破坏历史会话 |
 | entry.parent_id | 树 | 无 | 同会话树形关系，应用层校验 |
 | plugin / policy | 独立 | 无 | 通过 workspace_key/tool_name 逻辑关联 |
+| tenant → user | 1:N | `tenant_id` FK | 删除租户需先清理账号 |
+| user → token | 1:N | `user_id` FK，`ON DELETE CASCADE` | 删号即吊销全部令牌 |
+| tenant → session/policy | 1:N | `tenant_id` FK | 查询与写入都带租户条件 |
 
 > 父会话删除后，子会话的 `parent_session_id` 为 NULL，但 `origin/depth/root_session_id` 保留。
 > 领域层的 `SessionIdentity` 允许这种“孤儿”形态在重建时出现；创建新子会话仍必须提供父会话。
@@ -233,6 +240,59 @@ CREATE TABLE pi_approval_request (
 该表是“待办投影”，不是审计事实源：审批决策必须同时追加 `APPROVAL` entry。
 `args_digest = sha256(canonicalJson(args))`，用于检测 UI 展示参数与实际执行参数不一致。
 
+### 3.6 `V6__tenant_auth.sql`（M19）
+
+```sql
+CREATE TABLE pi_tenant (
+    id         CHAR(26)     NOT NULL,   -- 默认租户固定 00000000000000000000000001
+    slug       VARCHAR(64)  NOT NULL,
+    name       VARCHAR(128) NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_tenant_slug UNIQUE (slug)
+);
+
+CREATE TABLE pi_app_user (
+    id            CHAR(26)     NOT NULL,
+    tenant_id     CHAR(26)     NOT NULL,
+    username      VARCHAR(64)  NOT NULL,   -- 小写规范化后存储
+    display_name  VARCHAR(128) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,   -- pbkdf2-sha256$iter$salt$hash
+    role          VARCHAR(16)  NOT NULL,   -- ADMIN / MEMBER
+    status        VARCHAR(16)  NOT NULL,   -- ACTIVE / DISABLED
+    created_at    TIMESTAMP(3) NOT NULL,
+    updated_at    TIMESTAMP(3) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_user_tenant_username UNIQUE (tenant_id, username),
+    CONSTRAINT fk_user_tenant FOREIGN KEY (tenant_id) REFERENCES pi_tenant (id)
+);
+
+CREATE TABLE pi_auth_token (
+    id           CHAR(26)     NOT NULL,
+    tenant_id    CHAR(26)     NOT NULL,
+    user_id      CHAR(26)     NOT NULL,
+    token_hash   CHAR(64)     NOT NULL,   -- SHA-256 十六进制，明文不落库
+    issued_at    TIMESTAMP(3) NOT NULL,
+    expires_at   TIMESTAMP(3) NOT NULL,
+    last_used_at TIMESTAMP(3) NULL,
+    revoked_at   TIMESTAMP(3) NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_auth_token_hash UNIQUE (token_hash),
+    CONSTRAINT fk_auth_token_user FOREIGN KEY (user_id) REFERENCES pi_app_user (id)
+        ON DELETE CASCADE
+);
+
+ALTER TABLE pi_session
+    ADD COLUMN tenant_id CHAR(26) NOT NULL DEFAULT '00000000000000000000000001';
+ALTER TABLE pi_tool_policy
+    ADD COLUMN tenant_id CHAR(26) NOT NULL DEFAULT '00000000000000000000000001';
+ALTER TABLE pi_tool_policy DROP CONSTRAINT uk_tool_policy;
+ALTER TABLE pi_tool_policy
+    ADD CONSTRAINT uk_tool_policy UNIQUE (tenant_id, scope, workspace_key, tool_name);
+```
+
+迁移先插入默认租户，再给存量会话与策略补 `tenant_id` 默认值，升级无需手工清洗。
+
 ## 4. H2 方言差异
 
 H2 使用 `MODE=MySQL`，但以下写法仍需区分，避免运行时解析失败：
@@ -373,7 +433,7 @@ COMMIT
 - 启动恢复时，若发现 toolCall 无配对结果，补写 `isError=true` 的 toolResult；
   若发现 RUNNING 但无活跃 run，补写 `RUN_SUMMARY(stopReason=ERROR)`。
 
-## 7. 为什么只有 6 张表
+## 7. 为什么只有 9 张表
 
 | 候选表 | 处理方式 | 原因 |
 |---|---|---|
@@ -387,6 +447,8 @@ COMMIT
 | token 统计 | assistant payload + session 汇总 | 不做计费系统，避免额外写入放大 |
 | 插件工具 | 内存快照 + `pi_plugin` | 工具是代码产物，不需要每工具一行 |
 | 压缩规划/收敛状态 | 纯计算，不落库 | 只有最终摘要作为 `COMPACTION` entry 持久化 |
+| 角色/权限 | `pi_app_user.role` | 只有 ADMIN/MEMBER 两级，不引入权限表 |
+| 登录审计 | `pi_auth_token.last_used_at` | 只记录最近使用时间，不做逐次审计 |
 
 ## 8. 迁移规范
 

@@ -72,9 +72,10 @@ plugin-api     -> JDK
   不为“复用”把 Web 契约下沉到应用层。
 - 插件契约独立成 `plugin-api`，是因为它面向第三方、需要零依赖；它不承担内部共享职责。
 
-## 3. 七个限界上下文
+## 3. 八个限界上下文
 
 全部位于 `pi-java-domain` 内，以包隔离；每个包内再按 `model / service / port` 组织。
+M19 新增身份上下文，模块数量与依赖方向不变。
 
 | 上下文 | 包 | 核心职责 | 不负责 |
 |---|---|---|---|
@@ -86,6 +87,7 @@ plugin-api     -> JDK
 | 上下文 context | `domain.context` | token 估算、压缩计划、Skill 描述与 prompt 格式化 | 文件扫描、YAML 解析 |
 | 扩展 extension | `domain.extension` | 插件安装记录、jar 检查结果、兼容性与运行时端口 | ClassLoader、Spring 容器 |
 | 工作区 git | `domain.git` | 快照、变化集合、还原结果、提交建议与 `WorkspaceGit` 端口 | 调用 git、读写文件 |
+| 身份 identity | `domain.identity` | 租户、账号、角色、访问令牌与停用状态 | 密码哈希算法、HTTP 会话、权限模型扩展 |
 
 ### 上下文映射
 
@@ -98,6 +100,7 @@ agent   ────► tool           （通过 ToolRegistry/ToolInvoker 端口
 agent   ────► governance     （审批与沙箱端口）
 agent   ────► context        （压缩与 skills 目录）
 agent   ────► git            （通过 WorkspaceGit 端口）
+所有上下文 ────► identity    （仓储从 AuthContext 取当前租户）
 tool    ◄──── extension      （插件工具映射为 ToolDescriptor）
 ```
 

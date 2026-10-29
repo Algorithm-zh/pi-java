@@ -2,6 +2,7 @@ package com.piagent.trigger.http.run;
 
 import com.piagent.application.agent.service.AgentLoopService;
 import com.piagent.application.agent.service.RunEventHub;
+import com.piagent.application.session.service.SessionApplicationService;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
@@ -27,6 +28,7 @@ public class RunController {
     private final AgentLoopService agentLoop;
     private final RunEventHub hub;
     private final RunStreamService streams;
+    private final SessionApplicationService sessions;
 
     /**
      * 创建控制器。
@@ -34,11 +36,15 @@ public class RunController {
      * @param agentLoop Agent Loop
      * @param hub 事件中心
      * @param streams SSE 流服务
+     * @param sessions 会话用例，用于校验 run 所属会话在当前租户内
      */
-    public RunController(AgentLoopService agentLoop, RunEventHub hub, RunStreamService streams) {
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public RunController(AgentLoopService agentLoop, RunEventHub hub, RunStreamService streams,
+            SessionApplicationService sessions) {
         this.agentLoop = agentLoop;
         this.hub = hub;
         this.streams = streams;
+        this.sessions = sessions;
     }
 
     /**
@@ -49,8 +55,12 @@ public class RunController {
      */
     @GetMapping("/{runId}")
     public RunResponse find(@PathVariable String runId) {
-        return agentLoop.findRun(RunId.parse(runId))
-                .map(RunResponse::from)
+        RunId parsed = RunId.parse(runId);
+        return agentLoop.findRun(parsed)
+                .map(run -> {
+                    sessions.find(run.sessionId());
+                    return RunResponse.from(run);
+                })
                 .orElseThrow(() -> new DomainException(DomainErrorCode.RUN_NOT_FOUND,
                         "run 不存在或已被清理: " + runId));
     }
@@ -70,6 +80,8 @@ public class RunController {
             throw new DomainException(DomainErrorCode.RUN_NOT_FOUND,
                     "run 事件不存在或已被清理: " + runId);
         }
+        sessions.find(hub.sessionOf(parsed).orElseThrow(() -> new DomainException(
+                DomainErrorCode.RUN_NOT_FOUND, "run 事件不存在或已被清理: " + runId)));
         return streams.open(parsed, parseSeq(lastEventId));
     }
 

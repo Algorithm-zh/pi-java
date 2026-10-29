@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.app.PiJavaApplication;
 import com.piagent.app.plugin.fixture.SamplePlugin;
+import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -30,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>使用真实 Spring 上下文、H2 数据库与动态插件 jar，验证安装只落库、
  * 启用后工具出现在目录、停用后消失，以及错误码到 HTTP 状态的映射。</p>
  */
+@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class)
 @ActiveProfiles("test")
 @AutoConfigureMockMvc

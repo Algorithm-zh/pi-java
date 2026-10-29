@@ -116,7 +116,9 @@ public class SessionController {
      */
     @GetMapping("/{id}/run")
     public ResponseEntity<RunHandleResponse> activeRun(@PathVariable String id) {
-        return agentLoop.findActive(SessionId.parse(id))
+        SessionId sessionId = SessionId.parse(id);
+        sessions.find(sessionId);
+        return agentLoop.findActive(sessionId)
                 .map(RunHandleResponse::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
@@ -146,6 +148,8 @@ public class SessionController {
     @PostMapping("/{id}/abort")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public RunHandleResponse abort(@PathVariable String id) {
-        return RunHandleResponse.from(agentLoop.abort(SessionId.parse(id)));
+        SessionId sessionId = SessionId.parse(id);
+        sessions.find(sessionId);
+        return RunHandleResponse.from(agentLoop.abort(sessionId));
     }
 }

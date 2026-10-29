@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.app.PiJavaApplication;
+import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import com.piagent.app.mcp.fixture.AppFakeMcpServer;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
@@ -34,6 +35,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -43,6 +45,7 @@ import org.springframework.test.web.servlet.MvcResult;
 /**
  * MCP 端到端测试：启动真实 stdio 服务器 → 工具进入目录 → Agent Loop 调用 → SSE 返回。
  */
+@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class, properties = "pi.fake.demo-mode=true")
 @ActiveProfiles("test")
 @AutoConfigureMockMvc

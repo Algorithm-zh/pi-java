@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.app.PiJavaApplication;
+import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import com.piagent.app.plugin.fixture.SamplePlugin;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
@@ -33,6 +34,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -43,6 +45,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * <p>走完整链路：HTTP 安装并启用插件 → Fake demo 模型发起工具调用 →
  * Agent Loop 执行插件工具 → SSE 输出结果；停用后新 run 立即看不到该工具。</p>
  */
+@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class,
         properties = "pi.fake.demo-mode=true")
 @ActiveProfiles("test")

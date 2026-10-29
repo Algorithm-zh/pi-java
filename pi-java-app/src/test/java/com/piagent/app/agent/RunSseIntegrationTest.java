@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.piagent.app.PiJavaApplication;
+import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
 import com.piagent.domain.model.ModelEndpoint;
@@ -32,6 +33,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -42,6 +44,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * <p>走完整 Spring MVC 栈：POST 建立流、异步运行 Fake 模型与真实读工具、
  * 终态后 emitter 完成，再校验 SSE 事件顺序与 {@code Last-Event-ID} 回放。</p>
  */
+@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class,
         properties = "pi.fake.demo-mode=true")
 @ActiveProfiles("test")

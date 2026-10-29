@@ -10,6 +10,8 @@ import org.apache.ibatis.annotations.Update;
 
 /**
  * `pi_tool_policy` 表 MyBatis 映射器。
+ *
+ * <p>所有读写都带租户条件；同一工作区与工具名在不同租户下可以有不同策略。</p>
  */
 @Mapper
 public interface ToolPolicyMapper {
@@ -21,10 +23,11 @@ public interface ToolPolicyMapper {
      * @return 影响行数
      */
     @Insert("""
-            INSERT INTO pi_tool_policy (scope, workspace_key, tool_name, effect, approval_mode,
-                risk_level, timeout_ms, config_json, version, created_at, updated_at)
-            VALUES (#{scope}, #{workspaceKey}, #{toolName}, #{effect}, #{approvalMode},
-                #{riskLevel}, #{timeoutMs}, #{configJson}, #{version}, #{createdAt}, #{updatedAt})
+            INSERT INTO pi_tool_policy (tenant_id, scope, workspace_key, tool_name, effect,
+                approval_mode, risk_level, timeout_ms, config_json, version, created_at, updated_at)
+            VALUES (#{tenantId}, #{scope}, #{workspaceKey}, #{toolName}, #{effect},
+                #{approvalMode}, #{riskLevel}, #{timeoutMs}, #{configJson}, #{version},
+                #{createdAt}, #{updatedAt})
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(ToolPolicyPO po);
@@ -44,28 +47,31 @@ public interface ToolPolicyMapper {
                 config_json = #{configJson},
                 updated_at = #{updatedAt},
                 version = version + 1
-            WHERE id = #{id} AND version = #{version}
+            WHERE id = #{id} AND version = #{version} AND tenant_id = #{tenantId}
             """)
     int update(ToolPolicyPO po);
 
     /**
      * 查询工作区规则与用户全局规则。
      *
+     * @param tenantId 租户标识
      * @param workspaceKey 工作区键
      * @param globalKey 全局键
      * @return 规则列表
      */
     @Select("""
             SELECT * FROM pi_tool_policy
-            WHERE workspace_key = #{workspaceKey} OR workspace_key = #{globalKey}
+            WHERE tenant_id = #{tenantId}
+              AND (workspace_key = #{workspaceKey} OR workspace_key = #{globalKey})
             ORDER BY id ASC
             """)
-    List<ToolPolicyPO> findByWorkspace(@Param("workspaceKey") String workspaceKey,
-            @Param("globalKey") String globalKey);
+    List<ToolPolicyPO> findByWorkspace(@Param("tenantId") String tenantId,
+            @Param("workspaceKey") String workspaceKey, @Param("globalKey") String globalKey);
 
     /**
      * 按定位键查询规则。
      *
+     * @param tenantId 租户标识
      * @param scope 作用域
      * @param workspaceKey 工作区键
      * @param toolName 工具名
@@ -73,8 +79,9 @@ public interface ToolPolicyMapper {
      */
     @Select("""
             SELECT * FROM pi_tool_policy
-            WHERE scope = #{scope} AND workspace_key = #{workspaceKey} AND tool_name = #{toolName}
+            WHERE tenant_id = #{tenantId} AND scope = #{scope}
+              AND workspace_key = #{workspaceKey} AND tool_name = #{toolName}
             """)
-    ToolPolicyPO find(@Param("scope") String scope, @Param("workspaceKey") String workspaceKey,
-            @Param("toolName") String toolName);
+    ToolPolicyPO find(@Param("tenantId") String tenantId, @Param("scope") String scope,
+            @Param("workspaceKey") String workspaceKey, @Param("toolName") String toolName);
 }

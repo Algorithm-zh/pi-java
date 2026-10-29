@@ -63,7 +63,8 @@ class ApprovalGateServiceTest {
     @BeforeEach
     void setUp() {
         SessionEntryAppender appender = new SessionEntryAppender(sessions, entries, ids, clock);
-        service = new ApprovalApplicationService(approvals, appender, new ApprovalWaitRegistry(),
+        service = new ApprovalApplicationService(approvals, sessions, appender,
+                new ApprovalWaitRegistry(),
                 new ApprovalEventPublisher(new RunEventHub(clock)), ids, clock);
         gate = new ApprovalGateService(service, Duration.ofSeconds(5), clock);
     }

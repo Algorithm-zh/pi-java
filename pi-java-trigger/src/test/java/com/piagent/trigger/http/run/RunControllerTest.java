@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.application.agent.service.AgentLoopService;
 import com.piagent.application.agent.service.RunEventHub;
+import com.piagent.application.session.service.SessionApplicationService;
 import com.piagent.domain.agent.AgentRun;
 import com.piagent.domain.agent.RunBudget;
 import com.piagent.domain.agent.RunId;
@@ -44,6 +45,7 @@ class RunControllerTest {
     private AgentLoopService agentLoop;
     private RunEventHub hub;
     private RunStreamService streams;
+    private SessionApplicationService sessions;
     private MockMvc mvc;
 
     @BeforeEach
@@ -51,7 +53,8 @@ class RunControllerTest {
         agentLoop = mock(AgentLoopService.class);
         hub = mock(RunEventHub.class);
         streams = mock(RunStreamService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new RunController(agentLoop, hub, streams))
+        sessions = mock(SessionApplicationService.class);
+        mvc = MockMvcBuilders.standaloneSetup(new RunController(agentLoop, hub, streams, sessions))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -105,6 +108,7 @@ class RunControllerTest {
     @Test
     void opensEventStreamAfterCursor() throws Exception {
         when(hub.exists(RUN_ID)).thenReturn(true);
+        when(hub.sessionOf(RUN_ID)).thenReturn(Optional.of(SESSION_ID));
         when(streams.open(RUN_ID, 7)).thenReturn(new SseEmitter(0L));
 
         mvc.perform(get("/api/v1/runs/{runId}/events", RUN_ID)

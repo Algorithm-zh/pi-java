@@ -10,6 +10,7 @@ import java.time.Instant;
 public class SessionPO {
 
     private String id;
+    private String tenantId;
     private String parentSessionId;
     private String rootSessionId;
     private String forkFromEntryId;
@@ -32,6 +33,14 @@ public class SessionPO {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public String getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
     }
 
     public String getParentSessionId() {

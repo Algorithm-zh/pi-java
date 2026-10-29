@@ -9,6 +9,7 @@ import com.piagent.domain.governance.model.ApprovalStatus;
 import com.piagent.domain.governance.port.ApprovalRepository;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.payload.ApprovalPayload;
+import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.IdGenerator;
@@ -37,6 +38,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class ApprovalApplicationService {
 
     private final ApprovalRepository repository;
+    private final SessionRepository sessions;
     private final SessionEntryAppender appender;
     private final ApprovalWaitRegistry waits;
     private final ApprovalEventPublisher events;
@@ -47,16 +49,19 @@ public class ApprovalApplicationService {
      * 创建审批应用服务。
      *
      * @param repository 审批仓储
+     * @param sessions 会话仓储，用于校验审批所属会话在当前租户内
      * @param appender 会话 entry 追加器
      * @param waits 等待注册表
      * @param events SSE 事件发布器
      * @param idGenerator 标识生成器
      * @param clock 时钟
      */
-    public ApprovalApplicationService(ApprovalRepository repository,
+    @SuppressWarnings("checkstyle:ParameterNumber")
+    public ApprovalApplicationService(ApprovalRepository repository, SessionRepository sessions,
             SessionEntryAppender appender, ApprovalWaitRegistry waits,
             ApprovalEventPublisher events, IdGenerator idGenerator, Clock clock) {
         this.repository = repository;
+        this.sessions = sessions;
         this.appender = appender;
         this.waits = waits;
         this.events = events;
@@ -171,6 +176,10 @@ public class ApprovalApplicationService {
      */
     public List<ApprovalRequest> findBySession(SessionId sessionId, ApprovalStatus status) {
         Objects.requireNonNull(sessionId, "sessionId 不能为空");
+        if (sessions.findById(sessionId).isEmpty()) {
+            throw new DomainException(DomainErrorCode.SESSION_NOT_FOUND,
+                    "会话不存在: " + sessionId);
+        }
         return repository.findBySession(sessionId, status);
     }
 
@@ -197,8 +206,16 @@ public class ApprovalApplicationService {
     }
 
     private ApprovalRequest require(ApprovalId id) {
-        return repository.findById(id).orElseThrow(() -> new DomainException(
-                DomainErrorCode.APPROVAL_NOT_FOUND, "审批不存在: " + id));
+        ApprovalRequest request = repository.findById(id)
+                .orElseThrow(() -> notFound(id));
+        if (sessions.findById(request.sessionId()).isEmpty()) {
+            throw notFound(id);
+        }
+        return request;
+    }
+
+    private DomainException notFound(ApprovalId id) {
+        return new DomainException(DomainErrorCode.APPROVAL_NOT_FOUND, "审批不存在: " + id);
     }
 
     private DomainException invalidState(ApprovalRequest request) {

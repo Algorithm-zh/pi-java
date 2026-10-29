@@ -1,5 +1,6 @@
 package com.piagent.infrastructure.plugin;
 
+import com.piagent.application.identity.AuthContext;
 import com.piagent.domain.extension.model.PluginId;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
@@ -49,7 +50,7 @@ final class PluginToolExecutor {
         }
         Future<ToolResult> future;
         try {
-            future = executor.submit(() -> adapter.invoke(invocation));
+            future = executor.submit(AuthContext.wrap(() -> adapter.invoke(invocation)));
         } catch (RejectedExecutionException error) {
             return ToolResult.error(invocation.callId(), invocation.tool(), "工具执行器已关闭");
         }

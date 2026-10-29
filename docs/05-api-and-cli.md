@@ -3,7 +3,8 @@
 > 状态：M9 已实现会话/运行 REST、SSE、模型与工具查询、审批与策略、插件管理、
 > Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
 > 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）；
-> M13 已实现工作区改动查询与撤销；M14 已实现计划查询、`todo` 工具与自动验证事件。
+> M13 已实现工作区改动查询与撤销；M14 已实现计划查询、`todo` 工具与自动验证事件；
+> M19 已实现本地账号、令牌鉴权与租户隔离（第 9 节 Web UI 含登录流程）。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -14,7 +15,8 @@
 - ID：ULID 字符串，26 位；不暴露自增主键（策略表除外）；
 - 字段命名：camelCase；未知字段忽略；DTO 不含领域对象；
 - 分页：M4 只有 `limit`，没有 cursor；会话列表默认 50 条；
-- 鉴权：v0.1 **无鉴权**，默认只监听 `127.0.0.1`，禁止直接暴露公网；
+- 鉴权：M19 起除 `/api/v1/auth/state|setup|login|logout` 外，所有 `/api/**`
+  请求必须携带 `Authorization: Bearer <token>` 或 `pi_session` Cookie；
 - 幂等：`POST /sessions/{id}/abort` 对没有活跃 run 的会话返回 404，不重复写 entry；
 - 请求 ID 与日志关联字段尚未实现，M9 打磨阶段补充。
 
@@ -31,15 +33,51 @@
 
 | HTTP | 实际 code | 场景 |
 |---|---|---|
-| 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON |
-| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` | 资源不存在 |
-| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` | 状态或并发冲突 |
+| 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON、密码长度不符 |
+| 401 | `AUTH_REQUIRED` / `AUTH_INVALID_CREDENTIALS` | 缺少或无效令牌；账号密码不正确 |
+| 403 | `AUTH_FORBIDDEN` | 非管理员访问租户/账号管理 |
+| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` / `APPROVAL_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` / `TENANT_NOT_FOUND` / `USER_NOT_FOUND` | 资源不存在或不属于当前租户 |
+| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` / `APPROVAL_INVALID_STATE` / `AUTH_ALREADY_INITIALIZED` / `TENANT_ALREADY_EXISTS` / `USER_ALREADY_EXISTS` | 状态或并发冲突 |
 | 422 | `PLUGIN_INCOMPATIBLE` / `PLUGIN_LOAD_FAILED` | 插件 jar/API 不兼容或加载失败 |
-| 429 | `AGENT_BUSY` | 全局并发 run 已满 |
+| 429 | `AGENT_BUSY` / `AUTH_LOGIN_LOCKED` | 全局并发 run 已满；登录失败次数过多 |
 | 500 | 框架默认错误体 | 未映射异常；不伪装成领域错误 |
 
 工具被策略拒绝、工具执行失败不产生 HTTP 错误，而是 `isError=true` 的 toolResult
 与 `tool.completed` 事件，由模型自行处理。
+
+### 1.2 鉴权、账号与租户（M19）
+
+首次启动后必须先初始化管理员，之后所有业务接口携带令牌访问：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/auth/state` | 是否已初始化、当前是否已登录、当前账号（公开） |
+| POST | `/api/v1/auth/setup` | 创建默认租户的首个管理员并直接登录（公开，仅一次） |
+| POST | `/api/v1/auth/login` | `{tenantSlug, username, password}` 登录；`tenantSlug` 为空表示默认空间 |
+| POST | `/api/v1/auth/logout` | 吊销当前令牌并清除 Cookie |
+| GET | `/api/v1/auth/me` | 当前账号、角色与租户 |
+| GET | `/api/v1/tenants` | 全部租户（管理员） |
+| POST | `/api/v1/tenants` | `{slug, name, username, displayName, password}` 建租户及其管理员 |
+| GET | `/api/v1/users` | 当前租户账号（管理员） |
+| POST | `/api/v1/users` | 在当前租户内建账号（管理员），`role` 为 `ADMIN` 或 `MEMBER` |
+
+登录与初始化响应同时返回 `token` 并下发 `pi_session` Cookie（HttpOnly、
+SameSite=Strict、7 天）。浏览器忽略 `token` 字段；脚本使用
+`Authorization: Bearer <token>`，两种载体等价。认证失败统一返回
+`AUTH_INVALID_CREDENTIALS`，不区分租户/账号是否存在；连续 5 次失败后
+返回 429 `AUTH_LOGIN_LOCKED`。
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"your-password"}'
+
+curl -s http://127.0.0.1:8080/api/v1/sessions \
+  -H 'Authorization: Bearer <token>'
+```
+
+隔离规则：会话、审批、运行、工具策略与附件按当前租户过滤；跨租户的资源 id
+一律表现为 404 或空列表。模型档案、插件、MCP 服务与技能目录仍是全局资源。
 
 ## 2. 会话 API
 
@@ -927,7 +965,9 @@ pi serve --port 8080 --profile demo
 ```
 
 `--port` 映射为 `--server.port`，`--profile` 映射为 `--spring.profiles.active`，
-其余参数原样交给 Spring Boot。默认绑定 `127.0.0.1`，不提供认证。
+其余参数原样交给 Spring Boot。默认绑定 `127.0.0.1`；M19 起首次启动需在浏览器
+完成管理员初始化，之后 API 请求必须携带令牌。CLI 自身的 `run`/`chat` 不经过
+HTTP，固定使用默认租户。
 
 ### 8.6 未提供命令
 
@@ -955,6 +995,10 @@ v0.2 再评估是否加入。
 
 交互覆盖：
 
+0. 首次打开显示初始化卡片，创建管理员后直接进入主界面；之后每次启动先请求
+   `/api/v1/auth/state`，未登录显示登录卡（账号、租户短名可选、密码），
+   令牌过期或接口返回 401 时自动回到登录卡；设置中心的“账号与空间”展示当前
+   账号、角色、租户与登出入口；
 1. 新建会话（标题、工作目录、模型档案、思考级别）→ 发送消息 → 流式增量 → 完成；
 2. 工具卡片展示参数、输出与错误态；写工具触发审批弹窗，展示风险级别、工具名、
    脱敏参数、SHA-256 摘要与倒计时；批准/拒绝后写审批历史条目，多个待办串行展示，
@@ -973,7 +1017,8 @@ v0.2 再评估是否加入。
 8. 历史条目已渲染压缩摘要、分支摘要、审批决策与模型切换，不只是普通消息；
 9. 进程重启后自动取消遗留审批、闭合悬空工具调用并复位运行态，卡住的会话
    可以直接继续对话（见 2.8.1）；
-10. 设置中心包含五个标签页：
+10. 设置中心包含六个标签页：
+   - **账号与空间**：当前账号、角色、租户短名/名称、登出；
    - **模型与密钥**：卡片式档案列表、密钥环境变量状态、行内新建/编辑/启停；
    - **技能**：扫描 `~/.pi-java/skills`，按需查看 `SKILL.md` 正文；
    - **插件**：按本地 jar 路径安装、启用/停用、展示最近错误；

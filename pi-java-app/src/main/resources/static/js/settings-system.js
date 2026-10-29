@@ -23,7 +23,7 @@ export async function render(container) {
     ]);
     container.replaceChildren();
     container.append(sectionHeader("运行环境",
-        "当前是本机演示形态：只监听回环地址，不提供登录与多用户隔离。", []));
+        "登录使用 HttpOnly Cookie；会话、工具策略与附件按空间隔离。", []));
     container.append(definitionList([
         ["应用版本", info.version],
         ["操作系统", info.osName],
@@ -82,7 +82,8 @@ function securityNotes() {
     box.append(el("strong", "", "安全边界"));
     const list = el("ul", "settings-note-list");
     for (const note of [
-        "服务默认绑定 127.0.0.1。若改成 0.0.0.0，请自行在反向代理层加认证。",
+        "服务默认绑定 127.0.0.1；对外暴露时请放在 HTTPS 反向代理之后，Cookie 才会带 Secure 标记。",
+        "所有 /api 接口都要求登录；会话、工具策略、附件与审批按空间隔离。",
         "模型密钥只从环境变量读取；数据库只保存变量名，接口只返回是否已配置。",
         "文件工具被限制在会话工作目录内，越界路径会直接失败。",
         "写文件、编辑与命令执行默认进入审批，除非工具策略显式改为 ALLOW。",

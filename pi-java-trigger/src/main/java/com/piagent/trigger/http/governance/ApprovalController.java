@@ -1,6 +1,7 @@
 package com.piagent.trigger.http.governance;
 
 import com.piagent.application.governance.service.ApprovalApplicationService;
+import com.piagent.application.identity.AuthContext;
 import com.piagent.domain.governance.model.ApprovalId;
 import com.piagent.domain.governance.model.ApprovalRequest;
 import com.piagent.domain.governance.model.ApprovalStatus;
@@ -23,14 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
  * 决策接口返回终态审批，SSE 仍会另行广播 {@code approval.resolved}，
  * 两条通道都以数据库状态为准。</p>
  *
- * <p>v0.1 没有登录体系，决策者固定为 {@value #LOCAL_DECIDER}，客户端
- * 不能指定，避免界面伪造审计身份。</p>
+ * <p>决策者取当前登录账号，客户端不能指定，避免界面伪造审计身份。</p>
  */
 @RestController
 @RequestMapping("/api/v1/approvals")
 public class ApprovalController {
-
-    private static final String LOCAL_DECIDER = "local-user";
 
     private final ApprovalApplicationService service;
 
@@ -86,7 +84,7 @@ public class ApprovalController {
     public ApprovalResponse decide(@PathVariable String id,
             @RequestBody DecideApprovalRequest request) {
         ApprovalRequest resolved = service.decide(ApprovalId.parse(id),
-                request.toDecision(), LOCAL_DECIDER, request.reason());
+                request.toDecision(), AuthContext.requirePrincipal().username(), request.reason());
         return ApprovalResponse.from(resolved);
     }
 }

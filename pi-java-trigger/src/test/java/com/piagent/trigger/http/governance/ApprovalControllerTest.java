@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.application.governance.service.ApprovalApplicationService;
+import com.piagent.application.identity.AuthContext;
+import com.piagent.application.identity.AuthPrincipal;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.governance.model.ApprovalArguments;
 import com.piagent.domain.governance.model.ApprovalContext;
@@ -19,6 +21,9 @@ import com.piagent.domain.governance.model.ApprovalDecision;
 import com.piagent.domain.governance.model.ApprovalId;
 import com.piagent.domain.governance.model.ApprovalRequest;
 import com.piagent.domain.governance.model.ApprovalStatus;
+import com.piagent.domain.identity.model.TenantId;
+import com.piagent.domain.identity.model.UserId;
+import com.piagent.domain.identity.model.UserRole;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
@@ -32,6 +37,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -42,13 +48,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 /**
  * 审批 HTTP 控制器测试。
  *
- * <p>覆盖列表过滤、脱敏参数、决策者固定、非法枚举与 404/409 映射；
+ * <p>覆盖列表过滤、脱敏参数、决策者取自登录账号、非法枚举与 404/409 映射；
  * 审批状态机本身由领域测试与集成测试覆盖。</p>
  */
 class ApprovalControllerTest {
 
     private static final Instant NOW = Instant.parse("2026-10-22T08:00:00Z");
     private static final Duration TTL = Duration.ofMinutes(30);
+    private static final AuthPrincipal PRINCIPAL = new AuthPrincipal(
+            TenantId.DEFAULT, new UserId(Ulid.generate(NOW)), "alice", "Alice", UserRole.MEMBER);
 
     private final ObjectMapper json = new ObjectMapper();
     private ApprovalApplicationService service;
@@ -64,6 +72,12 @@ class ApprovalControllerTest {
                 .build();
         sessionId = new SessionId(Ulid.generate(NOW));
         pending = pending();
+        AuthContext.bind(PRINCIPAL);
+    }
+
+    @AfterEach
+    void tearDown() {
+        AuthContext.clear();
     }
 
     @Test
@@ -113,9 +127,9 @@ class ApprovalControllerTest {
     }
 
     @Test
-    void decidesPendingApprovalAsLocalUser() throws Exception {
-        ApprovalRequest approved = pending.approve("local-user", "ok", NOW.plusSeconds(12));
-        when(service.decide(pending.id(), ApprovalDecision.APPROVE, "local-user", "ok"))
+    void decidesPendingApprovalAsCurrentUser() throws Exception {
+        ApprovalRequest approved = pending.approve("alice", "ok", NOW.plusSeconds(12));
+        when(service.decide(pending.id(), ApprovalDecision.APPROVE, "alice", "ok"))
                 .thenReturn(approved);
 
         MvcResult result = mvc.perform(post("/api/v1/approvals/{id}/decision", pending.id())
@@ -126,8 +140,8 @@ class ApprovalControllerTest {
 
         JsonNode body = json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
         assertThat(body.path("status").asText()).isEqualTo("APPROVED");
-        assertThat(body.path("decidedBy").asText()).isEqualTo("local-user");
-        verify(service).decide(pending.id(), ApprovalDecision.APPROVE, "local-user", "ok");
+        assertThat(body.path("decidedBy").asText()).isEqualTo("alice");
+        verify(service).decide(pending.id(), ApprovalDecision.APPROVE, "alice", "ok");
     }
 
     @Test
@@ -142,7 +156,7 @@ class ApprovalControllerTest {
 
     @Test
     void mapsTerminalDecisionToConflict() throws Exception {
-        when(service.decide(pending.id(), ApprovalDecision.DENY, "local-user", null))
+        when(service.decide(pending.id(), ApprovalDecision.DENY, "alice", null))
                 .thenThrow(new DomainException(DomainErrorCode.APPROVAL_INVALID_STATE,
                         "审批已是终态"));
 

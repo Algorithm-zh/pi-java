@@ -1,5 +1,6 @@
 package com.piagent.application.agent.service;
 
+import com.piagent.application.identity.AuthContext;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.governance.model.ApprovalContext;
 import com.piagent.domain.governance.model.ApprovalRequest;
@@ -159,7 +160,8 @@ public class ToolCallCoordinator {
             } else if (cancelled.getAsBoolean()) {
                 futures.add(CompletableFuture.completedFuture(cancelled(call.call())));
             } else {
-                futures.add(executor.submit(() -> invoke(call, sandbox, session)));
+                futures.add(executor.submit(
+                        AuthContext.wrap(() -> invoke(call, sandbox, session))));
                 executed++;
             }
         }
