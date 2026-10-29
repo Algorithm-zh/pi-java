@@ -164,6 +164,11 @@ $Jar = "pi-java-app\target\pi-java-app-0.2.0.jar"
 | `-Port` | `8080` | 监听端口；被占用时会提示 |
 | `-SkipModel` | 关闭 | 跳过模型档案创建/检查 |
 | `-Profile` | `deepseek` | 模型档案 ID |
+| `$env:PI_AUTH_TOKEN` | 无 | 可选；脚本检查/创建模型档案所需的登录令牌 |
+
+> M19 起所有接口都需要登录，脚本自身没有账号密码：只有设置了 `PI_AUTH_TOKEN`
+> 才会检查/创建模型档案，否则只提示、不影响启动。最省事的方式是登录后在
+> “设置 → 模型与密钥”里创建一次，档案保存在数据库里，之后每次启动都有效。
 
 ## 四、换成其它模型服务
 
@@ -175,6 +180,9 @@ $ModelBaseUrl  = "https://api.deepseek.com/v1"
 $ModelName     = "deepseek-chat"
 $ContextWindow = 64000
 ```
+
+改完后在浏览器登录，到“设置 → 模型与密钥”创建同名档案即可（脚本只在设置了
+`$env:PI_AUTH_TOKEN` 时才代劳）。
 
 常见的 OpenAI-compatible 服务：
 

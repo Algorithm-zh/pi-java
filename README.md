@@ -56,7 +56,8 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 
 ## 快速体验
 
-推荐用脚本启动（自动探测 JDK 21、检查 Key、注册模型档案）：
+推荐用脚本启动（自动探测 JDK 21、检查 Key；模型档案在登录后于设置中心创建，
+或设置 `PI_AUTH_TOKEN` 时由脚本代劳）：
 
 ```powershell
 $env:PI_DEEPSEEK_KEY = "sk-你的key"   # 可选；不设则只能用 Fake 离线模型
