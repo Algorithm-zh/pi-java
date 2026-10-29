@@ -3,6 +3,8 @@
  *
  * 所有登录用户都能看到自己的身份；租户与账号管理只对管理员展示，
  * 非管理员不会发出管理接口请求，避免设置页出现必然 403 的入口。
+ * 空间删除是软删除：需要输入空间短名确认，删除后进入“已删除”列表，
+ * 可以随时恢复，空间内的数据不会丢失。
  */
 
 import * as api from "./api.js";
@@ -54,20 +56,137 @@ function tenantSection(container, user, tenants) {
     const section = el("section", "settings-storage");
     section.append(sectionHeader("空间",
         "每个空间拥有独立的会话、工具策略与附件；模型、插件和技能由整个进程共享。", []));
+    const active = tenants.filter((tenant) => !tenant.deletedAt);
+    const archived = tenants.filter((tenant) => tenant.deletedAt);
     const list = el("div", "account-list");
-    for (const tenant of tenants) {
-        const row = el("div", "account-row");
-        const copy = el("div", "account-row-copy");
-        copy.append(el("strong", "", tenant.name));
-        copy.append(el("small", "", `${tenant.slug} · ${tenant.id}`));
-        row.append(copy);
-        const current = tenant.id === user?.tenantId;
-        row.append(pill(current ? "当前空间" : "空间", current ? "ok" : "muted"));
-        list.append(row);
+    for (const tenant of active) {
+        list.append(tenantRow(container, list, user, tenant));
     }
     section.append(list);
     section.append(tenantForm(container));
+    if (archived.length) {
+        section.append(archivedBlock(container, archived));
+    }
     return section;
+}
+
+function tenantRow(container, list, user, tenant) {
+    const row = el("div", "account-row");
+    const copy = el("div", "account-row-copy");
+    copy.append(el("strong", "", tenant.name));
+    copy.append(el("small", "", `${tenant.slug} · ${tenant.id}`));
+    row.append(copy);
+    const actions = el("div", "account-actions");
+    const isDefault = tenant.slug === "default";
+    const current = tenant.id === user?.tenantId;
+    if (isDefault) {
+        actions.append(pill("默认空间", "muted"));
+    }
+    if (current) {
+        actions.append(pill("当前空间", "ok"));
+    }
+    if (!isDefault && !current) {
+        actions.append(deleteButton(container, list, row, tenant));
+    }
+    row.append(actions);
+    return row;
+}
+
+function deleteButton(container, list, row, tenant) {
+    const button = actionButton("删除", () => {
+        button.disabled = true;
+        const panel = confirmPanel(container, row, tenant, button);
+        row.after(panel);
+        panel.querySelector("input").focus();
+    }, "danger");
+    button.classList.add("is-mini");
+    return button;
+}
+
+function confirmPanel(container, row, tenant, trigger) {
+    const panel = el("div", "account-confirm");
+    const copy = el("div", "account-confirm-copy");
+    copy.append(el("strong", "", `删除空间「${tenant.name}」？`));
+    copy.append(el("small", "",
+        "空间会从列表和登录页消失，成员无法再登录；会话与文件会保留，可随时恢复。"));
+    const input = textInput("", `输入 ${tenant.slug} 确认`);
+    const actions = el("div", "account-confirm-actions");
+    const cancel = actionButton("取消", () => {
+        panel.remove();
+        trigger.disabled = false;
+    }, "ghost");
+    const confirm = actionButton("确认删除", () => archive(container, tenant, input, confirm), "danger");
+    confirm.disabled = true;
+    input.addEventListener("input", () => {
+        input.classList.remove("is-invalid");
+        confirm.disabled = input.value.trim() !== tenant.slug;
+    });
+    actions.append(cancel, confirm);
+    panel.append(copy, input, actions);
+    return panel;
+}
+
+async function archive(container, tenant, input, button) {
+    if (input.value.trim() !== tenant.slug) {
+        input.classList.add("is-invalid");
+        input.focus();
+        return;
+    }
+    button.disabled = true;
+    try {
+        await api.deleteTenant(tenant.id);
+        toast(`已删除空间「${tenant.name}」，可在下方恢复`);
+        await render(container);
+    } catch (failure) {
+        button.disabled = false;
+        toast(failure.message || "删除空间失败", true);
+    }
+}
+
+function archivedBlock(container, archived) {
+    const block = el("div", "account-archive");
+    block.append(el("p", "settings-form-title", "已删除的空间"));
+    block.append(el("p", "settings-hint",
+        "这些空间的成员暂时无法登录，数据仍然保留。恢复后成员可以正常登录。"));
+    const list = el("div", "account-list");
+    for (const tenant of archived) {
+        list.append(archivedRow(container, tenant));
+    }
+    block.append(list);
+    return block;
+}
+
+function archivedRow(container, tenant) {
+    const row = el("div", "account-row account-row-archived");
+    const copy = el("div", "account-row-copy");
+    copy.append(el("strong", "", tenant.name));
+    copy.append(el("small", "", `${tenant.slug} · 删除于 ${formatDate(tenant.deletedAt)}`));
+    row.append(copy);
+    const actions = el("div", "account-actions");
+    actions.append(pill("已删除", "danger"));
+    const restoreButton = actionButton("恢复", () => restore(container, tenant), "primary");
+    restoreButton.classList.add("is-mini");
+    actions.append(restoreButton);
+    row.append(actions);
+    return row;
+}
+
+async function restore(container, tenant) {
+    try {
+        await api.restoreTenant(tenant.id);
+        toast(`已恢复空间「${tenant.name}」`);
+        await render(container);
+    } catch (failure) {
+        toast(failure.message || "恢复空间失败", true);
+    }
+}
+
+function formatDate(value) {
+    if (!value) {
+        return "—";
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("zh-CN");
 }
 
 function tenantForm(container) {

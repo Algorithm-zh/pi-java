@@ -2,6 +2,7 @@ package com.piagent.domain.identity.port;
 
 import com.piagent.domain.identity.model.AuthToken;
 import com.piagent.domain.identity.model.AuthTokenId;
+import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserId;
 import java.time.Instant;
 import java.util.Optional;
@@ -51,6 +52,15 @@ public interface AuthTokenRepository {
      * @return 影响行数
      */
     int revokeAllForUser(UserId userId, Instant now);
+
+    /**
+     * 吊销租户内全部账号的令牌，用于空间归档后立即断开该空间的登录。
+     *
+     * @param tenantId 租户
+     * @param now 吊销时间
+     * @return 影响行数
+     */
+    int revokeAllForTenant(TenantId tenantId, Instant now);
 
     /**
      * 删除过期令牌记录。

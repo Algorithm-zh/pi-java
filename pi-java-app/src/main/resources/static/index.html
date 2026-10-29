@@ -41,14 +41,9 @@
         <section id="auth-login" class="auth-panel hidden">
             <header>
                 <h1>欢迎回来</h1>
-                <p id="auth-login-lead">登录后继续你的会话。</p>
+                <p id="auth-login-lead">输入账号和密码，自动进入你的空间。</p>
             </header>
             <form id="auth-login-form">
-                <label class="auth-field">
-                    <span>空间 <em>默认空间留空即可</em></span>
-                    <input id="login-tenant" type="text" name="tenant" autocomplete="organization"
-                           placeholder="default" maxlength="32">
-                </label>
                 <label class="auth-field">
                     <span>账号</span>
                     <input id="login-username" type="text" name="username"
@@ -59,9 +54,57 @@
                     <input id="login-password" type="password" name="password"
                            autocomplete="current-password" required>
                 </label>
+                <div id="login-tenant-picker" class="auth-picker hidden">
+                    <p class="auth-picker-lead">这个账号同时属于多个空间，选择一个进入：</p>
+                    <div id="login-tenant-choices" class="auth-choices"></div>
+                    <label class="auth-field auth-field-compact">
+                        <span>也可以直接填写空间短名</span>
+                        <input id="login-tenant" type="text" name="tenant"
+                               autocomplete="organization" placeholder="例如 team-b"
+                               maxlength="32">
+                    </label>
+                </div>
                 <p id="login-error" class="auth-error hidden"></p>
                 <button id="login-submit" class="primary-button auth-submit" type="submit">登录</button>
             </form>
+            <p id="auth-register-entry" class="auth-switch">还没有账号？
+                <button id="show-register" class="auth-link" type="button">创建一个</button>
+            </p>
+        </section>
+        <section id="auth-register" class="auth-panel hidden">
+            <header>
+                <h1>创建账号</h1>
+                <p>新账号加入默认空间，登录后即可开始对话。</p>
+            </header>
+            <form id="auth-register-form">
+                <label class="auth-field">
+                    <span>账号</span>
+                    <input id="register-username" type="text" name="username"
+                           autocomplete="username" required>
+                </label>
+                <label class="auth-field">
+                    <span>显示名 <em>可选</em></span>
+                    <input id="register-display" type="text" name="displayName"
+                           autocomplete="nickname" maxlength="64">
+                </label>
+                <label class="auth-field">
+                    <span>密码 <em>至少 8 位</em></span>
+                    <input id="register-password" type="password" name="password"
+                           autocomplete="new-password" minlength="8" required>
+                </label>
+                <label class="auth-field">
+                    <span>确认密码</span>
+                    <input id="register-confirm" type="password" name="confirm"
+                           autocomplete="new-password" minlength="8" required>
+                </label>
+                <p id="register-error" class="auth-error hidden"></p>
+                <button id="register-submit" class="primary-button auth-submit" type="submit">
+                    创建并进入
+                </button>
+            </form>
+            <p class="auth-switch">已经有账号？
+                <button id="show-login" class="auth-link" type="button">返回登录</button>
+            </p>
         </section>
         <section id="auth-setup" class="auth-panel hidden">
             <header>

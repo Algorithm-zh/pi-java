@@ -3,11 +3,13 @@ package com.piagent.application.identity.service;
 import com.piagent.application.identity.AuthContext;
 import com.piagent.application.identity.AuthPrincipal;
 import com.piagent.application.identity.command.LoginCommand;
+import com.piagent.application.identity.command.RegisterCommand;
 import com.piagent.application.identity.command.SetupCommand;
 import com.piagent.application.identity.port.PasswordHasher;
 import com.piagent.application.identity.port.TokenCodec;
 import com.piagent.application.identity.readmodel.AuthSessionView;
 import com.piagent.application.identity.readmodel.AuthUserView;
+import com.piagent.application.identity.readmodel.TenantChoice;
 import com.piagent.domain.identity.model.AppUser;
 import com.piagent.domain.identity.model.AuthToken;
 import com.piagent.domain.identity.model.AuthTokenId;
@@ -24,6 +26,7 @@ import com.piagent.domain.shared.IdGenerator;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,6 +58,8 @@ public class AuthApplicationService {
     private final Duration tokenTtl;
     private final LoginThrottle throttle = new LoginThrottle();
     private final UserProvisioner provisioner;
+    private final AccountLocator accounts;
+    private final boolean registrationEnabled;
     private final String dummyHash;
 
     /**
@@ -68,12 +73,14 @@ public class AuthApplicationService {
      * @param idGenerator 标识生成器
      * @param clock 时钟
      * @param tokenTtl 令牌有效期
+     * @param registrationEnabled 是否开放自助注册
      */
     @SuppressWarnings("checkstyle:ParameterNumber")
     public AuthApplicationService(TenantRepository tenants, UserRepository users,
             AuthTokenRepository tokens, PasswordHasher passwords, TokenCodec tokenCodec,
             IdGenerator idGenerator, Clock clock,
-            @Value("${pi.auth.token-ttl:7d}") Duration tokenTtl) {
+            @Value("${pi.auth.token-ttl:7d}") Duration tokenTtl,
+            @Value("${pi.auth.registration-enabled:true}") boolean registrationEnabled) {
         this.tenants = tenants;
         this.users = users;
         this.tokens = tokens;
@@ -85,6 +92,8 @@ public class AuthApplicationService {
                 DomainErrorCode.INVALID_ARGUMENT, "令牌有效期必须大于 0");
         this.tokenTtl = tokenTtl;
         this.provisioner = new UserProvisioner(users, passwords, idGenerator, clock);
+        this.accounts = new AccountLocator(tenants, users);
+        this.registrationEnabled = registrationEnabled;
         this.dummyHash = passwords.hash("pi-java-timing-equalizer");
     }
 
@@ -120,30 +129,67 @@ public class AuthApplicationService {
     /**
      * 登录并签发令牌。
      *
+     * <p>不填空间时按登录名跨空间自动定位；同一账号在多个空间中用同一密码
+     * 都能匹配时，抛出 {@link TenantSelectionRequiredException} 让前端点选。</p>
+     *
      * @param command 登录命令
      * @return 登录会话
      */
     @Transactional
     public AuthSessionView login(LoginCommand command) {
         String username = AppUser.normalizeUsername(command.username());
-        String slug = slugOf(command.tenantSlug());
-        String key = slug + "|" + username;
+        String slug = explicitSlug(command.tenantSlug());
+        String key = (slug == null ? "*" : slug) + "|" + username;
         Instant now = clock.instant();
         if (throttle.isLocked(key, now)) {
             throw new DomainException(DomainErrorCode.AUTH_LOGIN_LOCKED,
                     "登录失败次数过多，请稍后再试");
         }
-        Tenant tenant = tenants.findBySlug(slug).orElse(null);
-        AppUser user = tenant == null ? null
-                : users.findByUsername(tenant.id(), username).orElse(null);
-        String hash = user == null ? dummyHash : user.passwordHash();
-        boolean matched = passwords.matches(command.password(), hash);
-        if (user == null || !user.isActive() || !matched) {
+        List<AccountLocator.Candidate> candidates = accounts.candidates(username, slug);
+        List<AccountLocator.Candidate> matched = candidates.stream()
+                .filter(candidate -> candidate.user().isActive()
+                        && passwords.matches(command.password(), candidate.user().passwordHash()))
+                .toList();
+        if (matched.isEmpty()) {
+            if (candidates.isEmpty()) {
+                // 账号不存在时也做一次哈希校验，让耗时与密码错误一致。
+                passwords.matches(command.password(), dummyHash);
+            }
             throttle.recordFailure(key, now);
             throw new DomainException(DomainErrorCode.AUTH_INVALID_CREDENTIALS,
                     "用户名或密码不正确");
         }
+        if (matched.size() > 1) {
+            throw new TenantSelectionRequiredException(matched.stream()
+                    .map(candidate -> new TenantChoice(candidate.tenant().slug(),
+                            candidate.tenant().name()))
+                    .toList());
+        }
+        AccountLocator.Candidate hit = matched.get(0);
         throttle.reset(key);
+        return issue(hit.tenant(), hit.user());
+    }
+
+    /**
+     * 自助注册：在默认空间创建成员账号并直接登录。
+     *
+     * @param command 注册命令
+     * @return 登录会话
+     */
+    @Transactional
+    public AuthSessionView register(RegisterCommand command) {
+        if (!registrationEnabled) {
+            throw new DomainException(DomainErrorCode.AUTH_REGISTRATION_DISABLED,
+                    "当前未开放自助注册，请联系管理员开通账号");
+        }
+        if (users.count() == 0) {
+            throw new DomainException(DomainErrorCode.AUTH_SETUP_REQUIRED,
+                    "服务尚未初始化，请先创建管理员");
+        }
+        UserProvisioner.requirePassword(command.password());
+        Tenant tenant = tenants.findById(TenantId.DEFAULT).orElseGet(this::createDefaultTenant);
+        AppUser user = provisioner.create(tenant.id(), command.username(), command.displayName(),
+                command.password(), UserRole.MEMBER);
         return issue(tenant, user);
     }
 
@@ -220,9 +266,9 @@ public class AuthApplicationService {
         }
     }
 
-    private String slugOf(String tenantSlug) {
+    private String explicitSlug(String tenantSlug) {
         return tenantSlug == null || tenantSlug.isBlank()
-                ? Tenant.DEFAULT_SLUG
+                ? null
                 : tenantSlug.strip().toLowerCase(Locale.ROOT);
     }
 

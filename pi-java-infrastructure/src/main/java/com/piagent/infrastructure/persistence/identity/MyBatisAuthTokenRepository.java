@@ -2,6 +2,7 @@ package com.piagent.infrastructure.persistence.identity;
 
 import com.piagent.domain.identity.model.AuthToken;
 import com.piagent.domain.identity.model.AuthTokenId;
+import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserId;
 import com.piagent.domain.identity.port.AuthTokenRepository;
 import java.time.Instant;
@@ -52,6 +53,11 @@ public class MyBatisAuthTokenRepository implements AuthTokenRepository {
     @Override
     public int revokeAllForUser(UserId userId, Instant now) {
         return mapper.revokeAllForUser(userId.toString(), now);
+    }
+
+    @Override
+    public int revokeAllForTenant(TenantId tenantId, Instant now) {
+        return mapper.revokeAllForTenant(tenantId.toString(), now);
     }
 
     @Override

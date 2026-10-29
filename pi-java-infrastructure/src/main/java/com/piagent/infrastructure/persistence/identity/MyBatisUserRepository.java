@@ -42,6 +42,17 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
+    public List<AppUser> findActiveByUsername(String username) {
+        String normalized = AppUser.normalizeUsername(username);
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+        return mapper.findActiveByUsername(normalized).stream()
+                .map(converter::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<AppUser> findByTenant(TenantId tenantId) {
         return mapper.findByTenant(tenantId.toString()).stream()
                 .map(converter::toDomain)

@@ -11,6 +11,7 @@ public class TenantPO {
     private String slug;
     private String name;
     private Instant createdAt;
+    private Instant deletedAt;
 
     public String getId() {
         return id;
@@ -42,5 +43,13 @@ public class TenantPO {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(Instant deletedAt) {
+        this.deletedAt = deletedAt;
     }
 }

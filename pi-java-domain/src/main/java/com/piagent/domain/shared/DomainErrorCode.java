@@ -152,11 +152,20 @@ public enum DomainErrorCode {
     /** 登录失败次数过多，暂时锁定。 */
     AUTH_LOGIN_LOCKED,
 
+    /** 同一账号存在于多个空间，需要用户指定空间后再登录。 */
+    AUTH_TENANT_REQUIRED,
+
+    /** 自助注册已关闭。 */
+    AUTH_REGISTRATION_DISABLED,
+
     /** 租户不存在。 */
     TENANT_NOT_FOUND,
 
     /** 租户短名已被占用。 */
     TENANT_ALREADY_EXISTS,
+
+    /** 租户受保护，不能归档（默认空间与当前所在空间）。 */
+    TENANT_PROTECTED,
 
     /** 账号不存在。 */
     USER_NOT_FOUND,

@@ -936,3 +936,86 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.account-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+}
+
+.account-archive {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line-strong);
+}
+
+.account-archive .settings-form-title {
+    margin-bottom: 2px;
+}
+
+.account-row-archived {
+    border-style: dashed;
+    background: transparent;
+}
+
+.account-row-archived .account-row-copy strong {
+    color: var(--muted);
+}
+
+.account-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-left: 22px;
+    padding: 12px 14px;
+    border: 1px solid var(--danger);
+    border-left-width: 3px;
+    border-radius: 12px;
+    background: var(--danger-soft);
+}
+
+.account-confirm-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.account-confirm-copy strong {
+    color: var(--danger);
+    font-size: 12.5px;
+}
+
+.account-confirm-copy small {
+    color: var(--muted);
+    font-size: 11.5px;
+    line-height: 1.6;
+}
+
+.account-confirm input {
+    width: 100%;
+    padding: 8px 11px;
+    outline: none;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: var(--text);
+    background: var(--surface);
+    font: inherit;
+    font-size: 12.5px;
+}
+
+.account-confirm input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.account-confirm input.is-invalid {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.account-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}

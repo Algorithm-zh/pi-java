@@ -75,6 +75,19 @@ public interface AuthTokenMapper {
     int revokeAllForUser(@Param("userId") String userId, @Param("now") Instant now);
 
     /**
+     * 吊销租户内全部令牌。
+     *
+     * @param tenantId 租户标识
+     * @param now 吊销时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE pi_auth_token SET revoked_at = #{now}
+            WHERE tenant_id = #{tenantId} AND revoked_at IS NULL
+            """)
+    int revokeAllForTenant(@Param("tenantId") String tenantId, @Param("now") Instant now);
+
+    /**
      * 删除过期令牌记录。
      *
      * @param now 当前时间

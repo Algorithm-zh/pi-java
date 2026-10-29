@@ -3,6 +3,7 @@ package com.piagent.infrastructure.persistence.identity;
 import com.piagent.domain.identity.model.Tenant;
 import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.port.TenantRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -48,6 +49,11 @@ public class MyBatisTenantRepository implements TenantRepository {
     @Override
     public List<TenantId> findAllIds() {
         return mapper.findAllIds().stream().map(TenantId::parse).toList();
+    }
+
+    @Override
+    public int updateDeletion(TenantId id, Instant deletedAt) {
+        return mapper.updateDeletion(id.toString(), deletedAt);
     }
 
     @Override

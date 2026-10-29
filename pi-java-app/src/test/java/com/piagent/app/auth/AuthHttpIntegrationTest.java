@@ -1,6 +1,7 @@
 package com.piagent.app.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
@@ -137,6 +138,83 @@ class AuthHttpIntegrationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/sessions").cookie(new Cookie("pi_session", token)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Order(5)
+    void registrationSelfServeAndSpaceArchiveCutAccessThenRestore() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/state"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registrationEnabled").value(true));
+
+        MvcResult registered = mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("username", "self-member",
+                                "displayName", "自助成员", "password", PASSWORD))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.user.role").value("MEMBER"))
+                .andExpect(jsonPath("$.user.tenantSlug").value("default"))
+                .andReturn();
+        assertThat(tokenOf(registered)).isNotBlank();
+
+        String admin = tokenOf(mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("username", USERNAME, "password", PASSWORD))))
+                .andExpect(status().isOk())
+                .andReturn());
+        String tenantId = objectMapper.readTree(mockMvc.perform(post("/api/v1/tenants")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("slug", "temp-space", "name", "临时空间",
+                                "username", "temp-admin", "password", PASSWORD))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("id").asText();
+
+        mockMvc.perform(delete("/api/v1/tenants/" + tenantId)
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("tenantSlug", "temp-space", "username", "temp-admin",
+                                "password", PASSWORD))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("username", "temp-admin", "password", PASSWORD))))
+                .andExpect(status().isUnauthorized());
+        JsonNode tenants = objectMapper.readTree(mockMvc.perform(get("/api/v1/tenants")
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        JsonNode archived = findBySlug(tenants, "temp-space");
+        assertThat(archived.path("deletedAt").isNull()).isFalse();
+        String defaultId = findBySlug(tenants, "default").path("id").asText();
+
+        mockMvc.perform(post("/api/v1/tenants/" + tenantId + "/restore")
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("tenantSlug", "temp-space", "username", "temp-admin",
+                                "password", PASSWORD))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.tenantSlug").value("temp-space"));
+
+        mockMvc.perform(delete("/api/v1/tenants/" + defaultId)
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TENANT_PROTECTED"));
+    }
+
+    private JsonNode findBySlug(JsonNode tenants, String slug) {
+        for (JsonNode tenant : tenants) {
+            if (slug.equals(tenant.path("slug").asText())) {
+                return tenant;
+            }
+        }
+        throw new AssertionError("租户不存在: " + slug);
     }
 
     private String tokenOf(MvcResult result) throws Exception {

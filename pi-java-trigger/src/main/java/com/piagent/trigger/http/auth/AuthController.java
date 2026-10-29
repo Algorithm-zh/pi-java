@@ -28,17 +28,21 @@ public class AuthController {
 
     private final AuthApplicationService auth;
     private final Duration tokenTtl;
+    private final boolean registrationEnabled;
 
     /**
      * 创建控制器。
      *
      * @param auth 鉴权用例
      * @param tokenTtl 令牌有效期，用于 Cookie 过期时间
+     * @param registrationEnabled 是否开放自助注册
      */
     public AuthController(AuthApplicationService auth,
-            @Value("${pi.auth.token-ttl:7d}") Duration tokenTtl) {
+            @Value("${pi.auth.token-ttl:7d}") Duration tokenTtl,
+            @Value("${pi.auth.registration-enabled:true}") boolean registrationEnabled) {
         this.auth = auth;
         this.tokenTtl = tokenTtl;
+        this.registrationEnabled = registrationEnabled;
     }
 
     /**
@@ -52,12 +56,13 @@ public class AuthController {
     @GetMapping("/state")
     public AuthStateResponse state(HttpServletRequest request) {
         if (!auth.initialized()) {
-            return new AuthStateResponse(false, false, null);
+            return new AuthStateResponse(false, false, null, registrationEnabled);
         }
         return auth.authenticate(AuthCookies.token(request))
                 .map(principal -> new AuthStateResponse(true, true,
-                        AuthUserResponse.from(AuthContext.callAs(principal, auth::me))))
-                .orElseGet(() -> new AuthStateResponse(true, false, null));
+                        AuthUserResponse.from(AuthContext.callAs(principal, auth::me)),
+                        registrationEnabled))
+                .orElseGet(() -> new AuthStateResponse(true, false, null, registrationEnabled));
     }
 
     /**
@@ -89,6 +94,23 @@ public class AuthController {
     public AuthSessionResponse login(@RequestBody LoginRequest request,
             HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         AuthSessionView session = auth.login(request.toCommand());
+        setCookie(httpResponse, session.token(), httpRequest.isSecure());
+        return AuthSessionResponse.from(session);
+    }
+
+    /**
+     * 自助注册成员账号并直接登录。
+     *
+     * @param request 注册请求
+     * @param httpRequest HTTP 请求
+     * @param httpResponse HTTP 响应
+     * @return 登录会话
+     */
+    @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AuthSessionResponse register(@RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        AuthSessionView session = auth.register(request.toCommand());
         setCookie(httpResponse, session.token(), httpRequest.isSecure());
         return AuthSessionResponse.from(session);
     }

@@ -3,6 +3,7 @@ package com.piagent.application.testsupport;
 import com.piagent.domain.identity.model.Tenant;
 import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.port.TenantRepository;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +32,20 @@ public final class InMemoryTenantRepository implements TenantRepository {
 
     @Override
     public List<TenantId> findAllIds() {
-        return tenants.stream().map(Tenant::id).toList();
+        return tenants.stream().filter(tenant -> !tenant.isArchived()).map(Tenant::id).toList();
+    }
+
+    @Override
+    public int updateDeletion(TenantId id, Instant deletedAt) {
+        for (int index = 0; index < tenants.size(); index++) {
+            Tenant tenant = tenants.get(index);
+            if (tenant.id().equals(id)) {
+                tenants.set(index, new Tenant(tenant.id(), tenant.slug(), tenant.name(),
+                        tenant.createdAt(), deletedAt));
+                return 1;
+            }
+        }
+        return 0;
     }
 
     @Override

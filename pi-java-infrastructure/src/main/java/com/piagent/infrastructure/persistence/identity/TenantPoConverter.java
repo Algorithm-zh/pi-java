@@ -20,6 +20,7 @@ public final class TenantPoConverter {
         po.setSlug(tenant.slug());
         po.setName(tenant.name());
         po.setCreatedAt(tenant.createdAt());
+        po.setDeletedAt(tenant.deletedAt());
         return po;
     }
 
@@ -31,6 +32,6 @@ public final class TenantPoConverter {
      */
     public Tenant toDomain(TenantPO po) {
         return new Tenant(TenantId.parse(po.getId()), po.getSlug(), po.getName(),
-                po.getCreatedAt());
+                po.getCreatedAt(), po.getDeletedAt());
     }
 }

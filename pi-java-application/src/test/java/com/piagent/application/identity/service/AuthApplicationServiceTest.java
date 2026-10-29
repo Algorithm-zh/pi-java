@@ -6,8 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.piagent.application.identity.AuthContext;
 import com.piagent.application.identity.AuthPrincipal;
 import com.piagent.application.identity.command.LoginCommand;
+import com.piagent.application.identity.command.RegisterCommand;
 import com.piagent.application.identity.command.SetupCommand;
 import com.piagent.application.identity.readmodel.AuthSessionView;
+import com.piagent.application.identity.readmodel.TenantChoice;
 import com.piagent.application.testsupport.InMemoryAuthTokenRepository;
 import com.piagent.application.testsupport.InMemoryTenantRepository;
 import com.piagent.application.testsupport.InMemoryUserRepository;
@@ -47,6 +49,7 @@ class AuthApplicationServiceTest {
     private final InMemoryAuthTokenRepository tokens = new InMemoryAuthTokenRepository();
     private final MutableClock clock = new MutableClock(NOW);
     private final SequentialTokenCodec tokenCodec = new SequentialTokenCodec();
+    private final SequentialIdGenerator ids = new SequentialIdGenerator();
 
     private AuthApplicationService service;
     private AppUser alice;
@@ -54,8 +57,7 @@ class AuthApplicationServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuthApplicationService(tenants, users, tokens,
-                new PrefixPasswordHasher(), tokenCodec,
-                new SequentialIdGenerator(), clock, TTL);
+                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, true);
         AuthSessionView session = service.setup(new SetupCommand("Alice", "Alice", PASSWORD));
         alice = users.findByUsername(TenantId.DEFAULT, "alice").orElseThrow(
                 () -> new AssertionError("初始化后应存在管理员账号"));
@@ -95,8 +97,7 @@ class AuthApplicationServiceTest {
     @Test
     void setupRejectsShortPassword() {
         AuthApplicationService fresh = new AuthApplicationService(tenants, users, tokens,
-                new PrefixPasswordHasher(), tokenCodec,
-                new SequentialIdGenerator(), clock, TTL);
+                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, true);
         assertThatThrownBy(() -> fresh.setup(new SetupCommand("Alice", "Alice", "short")))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_ARGUMENT));
@@ -188,5 +189,92 @@ class AuthApplicationServiceTest {
         String token = service.login(new LoginCommand("default", "alice", PASSWORD)).token();
         assertThat(tokens.findByHash(tokenCodec.hash(token))).isPresent();
         assertThat(tokens.findByHash(token)).isEmpty();
+    }
+
+    @Test
+    void loginWithoutSpaceFindsAccountAutomatically() {
+        AuthSessionView session = service.login(new LoginCommand(null, "Alice", PASSWORD));
+        assertThat(session.user().tenantSlug()).isEqualTo(Tenant.DEFAULT_SLUG);
+        assertThat(service.authenticate(session.token())).isPresent();
+        assertThat(service.login(new LoginCommand(" ", "alice", PASSWORD)).user().username())
+                .isEqualTo("alice");
+    }
+
+    @Test
+    void sameUsernameInTwoSpacesRequiresSelectionThenLogsIntoChosenSpace() {
+        Tenant team = createTenant("team-b", "团队 B");
+        AppUser aliceInTeam = createMember(team, "alice", PASSWORD);
+
+        assertThatThrownBy(() -> service.login(new LoginCommand(null, "alice", PASSWORD)))
+                .isInstanceOfSatisfying(TenantSelectionRequiredException.class, error ->
+                        assertThat(error.choices()).extracting(TenantChoice::slug)
+                                .containsExactly("default", "team-b"));
+
+        AuthSessionView chosen = service.login(new LoginCommand("team-b", "alice", PASSWORD));
+        assertThat(chosen.user().tenantId()).isEqualTo(aliceInTeam.tenantId().toString());
+        assertThat(chosen.user().tenantName()).isEqualTo("团队 B");
+    }
+
+    @Test
+    void archivedSpaceIsSkippedWhenLocatingAndWhenNamedExplicitly() {
+        Tenant team = createTenant("team-b", "团队 B");
+        createMember(team, "bob", PASSWORD);
+        tenants.updateDeletion(team.id(), NOW);
+
+        assertThatThrownBy(() -> service.login(new LoginCommand(null, "bob", PASSWORD)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_INVALID_CREDENTIALS));
+        assertThatThrownBy(() -> service.login(new LoginCommand("team-b", "bob", PASSWORD)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_INVALID_CREDENTIALS));
+    }
+
+    @Test
+    void registerCreatesMemberInDefaultSpaceAndLogsIn() {
+        AuthSessionView session = service.register(new RegisterCommand("Bob", "Bob", PASSWORD));
+
+        assertThat(session.user().role()).isEqualTo("MEMBER");
+        assertThat(session.user().tenantSlug()).isEqualTo(Tenant.DEFAULT_SLUG);
+        AppUser bob = users.findByUsername(TenantId.DEFAULT, "bob").orElseThrow();
+        assertThat(bob.role()).isEqualTo(UserRole.MEMBER);
+        assertThat(service.authenticate(session.token())).isPresent();
+    }
+
+    @Test
+    void registerIsRejectedWhenDisabled() {
+        AuthApplicationService closed = new AuthApplicationService(tenants, users, tokens,
+                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, false);
+
+        assertThatThrownBy(() -> closed.register(new RegisterCommand("bob", "Bob", PASSWORD)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.AUTH_REGISTRATION_DISABLED));
+    }
+
+    @Test
+    void registerRequiresSetupAndRejectsDuplicateUsername() {
+        AuthApplicationService fresh = new AuthApplicationService(new InMemoryTenantRepository(),
+                new InMemoryUserRepository(), new InMemoryAuthTokenRepository(),
+                new PrefixPasswordHasher(), new SequentialTokenCodec(), ids, clock, TTL, true);
+        assertThatThrownBy(() -> fresh.register(new RegisterCommand("bob", "Bob", PASSWORD)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_SETUP_REQUIRED));
+
+        assertThatThrownBy(() -> service.register(new RegisterCommand("alice", "Alice", PASSWORD)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.USER_ALREADY_EXISTS));
+    }
+
+    private Tenant createTenant(String slug, String name) {
+        Tenant tenant = Tenant.create(TenantId.newId(ids), slug, name, NOW);
+        tenants.insert(tenant);
+        return tenant;
+    }
+
+    private AppUser createMember(Tenant tenant, String username, String password) {
+        AppUser user = AppUser.create(UserId.newId(ids), tenant.id(), username, username,
+                new PrefixPasswordHasher().hash(password), UserRole.MEMBER, NOW);
+        users.insert(user);
+        return user;
     }
 }

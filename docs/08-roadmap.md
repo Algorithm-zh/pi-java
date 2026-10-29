@@ -1,14 +1,16 @@
 # 08 路线图
 
-> 状态：M0–M19 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
+> 状态：M0–M20 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
 > 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26，M15 工程化与 v0.2.0
 > 于 2026-10-26，M16 图片与多模态输入、M17 附件生命周期与压缩于 2026-10-27，
-> M18 仓库地图与代码检索于 2026-10-28，M19 多租户与最小鉴权于 2026-10-29）。详见
+> M18 仓库地图与代码检索于 2026-10-28，M19 多租户与最小鉴权、
+> M20 登录免选空间/自助注册/空间软删除于 2026-10-29）。详见
 > [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
 > [M13 记录](milestones/M13.md)、[M14 记录](milestones/M14.md)、
 > [M15 记录](milestones/M15.md)、[M16 记录](milestones/M16.md)、
-> [M17 记录](milestones/M17.md)、[M18 记录](milestones/M18.md) 与
-> [M19 记录](milestones/M19.md)；`v0.2.0` tag 与 GitHub Release 已于 2026-10-26 发布。
+> [M17 记录](milestones/M17.md)、[M18 记录](milestones/M18.md)、
+> [M19 记录](milestones/M19.md) 与 [M20 记录](milestones/M20.md)；
+> `v0.2.0` tag 与 GitHub Release 已于 2026-10-26 发布。
 > v0.2 已完成，v0.3 进展见第 6 节。
 
 ## 1. 交付策略
@@ -43,6 +45,7 @@
 | **M17** | 附件生命周期与压缩 | 内容去重、总配额、EXIF 清理、孤儿回收与统计 API、上传前压缩 | 生命周期集成测试、10.3 MB→982 KB 浏览器验收、828 测试 | `feat(attachment): lifecycle, dedup and image compression` |
 | **M18** | 仓库地图与代码检索 | 文件级符号索引、BM25 风格检索、`repo_map` 工具、提示词与 Web 工具目录 | 分词/符号/排序/工具测试、890 文件真实仓库冒烟、861 测试 | `feat(tool): repo map and keyword code retrieval` |
 | **M19** | 多租户与最小鉴权 | 租户/账号/令牌领域、PBKDF2、鉴权过滤器、租户隔离、登录与账号设置 UI | 单元/触发/集成测试、两租户隔离走查、浏览器登录流程 | `feat(auth): local accounts, tenant isolation and login ui` |
+| **M20** | 登录免选空间、自助注册与空间软删除 | 跨空间账号定位、409 空间选择、`/auth/register`、`deleted_at` 软删除与恢复 | 应用/触发/集成测试、OpenAPI 断言、浏览器走查 | `feat(auth): auto-locate space, self registration and soft delete` |
 
 ## 3. 各里程碑详情
 
@@ -664,6 +667,48 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 - 改密、密码重置、多因素与 SSO；
 - 刷新令牌、设备管理与跨实例登录失败共享。
 
+### M20 登录免选空间、自助注册与空间软删除
+
+状态：已完成（2026-10-29），详见 [M20 记录](milestones/M20.md)。
+
+范围：
+
+- 领域：`Tenant` 增加 `deletedAt` 与 `archive/restore`；`TenantRepository` 区分
+  “含归档查询”与“仅活跃 id”；`UserRepository.findActiveByUsername`；
+  `AuthTokenRepository.revokeAllForTenant`；
+- 应用：`AccountLocator` 负责“用户名 + 可选空间短名 → 候选账号”；
+  `TenantSelectionRequiredException` 携带可点选空间；`AuthApplicationService.register`；
+  `IdentityAdminService.archiveTenant/restoreTenant`；
+- 基础设施：V7 迁移给 `pi_tenant` 加 `deleted_at` 与索引；MyBatis 查询、令牌批量吊销；
+- 触发层：`/api/v1/auth/register`（公开）、`DELETE /api/v1/tenants/{id}`、
+  `POST /api/v1/tenants/{id}/restore`；`/auth/state` 增加 `registrationEnabled`；
+  409 `AUTH_TENANT_REQUIRED` 响应体带空间列表；
+- Web：登录卡只需账号密码，多空间时点击选择并记住上次空间；“创建账号”自助注册；
+  设置中心空间列表支持输入短名确认删除，已删除空间单独列出并可恢复。
+
+关键设计：
+
+- **密码先匹配再暴露空间**：自动定位会用密码逐一校验同名账号，只有多个空间
+  同时匹配时才返回空间列表，因此不知道密码的人无法借登录接口枚举空间；
+- **软删除保留数据、立即断权**：归档只写 `deleted_at` 并吊销该空间全部令牌；
+  数据（会话、附件、策略）不删除，恢复后原样可用；
+- **保护关键路径**：默认空间与当前所在空间不允许删除，避免把自己锁在门外；
+- **注册受控**：`pi.auth.registration-enabled` 可关闭自助注册；服务未初始化时
+  注册返回 `AUTH_SETUP_REQUIRED`，仍要求先有管理员。
+
+验收结果：
+
+- `mvn -q test` 全量通过，Checkstyle 通过；新增应用/触发/OpenAPI 断言覆盖
+  自动定位、多空间选择、注册开关与软删除保护；
+- 浏览器走查：单空间直接登录、同名账号双空间点选、注册新成员、
+  删除与恢复空空间全部通过。
+
+未包含（按计划后移）：
+
+- 空间改名、转移成员与空间级配额；
+- 管理员重置成员密码与账号停用 UI；
+- 已删除空间的数据定期物理清理策略。
+
 ## 4. 关键依赖
 
 ```text
@@ -691,7 +736,7 @@ M0 ─► M1 ─► M2 ─► M3 ─► M4 ─► M5 ─► M6 ─► M7 ─► 
 ## 5. 发布与版本
 
 - 已发布 `v0.2.0`（2026-10-26，tag 与 GitHub Release 均在 `main` 上）；
-- 当前仓库版本号仍为 `0.2.0`，M16、M17、M18 与 M19 是 v0.3 的前四个里程碑，版本号在 v0.3 收尾时统一升级；
+- 当前仓库版本号仍为 `0.2.0`，M16–M20 是 v0.3 的前五个里程碑，版本号在 v0.3 收尾时统一升级；
 - tag 只在用户确认后创建；不自动 push；
 - 每次里程碑提交使用 Conventional Commits；
 - 发布说明包含：新增能力、已知限制、启动方式、验收结果。
@@ -732,7 +777,9 @@ v0.3 以“多模态输入与更接近真实使用的交互”为主线，每项
 4. **M19 多租户与最小鉴权**（已完成 2026-10-29）：本地账号、Cookie/Bearer 令牌、
    HTTP 鉴权过滤器、会话/策略/审批/附件/run 的租户隔离与 Web 登录界面；
    见 [M19 记录](milestones/M19.md)。
-5. 后续候选（未排期）：Anthropic 原生 provider、缩略图与对象存储、PDF 与音频输入、
+5. **M20 登录免选空间、自助注册与空间软删除**（已完成 2026-10-29）：账号自动
+   定位空间、多空间点选、开放注册、空间归档与恢复；见 [M20 记录](milestones/M20.md)。
+6. 后续候选（未排期）：Anthropic 原生 provider、缩略图与对象存储、PDF 与音频输入、
    并行子代理、LSP/跨文件引用、多实例与成本配额。
 
 约束不变：每个里程碑独立提交，tag 与发布需用户确认；鉴权已上线，默认仍只监听

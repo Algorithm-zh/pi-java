@@ -10,6 +10,7 @@ import com.piagent.application.identity.command.CreateUserCommand;
 import com.piagent.application.identity.command.LoginCommand;
 import com.piagent.application.identity.command.SetupCommand;
 import com.piagent.application.identity.readmodel.AuthSessionView;
+import com.piagent.application.identity.readmodel.TenantSummary;
 import com.piagent.application.testsupport.InMemoryAuthTokenRepository;
 import com.piagent.application.testsupport.InMemoryTenantRepository;
 import com.piagent.application.testsupport.InMemoryUserRepository;
@@ -38,7 +39,7 @@ class IdentityAdminServiceTest {
     private static final String PASSWORD = "secret-pass-1";
 
     private final InMemoryTenantRepository tenants = new InMemoryTenantRepository();
-    private final InMemoryUserRepository users = new InMemoryUserRepository();
+    private final InMemoryUserRepository users = new InMemoryUserRepository(tenants);
     private final InMemoryAuthTokenRepository tokens = new InMemoryAuthTokenRepository();
     private final SequentialIdGenerator ids = new SequentialIdGenerator();
     private final MutableClock clock = new MutableClock(NOW);
@@ -50,8 +51,9 @@ class IdentityAdminServiceTest {
     @BeforeEach
     void setUp() {
         auth = new AuthApplicationService(tenants, users, tokens, new PrefixPasswordHasher(),
-                new SequentialTokenCodec(), ids, clock, Duration.ofDays(7));
-        admin = new IdentityAdminService(tenants, users, new PrefixPasswordHasher(), ids, clock);
+                new SequentialTokenCodec(), ids, clock, Duration.ofDays(7), true);
+        admin = new IdentityAdminService(tenants, users, tokens, new PrefixPasswordHasher(), ids,
+                clock);
         auth.setup(new SetupCommand("Alice", "Alice", PASSWORD));
         alice = users.findByUsername(TenantId.DEFAULT, "alice").orElseThrow();
         bind(alice);
@@ -153,5 +155,61 @@ class IdentityAdminServiceTest {
     private void bind(AppUser user) {
         AuthContext.bind(new AuthPrincipal(user.tenantId(), user.id(), user.username(),
                 user.displayName(), user.role()));
+    }
+
+    @Test
+    void archivesTenantThenRestoresIt() {
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+        AuthSessionView bobSession = auth.login(new LoginCommand("team-b", "bob", PASSWORD));
+
+        TenantSummary archived = admin.archiveTenant(team.id().toString());
+        assertThat(archived.deletedAt()).isNotNull();
+        assertThat(tenants.findById(team.id()).orElseThrow().isArchived()).isTrue();
+        assertThat(admin.listTenants())
+                .filteredOn(summary -> summary.slug().equals("team-b"))
+                .extracting(TenantSummary::deletedAt)
+                .doesNotContainNull();
+
+        assertThat(auth.authenticate(bobSession.token())).isEmpty();
+        assertThatThrownBy(() -> auth.login(new LoginCommand("team-b", "bob", PASSWORD)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_INVALID_CREDENTIALS));
+
+        TenantSummary restored = admin.restoreTenant(team.id().toString());
+        assertThat(restored.deletedAt()).isNull();
+        assertThat(auth.login(new LoginCommand("team-b", "bob", PASSWORD)).token()).isNotBlank();
+    }
+
+    @Test
+    void cannotArchiveDefaultOrCurrentSpace() {
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+
+        assertThatThrownBy(() -> admin.archiveTenant(TenantId.DEFAULT.toString()))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_PROTECTED));
+
+        bind(users.findByUsername(team.id(), "bob").orElseThrow());
+        assertThatThrownBy(() -> admin.archiveTenant(team.id().toString()))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_PROTECTED));
+    }
+
+    @Test
+    void archiveRequiresAdminAndKnownTenant() {
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+        admin.createUser(new CreateUserCommand("carol", "Carol", PASSWORD, UserRole.MEMBER));
+        bind(users.findByUsername(TenantId.DEFAULT, "carol").orElseThrow());
+
+        assertThatThrownBy(() -> admin.archiveTenant(team.id().toString()))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
+
+        bind(alice);
+        assertThatThrownBy(() -> admin.archiveTenant("01TST9999999999999999999999"))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_NOT_FOUND));
     }
 }

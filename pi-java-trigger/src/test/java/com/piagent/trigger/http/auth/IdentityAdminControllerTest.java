@@ -2,7 +2,9 @@ package com.piagent.trigger.http.auth;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,8 +42,8 @@ class IdentityAdminControllerTest {
     @Test
     void listsTenants() throws Exception {
         when(admin.listTenants()).thenReturn(List.of(
-                new TenantSummary("01TST000000000000000000021", "default", "默认空间"),
-                new TenantSummary("01TST000000000000000000022", "team-b", "团队 B")));
+                new TenantSummary("01TST000000000000000000021", "default", "默认空间", null),
+                new TenantSummary("01TST000000000000000000022", "team-b", "团队 B", null)));
 
         mvc.perform(get("/api/v1/tenants"))
                 .andExpect(status().isOk())
@@ -52,7 +54,7 @@ class IdentityAdminControllerTest {
     @Test
     void createsTenantAndUser() throws Exception {
         when(admin.createTenant(any()))
-                .thenReturn(new TenantSummary("01TST000000000000000000023", "team-b", "团队 B"));
+                .thenReturn(new TenantSummary("01TST000000000000000000023", "team-b", "团队 B", null));
         when(admin.createUser(any())).thenReturn(new UserSummary(
                 "01TST000000000000000000024", "bob", "Bob", "MEMBER", "ACTIVE"));
 
@@ -84,6 +86,27 @@ class IdentityAdminControllerTest {
         mvc.perform(get("/api/v1/users"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("AUTH_FORBIDDEN"));
+    }
+
+    @Test
+    void archivesAndRestoresTenant() throws Exception {
+        mvc.perform(delete("/api/v1/tenants/01TST000000000000000000022"))
+                .andExpect(status().isNoContent());
+        verify(admin).archiveTenant("01TST000000000000000000022");
+
+        mvc.perform(post("/api/v1/tenants/01TST000000000000000000022/restore"))
+                .andExpect(status().isNoContent());
+        verify(admin).restoreTenant("01TST000000000000000000022");
+    }
+
+    @Test
+    void mapsProtectedTenantTo409() throws Exception {
+        when(admin.archiveTenant(any())).thenThrow(new DomainException(
+                DomainErrorCode.TENANT_PROTECTED, "默认空间不能删除"));
+
+        mvc.perform(delete("/api/v1/tenants/01TST000000000000000000021"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TENANT_PROTECTED"));
     }
 
     @Test

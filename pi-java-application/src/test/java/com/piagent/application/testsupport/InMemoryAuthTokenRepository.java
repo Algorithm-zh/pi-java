@@ -2,6 +2,7 @@ package com.piagent.application.testsupport;
 
 import com.piagent.domain.identity.model.AuthToken;
 import com.piagent.domain.identity.model.AuthTokenId;
+import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserId;
 import com.piagent.domain.identity.port.AuthTokenRepository;
 import java.time.Instant;
@@ -44,6 +45,19 @@ public final class InMemoryAuthTokenRepository implements AuthTokenRepository {
         for (int index = 0; index < tokens.size(); index++) {
             AuthToken token = tokens.get(index);
             if (token.userId().equals(userId) && token.revokedAt() == null) {
+                tokens.set(index, token.revoke(now));
+                revoked++;
+            }
+        }
+        return revoked;
+    }
+
+    @Override
+    public int revokeAllForTenant(TenantId tenantId, Instant now) {
+        int revoked = 0;
+        for (int index = 0; index < tokens.size(); index++) {
+            AuthToken token = tokens.get(index);
+            if (token.tenantId().equals(tenantId) && token.revokedAt() == null) {
                 tokens.set(index, token.revoke(now));
                 revoked++;
             }

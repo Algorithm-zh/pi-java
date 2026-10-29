@@ -50,6 +50,20 @@ public interface UserMapper {
     UserPO findByUsername(@Param("tenantId") String tenantId, @Param("username") String username);
 
     /**
+     * 跨租户按登录名查询，只返回未归档租户中的账号。
+     *
+     * @param username 已规范化的登录名
+     * @return 按租户创建时间升序
+     */
+    @Select("""
+            SELECT u.* FROM pi_app_user u
+            JOIN pi_tenant t ON t.id = u.tenant_id
+            WHERE u.username = #{username} AND t.deleted_at IS NULL
+            ORDER BY t.created_at ASC, u.id ASC
+            """)
+    List<UserPO> findActiveByUsername(@Param("username") String username);
+
+    /**
      * 查询租户下的全部账号。
      *
      * @param tenantId 租户标识

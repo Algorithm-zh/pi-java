@@ -29,6 +29,14 @@ public interface UserRepository {
     Optional<AppUser> findByUsername(TenantId tenantId, String username);
 
     /**
+     * 跨租户按登录名查询，只返回未归档租户中的账号，供登录时自动定位空间。
+     *
+     * @param username 已规范化的登录名
+     * @return 账号列表，多个空间使用同一登录名时会返回多条
+     */
+    List<AppUser> findActiveByUsername(String username);
+
+    /**
      * 查询租户下的全部账号。
      *
      * @param tenantId 租户

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -109,6 +111,7 @@ class AuthFilterTest {
     @Test
     void skipsPublicAndNonApiPaths() throws Exception {
         mvc.perform(get("/api/v1/auth/state")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/auth/register")).andExpect(status().isOk());
         mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
 
         verify(auth, never()).authenticate(any());
@@ -138,6 +141,16 @@ class AuthFilterTest {
          */
         @GetMapping("/api/v1/auth/state")
         String state() {
+            return "public";
+        }
+
+        /**
+         * 自助注册也是公开路径。
+         *
+         * @return 固定文本
+         */
+        @PostMapping("/api/v1/auth/register")
+        String register() {
             return "public";
         }
 

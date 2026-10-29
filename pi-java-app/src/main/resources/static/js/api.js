@@ -5,11 +5,12 @@
  */
 
 export class ApiError extends Error {
-    constructor(message, code, status) {
+    constructor(message, code, status, details = null) {
         super(message);
         this.name = "ApiError";
         this.code = code;
         this.status = status;
+        this.details = details;
     }
 }
 
@@ -40,7 +41,7 @@ async function ensureOk(response, path) {
 async function toError(response) {
     try {
         const body = await response.json();
-        return new ApiError(body.message || response.statusText, body.code, response.status);
+        return new ApiError(body.message || response.statusText, body.code, response.status, body);
     } catch {
         return new ApiError(`请求失败（HTTP ${response.status}）`, null, response.status);
     }
@@ -89,6 +90,16 @@ export function login(payload) {
 }
 
 /**
+ * 自助注册成员账号并直接登录。
+ *
+ * @param {{username: string, displayName?: string, password: string}} payload 账号信息
+ * @returns {Promise<{token: string, user: object}>} 登录会话
+ */
+export function register(payload) {
+    return request("/api/v1/auth/register", jsonInit("POST", payload));
+}
+
+/**
  * 退出登录并清除 Cookie。
  *
  * @returns {Promise<null>} 204 无响应体
@@ -123,6 +134,26 @@ export function listTenants() {
  */
 export function createTenant(payload) {
     return request("/api/v1/tenants", jsonInit("POST", payload));
+}
+
+/**
+ * 归档（软删除）空间，仅管理员可用。
+ *
+ * @param {string} id 空间标识
+ * @returns {Promise<null>} 204 无响应体
+ */
+export function deleteTenant(id) {
+    return request(`/api/v1/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/**
+ * 恢复已归档的空间，仅管理员可用。
+ *
+ * @param {string} id 空间标识
+ * @returns {Promise<null>} 204 无响应体
+ */
+export function restoreTenant(id) {
+    return request(`/api/v1/tenants/${encodeURIComponent(id)}/restore`, { method: "POST" });
 }
 
 /**

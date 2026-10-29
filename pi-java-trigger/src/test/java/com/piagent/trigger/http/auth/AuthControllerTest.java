@@ -17,7 +17,9 @@ import com.piagent.application.identity.AuthContext;
 import com.piagent.application.identity.AuthPrincipal;
 import com.piagent.application.identity.readmodel.AuthSessionView;
 import com.piagent.application.identity.readmodel.AuthUserView;
+import com.piagent.application.identity.readmodel.TenantChoice;
 import com.piagent.application.identity.service.AuthApplicationService;
+import com.piagent.application.identity.service.TenantSelectionRequiredException;
 import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserId;
 import com.piagent.domain.identity.model.UserRole;
@@ -27,6 +29,7 @@ import com.piagent.domain.shared.Ulid;
 import com.piagent.trigger.http.ApiExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +55,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         auth = mock(AuthApplicationService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new AuthController(auth, Duration.ofDays(7)))
+        mvc = MockMvcBuilders.standaloneSetup(new AuthController(auth, Duration.ofDays(7), true))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -69,6 +72,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.initialized").value(false))
                 .andExpect(jsonPath("$.authenticated").value(false))
+                .andExpect(jsonPath("$.registrationEnabled").value(true))
                 .andExpect(jsonPath("$.user").doesNotExist());
 
         when(auth.initialized()).thenReturn(true);
@@ -113,6 +117,48 @@ class AuthControllerTest {
                         .content("{\"tenantSlug\":\"default\",\"username\":\"alice\",\"password\":\"bad\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));
+    }
+
+    @Test
+    void registerCreatesSessionAndSetsCookie() throws Exception {
+        when(auth.register(any())).thenReturn(new AuthSessionView("tok-2", USER));
+
+        mvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"bob","displayName":"Bob","password":"secret-pass-1"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.token").value("tok-2"))
+                .andExpect(cookie().value(AuthCookies.NAME, "tok-2"))
+                .andExpect(cookie().httpOnly(AuthCookies.NAME, true));
+    }
+
+    @Test
+    void registerMapsDisabledFlagTo403() throws Exception {
+        when(auth.register(any())).thenThrow(new DomainException(
+                DomainErrorCode.AUTH_REGISTRATION_DISABLED, "当前未开放自助注册"));
+
+        mvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"bob\",\"password\":\"secret-pass-1\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_REGISTRATION_DISABLED"));
+    }
+
+    @Test
+    void loginReturnsSelectableTenantsWhenAmbiguous() throws Exception {
+        when(auth.login(any())).thenThrow(new TenantSelectionRequiredException(List.of(
+                new TenantChoice("default", "默认空间"),
+                new TenantChoice("team-b", "团队 B"))));
+
+        mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"bob\",\"password\":\"secret-pass-1\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("AUTH_TENANT_REQUIRED"))
+                .andExpect(jsonPath("$.tenants[0].slug").value("default"))
+                .andExpect(jsonPath("$.tenants[1].name").value("团队 B"));
     }
 
     @Test

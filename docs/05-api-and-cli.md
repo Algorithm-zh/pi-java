@@ -15,7 +15,7 @@
 - ID：ULID 字符串，26 位；不暴露自增主键（策略表除外）；
 - 字段命名：camelCase；未知字段忽略；DTO 不含领域对象；
 - 分页：M4 只有 `limit`，没有 cursor；会话列表默认 50 条；
-- 鉴权：M19 起除 `/api/v1/auth/state|setup|login|logout` 外，所有 `/api/**`
+- 鉴权：M19 起除 `/api/v1/auth/state|setup|login|register|logout` 外，所有 `/api/**`
   请求必须携带 `Authorization: Bearer <token>` 或 `pi_session` Cookie；
 - 幂等：`POST /sessions/{id}/abort` 对没有活跃 run 的会话返回 404，不重复写 entry；
 - 请求 ID 与日志关联字段尚未实现，M9 打磨阶段补充。
@@ -35,7 +35,7 @@
 |---|---|---|
 | 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON、密码长度不符 |
 | 401 | `AUTH_REQUIRED` / `AUTH_INVALID_CREDENTIALS` | 缺少或无效令牌；账号密码不正确 |
-| 403 | `AUTH_FORBIDDEN` | 非管理员访问租户/账号管理 |
+| 403 | `AUTH_FORBIDDEN` / `AUTH_REGISTRATION_DISABLED` | 非管理员访问租户/账号管理；管理员关闭了自助注册 |
 | 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` / `APPROVAL_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` / `TENANT_NOT_FOUND` / `USER_NOT_FOUND` | 资源不存在或不属于当前租户 |
 | 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` / `APPROVAL_INVALID_STATE` / `AUTH_ALREADY_INITIALIZED` / `TENANT_ALREADY_EXISTS` / `USER_ALREADY_EXISTS` | 状态或并发冲突 |
 | 422 | `PLUGIN_INCOMPATIBLE` / `PLUGIN_LOAD_FAILED` | 插件 jar/API 不兼容或加载失败 |
@@ -45,27 +45,52 @@
 工具被策略拒绝、工具执行失败不产生 HTTP 错误，而是 `isError=true` 的 toolResult
 与 `tool.completed` 事件，由模型自行处理。
 
-### 1.2 鉴权、账号与租户（M19）
+### 1.2 鉴权、账号与租户（M19 起，M20 增强）
 
 首次启动后必须先初始化管理员，之后所有业务接口携带令牌访问：
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/v1/auth/state` | 是否已初始化、当前是否已登录、当前账号（公开） |
+| GET | `/api/v1/auth/state` | 是否已初始化、当前是否已登录、是否开放注册、当前账号（公开） |
 | POST | `/api/v1/auth/setup` | 创建默认租户的首个管理员并直接登录（公开，仅一次） |
-| POST | `/api/v1/auth/login` | `{tenantSlug, username, password}` 登录；`tenantSlug` 为空表示默认空间 |
+| POST | `/api/v1/auth/login` | `{username, password, tenantSlug?}` 登录；`tenantSlug` 可省略，服务端按账号自动定位空间 |
+| POST | `/api/v1/auth/register` | `{username, displayName, password}` 自助注册为默认空间成员并直接登录（公开，可用 `pi.auth.registration-enabled` 关闭） |
 | POST | `/api/v1/auth/logout` | 吊销当前令牌并清除 Cookie |
 | GET | `/api/v1/auth/me` | 当前账号、角色与租户 |
-| GET | `/api/v1/tenants` | 全部租户（管理员） |
+| GET | `/api/v1/tenants` | 全部租户，含已删除（管理员） |
 | POST | `/api/v1/tenants` | `{slug, name, username, displayName, password}` 建租户及其管理员 |
+| DELETE | `/api/v1/tenants/{id}` | 软删除空间：写归档时间并吊销该空间全部令牌，数据保留（管理员） |
+| POST | `/api/v1/tenants/{id}/restore` | 恢复已删除空间（管理员） |
 | GET | `/api/v1/users` | 当前租户账号（管理员） |
 | POST | `/api/v1/users` | 在当前租户内建账号（管理员），`role` 为 `ADMIN` 或 `MEMBER` |
 
 登录与初始化响应同时返回 `token` 并下发 `pi_session` Cookie（HttpOnly、
 SameSite=Strict、7 天）。浏览器忽略 `token` 字段；脚本使用
 `Authorization: Bearer <token>`，两种载体等价。认证失败统一返回
-`AUTH_INVALID_CREDENTIALS`，不区分租户/账号是否存在；连续 5 次失败后
+`AUTH_INVALID_CREDENTIALS`，不区分空间/账号是否存在；连续 5 次失败后
 返回 429 `AUTH_LOGIN_LOCKED`。
+
+不填 `tenantSlug` 时，服务端用密码在全部未删除空间中对同名账号逐一校验：
+
+- 恰好一个匹配：直接登录，前端把这次的空间记在本地，下次点选时高亮；
+- 多个匹配：返回 409 `AUTH_TENANT_REQUIRED`，响应体带可点选的空间列表：
+
+```json
+{
+  "code": "AUTH_TENANT_REQUIRED",
+  "message": "该账号属于多个空间，请选择要进入的空间",
+  "tenants": [{"slug": "default", "name": "默认空间"}, {"slug": "team-b", "name": "团队 B"}]
+}
+```
+
+空间列表只在密码已经匹配后才会出现，因此不会向不知道密码的人泄漏账号分布。
+显式传入 `tenantSlug` 时只查该空间；已删除空间既不参与自动定位，也不接受登录。
+
+软删除规则：默认空间与“当前所在空间”不能删除（409 `TENANT_PROTECTED`）；
+删除只写 `pi_tenant.deleted_at` 并吊销该空间令牌，会话、附件与策略数据全部保留；
+`slug` 仍保持全局唯一，恢复后成员可立即重新登录。自助注册在
+`pi.auth.registration-enabled=false` 时返回 403 `AUTH_REGISTRATION_DISABLED`，
+服务尚未初始化（没有任何账号）时返回 409 `AUTH_SETUP_REQUIRED`。
 
 ```bash
 curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
@@ -996,9 +1021,11 @@ v0.2 再评估是否加入。
 交互覆盖：
 
 0. 首次打开显示初始化卡片，创建管理员后直接进入主界面；之后每次启动先请求
-   `/api/v1/auth/state`，未登录显示登录卡（账号、租户短名可选、密码），
-   令牌过期或接口返回 401 时自动回到登录卡；设置中心的“账号与空间”展示当前
-   账号、角色、租户与登出入口；
+   `/api/v1/auth/state`，未登录显示登录卡（账号 + 密码即可，空间自动定位；
+   同名账号跨多个空间时列出空间点选，并记住上次进入的空间），登录卡还提供
+   “创建账号”自助注册入口；令牌过期或接口返回 401 时自动回到登录卡；设置中心
+   的“账号与空间”展示当前账号、角色、租户与登出入口，支持创建空间/成员、
+   软删除空间与恢复；
 1. 新建会话（标题、工作目录、模型档案、思考级别）→ 发送消息 → 流式增量 → 完成；
 2. 工具卡片展示参数、输出与错误态；写工具触发审批弹窗，展示风险级别、工具名、
    脱敏参数、SHA-256 摘要与倒计时；批准/拒绝后写审批历史条目，多个待办串行展示，
