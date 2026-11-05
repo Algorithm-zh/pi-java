@@ -215,6 +215,7 @@ export function renderTurn(items, results) {
         : "";
     const summary = [...items].reverse().find((entry) => entry.type === "RUN_SUMMARY");
     const consumed = new Set();
+    const rewindNotes = [];
     let process = null;
 
     function ensureProcess() {
@@ -266,8 +267,8 @@ export function renderTurn(items, results) {
             }));
         } else if (entry.type === "BRANCH_SUMMARY"
                 && entry.body?.extra?.details?.kind === "rewind") {
-            // 回溯简报是继续对话的锚点，默认直接出现在轮次里，不埋进折叠的执行过程。
-            wrap.append(renderNote(entry));
+            // 回溯简报是继续对话的锚点，默认直接出现在轮次末尾，不埋进折叠的执行过程。
+            rewindNotes.push(renderNote(entry));
         } else if (["APPROVAL", "COMPACTION", "BRANCH_SUMMARY", "MODEL_CHANGE",
             "PLAN", "VERIFICATION"].includes(entry.type)) {
             ensureProcess().body.append(renderNote(entry));
@@ -307,6 +308,9 @@ export function renderTurn(items, results) {
         answer.row.classList.add("answer-message");
         renderMarkdownInto(answer.textHost, finalText);
         wrap.append(answer.row);
+    }
+    for (const note of rewindNotes) {
+        wrap.append(note);
     }
     return wrap;
 }

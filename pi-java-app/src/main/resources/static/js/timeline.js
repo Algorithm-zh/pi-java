@@ -117,6 +117,7 @@ export function reset() {
     phase = "closed";
     timeline = null;
     loadedSessionId = null;
+    dom.timelineToggle?.classList.add("hidden");
     closePanel();
     closePreview(true);
     dom.timelineList?.replaceChildren();
@@ -126,7 +127,6 @@ export function reset() {
         dom.timelineSubtitle.textContent = "";
     }
     renderStatus("");
-    dom.timelineToggle?.classList.add("hidden");
 }
 
 function togglePanel() {
@@ -652,6 +652,9 @@ function closePreview(force = false) {
     if (dom.timelineConfirm) {
         dom.timelineConfirm.textContent = "确认回退";
         dom.timelineConfirm.disabled = true;
+    }
+    if (dom.timelineCancel) {
+        dom.timelineCancel.disabled = false;
     }
     dom.timelinePreviewKicker.textContent = "回退预览";
     selectedCheckpoint = null;
