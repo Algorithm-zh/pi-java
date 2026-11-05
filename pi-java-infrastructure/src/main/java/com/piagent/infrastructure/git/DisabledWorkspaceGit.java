@@ -1,6 +1,7 @@
 package com.piagent.infrastructure.git;
 
 import com.piagent.domain.git.model.GitChangeSet;
+import com.piagent.domain.git.model.GitRestorePlan;
 import com.piagent.domain.git.model.GitRestoreResult;
 import com.piagent.domain.git.model.GitSnapshot;
 import com.piagent.domain.git.port.WorkspaceGit;
@@ -30,6 +31,22 @@ public class DisabledWorkspaceGit implements WorkspaceGit {
     @Override
     public GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha) {
         throw disabled();
+    }
+
+    @Override
+    public GitRestorePlan planRestore(Path workspace, String baseTreeSha, String treeSha) {
+        throw disabled();
+    }
+
+    @Override
+    public void pinCheckpoint(Path workspace, String namespace, String checkpointId,
+            String treeSha) {
+        // 显式关闭 Git 时没有检查点，也就不需要保活。
+    }
+
+    @Override
+    public void clearCheckpoints(Path workspace, String namespace) {
+        // 没有保活 ref 需要清理。
     }
 
     private DomainException disabled() {

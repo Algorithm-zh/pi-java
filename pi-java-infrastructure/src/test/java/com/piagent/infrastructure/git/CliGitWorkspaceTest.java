@@ -124,6 +124,82 @@ class CliGitWorkspaceTest {
                         error -> assertThat(error.code()).isEqualTo(DomainErrorCode.GIT_UNAVAILABLE));
     }
 
+    @Test
+    void planRestoreListsFilesWithoutWriting() throws IOException {
+        GitSnapshot before = committedRepo();
+        write("a.txt", "one\nagent\n");
+        write("new.txt", "fresh\n");
+        GitSnapshot after = workspace.snapshot(repo).orElseThrow();
+
+        var plan = workspace.planRestore(repo, before.treeSha(), after.treeSha());
+
+        assertThat(plan.restorable()).isTrue();
+        assertThat(plan.files()).containsExactlyInAnyOrder("a.txt", "new.txt");
+        assertThat(plan.conflicts()).isEmpty();
+        assertThat(Files.readString(repo.resolve("a.txt"))).isEqualTo("one\nagent\n");
+        assertThat(Files.exists(repo.resolve("new.txt"))).isTrue();
+    }
+
+    @Test
+    void planRestoreReportsConflictsWithoutWriting() throws IOException {
+        GitSnapshot before = committedRepo();
+        write("a.txt", "one\nagent\n");
+        GitSnapshot after = workspace.snapshot(repo).orElseThrow();
+        write("a.txt", "one\nuser\n");
+
+        var plan = workspace.planRestore(repo, before.treeSha(), after.treeSha());
+
+        assertThat(plan.restorable()).isFalse();
+        assertThat(plan.conflicts()).extracting(conflict -> conflict.path())
+                .containsExactly("a.txt");
+        assertThat(Files.readString(repo.resolve("a.txt"))).isEqualTo("one\nuser\n");
+    }
+
+    @Test
+    void restoreAppliesAnyTargetTreePair() throws IOException {
+        GitSnapshot root = committedRepo();
+        write("a.txt", "one\nagent\n");
+        write("new.txt", "fresh\n");
+        write("b.txt", "agent\n");
+        GitSnapshot latest = workspace.snapshot(repo).orElseThrow();
+
+        GitRestoreResult result = workspace.restore(repo, root.treeSha(), latest.treeSha());
+
+        assertThat(result.complete()).isTrue();
+        assertThat(result.restored()).containsExactlyInAnyOrder(
+                "a.txt", "b.txt", "new.txt");
+        assertThat(Files.readString(repo.resolve("a.txt"))).isEqualTo("one\ntwo\n");
+        assertThat(Files.readString(repo.resolve("b.txt"))).isEqualTo("keep\n");
+        assertThat(Files.exists(repo.resolve("new.txt"))).isFalse();
+        assertThat(status()).isBlank();
+    }
+
+    @Test
+    void pinCheckpointSurvivesGcAndClearRemovesRefs() throws IOException {
+        GitSnapshot before = committedRepo();
+        workspace.pinCheckpoint(repo, "session-1", "run-1", before.treeSha());
+
+        git("gc", "--prune=now", "--quiet");
+        assertThat(git("cat-file", "-t", before.treeSha())).contains("tree");
+        assertThat(git("for-each-ref", "--format=%(refname)",
+                "refs/pi/checkpoints/session-1/")).contains("run-1");
+
+        workspace.clearCheckpoints(repo, "session-1");
+        assertThat(git("for-each-ref", "--format=%(refname)",
+                "refs/pi/checkpoints/session-1/")).isBlank();
+    }
+
+    @Test
+    void pinCheckpointCanBeDisabled() throws IOException {
+        CliGitWorkspace pinnedOff = new CliGitWorkspace(new GitSettings(true, 10, 1_000, false));
+        GitSnapshot before = committedRepo();
+
+        pinnedOff.pinCheckpoint(repo, "session-1", "run-1", before.treeSha());
+
+        assertThat(git("for-each-ref", "--format=%(refname)",
+                "refs/pi/checkpoints/session-1/")).isBlank();
+    }
+
     private GitSnapshot committedRepo() throws IOException {
         git("init", "-q");
         write("a.txt", "one\ntwo\n");

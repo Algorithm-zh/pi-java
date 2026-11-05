@@ -1,6 +1,7 @@
 package com.piagent.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 /**
  * Git 检查点配置（{@code pi.git}）。
@@ -11,12 +12,25 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param enabled 是否启用检查点与改动记录
  * @param timeoutSeconds 单条 git 命令的超时秒数
  * @param maxDiffChars 单个 diff 最多保留的字符数
+ * @param pinCheckpoints 是否为检查点创建内部保活 ref
  */
 @ConfigurationProperties(prefix = "pi.git")
-public record GitSettings(Boolean enabled, Integer timeoutSeconds, Integer maxDiffChars) {
+public record GitSettings(Boolean enabled, Integer timeoutSeconds, Integer maxDiffChars,
+        Boolean pinCheckpoints) {
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
     private static final int DEFAULT_MAX_DIFF_CHARS = 60_000;
+
+    /**
+     * 三参数便捷构造，保留既有测试与调用点。
+     *
+     * @param enabled 是否启用
+     * @param timeoutSeconds 超时秒数
+     * @param maxDiffChars diff 上限
+     */
+    public GitSettings(Boolean enabled, Integer timeoutSeconds, Integer maxDiffChars) {
+        this(enabled, timeoutSeconds, maxDiffChars, null);
+    }
 
     /**
      * 规范化默认值并校验。
@@ -24,11 +38,14 @@ public record GitSettings(Boolean enabled, Integer timeoutSeconds, Integer maxDi
      * @param enabled 是否启用
      * @param timeoutSeconds 超时秒数
      * @param maxDiffChars diff 上限
+     * @param pinCheckpoints 是否保活检查点
      */
+    @ConstructorBinding
     public GitSettings {
         enabled = enabled == null ? Boolean.TRUE : enabled;
         timeoutSeconds = timeoutSeconds == null ? DEFAULT_TIMEOUT_SECONDS : timeoutSeconds;
         maxDiffChars = maxDiffChars == null ? DEFAULT_MAX_DIFF_CHARS : maxDiffChars;
+        pinCheckpoints = pinCheckpoints == null ? Boolean.TRUE : pinCheckpoints;
         if (timeoutSeconds < 1) {
             throw new IllegalArgumentException("pi.git.timeout-seconds 必须大于 0");
         }
@@ -53,5 +70,14 @@ public record GitSettings(Boolean enabled, Integer timeoutSeconds, Integer maxDi
      */
     public boolean isEnabled() {
         return Boolean.TRUE.equals(enabled);
+    }
+
+    /**
+     * 是否为检查点创建内部保活 ref。
+     *
+     * @return true 表示保活
+     */
+    public boolean isPinCheckpoints() {
+        return Boolean.TRUE.equals(pinCheckpoints);
     }
 }

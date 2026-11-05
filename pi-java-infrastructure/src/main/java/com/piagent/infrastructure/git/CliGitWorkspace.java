@@ -3,6 +3,7 @@ package com.piagent.infrastructure.git;
 import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.git.model.GitChangeSet;
 import com.piagent.domain.git.model.GitConflict;
+import com.piagent.domain.git.model.GitRestorePlan;
 import com.piagent.domain.git.model.GitRestoreResult;
 import com.piagent.domain.git.model.GitSnapshot;
 import com.piagent.domain.git.port.WorkspaceGit;
@@ -38,6 +39,8 @@ public class CliGitWorkspace implements WorkspaceGit {
 
     private final GitCommandRunner runner;
     private final int maxDiffChars;
+    private final boolean pinCheckpoints;
+    private final GitCheckpointPins pins;
 
     /**
      * 创建适配器。
@@ -47,6 +50,8 @@ public class CliGitWorkspace implements WorkspaceGit {
     public CliGitWorkspace(GitSettings settings) {
         this.runner = new GitCommandRunner(Duration.ofSeconds(settings.timeoutSeconds()));
         this.maxDiffChars = settings.maxDiffChars();
+        this.pinCheckpoints = settings.isPinCheckpoints();
+        this.pins = new GitCheckpointPins(runner);
     }
 
     @Override
@@ -102,6 +107,22 @@ public class CliGitWorkspace implements WorkspaceGit {
 
     @Override
     public GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha) {
+        GitRestorePlan plan = planRestore(workspace, baseTreeSha, treeSha);
+        if (!plan.restorable()) {
+            return new GitRestoreResult(List.of(), plan.conflicts());
+        }
+        if (plan.files().isEmpty()) {
+            return new GitRestoreResult(List.of(), List.of());
+        }
+        Path root = repositoryRoot(workspace);
+        if (root == null) {
+            throw new DomainException(DomainErrorCode.GIT_UNAVAILABLE, "工作目录不是 Git 仓库");
+        }
+        return new GitRestoreResult(apply(root, baseTreeSha, plan.files()), List.of());
+    }
+
+    @Override
+    public GitRestorePlan planRestore(Path workspace, String baseTreeSha, String treeSha) {
         Path root = repositoryRoot(workspace);
         if (root == null) {
             throw new DomainException(DomainErrorCode.GIT_UNAVAILABLE, "工作目录不是 Git 仓库");
@@ -110,15 +131,30 @@ public class CliGitWorkspace implements WorkspaceGit {
                 .orElseThrow(() -> new DomainException(DomainErrorCode.GIT_UNAVAILABLE,
                         "无法读取当前工作区快照"));
         List<FileChange> changed = changedPaths(root, baseTreeSha, treeSha);
-        if (changed.isEmpty()) {
-            return new GitRestoreResult(List.of(), List.of());
+        List<String> files = changed.stream().map(FileChange::path).toList();
+        List<GitConflict> conflicts = files.isEmpty() ? List.of()
+                : conflicts(root, changed, current.treeSha(), treeSha);
+        return new GitRestorePlan(baseTreeSha, treeSha, files, conflicts);
+    }
+
+    @Override
+    public void pinCheckpoint(Path workspace, String namespace, String checkpointId,
+            String treeSha) {
+        if (!pinCheckpoints) {
+            return;
         }
-        List<GitConflict> conflicts = conflicts(root, changed, current.treeSha(), treeSha);
-        if (!conflicts.isEmpty()) {
-            return new GitRestoreResult(List.of(), conflicts);
+        Path root = repositoryRoot(workspace);
+        if (root != null) {
+            pins.pin(root, namespace, checkpointId, treeSha);
         }
-        List<String> restored = apply(root, baseTreeSha, changed);
-        return new GitRestoreResult(restored, List.of());
+    }
+
+    @Override
+    public void clearCheckpoints(Path workspace, String namespace) {
+        Path root = repositoryRoot(workspace);
+        if (root != null) {
+            pins.clear(root, namespace);
+        }
     }
 
     private List<FileChange> changedPaths(Path root, String baseTreeSha, String treeSha) {
@@ -143,17 +179,17 @@ public class CliGitWorkspace implements WorkspaceGit {
         return conflicts;
     }
 
-    private List<String> apply(Path root, String baseTreeSha, List<FileChange> changed) {
+    private List<String> apply(Path root, String baseTreeSha, List<String> paths) {
         Set<String> restored = new LinkedHashSet<>();
         List<String> toCheckout = new ArrayList<>();
-        for (FileChange change : changed) {
-            String baseBlob = blobAt(root, baseTreeSha, change.path());
+        for (String path : paths) {
+            String baseBlob = blobAt(root, baseTreeSha, path);
             if (baseBlob == null) {
-                deleteWorktreeFile(root, change.path());
+                deleteWorktreeFile(root, path);
             } else {
-                toCheckout.add(change.path());
+                toCheckout.add(path);
             }
-            restored.add(change.path());
+            restored.add(path);
         }
         if (!toCheckout.isEmpty()) {
             checkout(root, baseTreeSha, toCheckout);
