@@ -51,6 +51,7 @@ class BranchSummaryAppenderTest {
         assertThat(brief.seq()).isEqualTo(1);
         assertThat(brief.parentId()).isNull();
         assertThat(brief.type()).isEqualTo(EntryType.BRANCH_SUMMARY);
+        assertThat(entries.loadBranch(sessionId, brief.id())).containsExactly(brief);
         assertThat(sessions.findById(sessionId).orElseThrow().leafEntryId())
                 .isEqualTo(brief.id());
     }
@@ -67,8 +68,26 @@ class BranchSummaryAppenderTest {
 
         assertThat(brief.parentId()).isEqualTo(summary.id());
         assertThat(brief.seq()).isEqualTo(3);
+        assertThat(entries.loadBranch(sessionId, brief.id()))
+                .containsExactly(user, summary, brief);
         assertThat(sessions.findById(sessionId).orElseThrow().leafEntryId())
                 .isEqualTo(brief.id());
+    }
+
+    @Test
+    void keepsGlobalSeqWhenBranchSkipsEntries() {
+        SessionId sessionId = createSession().identity().id();
+        SessionEntry user = runs.appendUserAndStart(sessionId, "第一轮");
+        runs.finishRun(sessionId, new RunSummaryPayload("run-1", "STOP", TokenUsage.zero(), 1, 0,
+                800, null));
+        sessions.update(sessions.findById(sessionId).orElseThrow().rewind(user.id()));
+
+        SessionEntry brief = summaries.append(sessionId,
+                new BranchSummaryPayload(user.id(), "回溯简报", Map.of("kind", "rewind")));
+
+        assertThat(brief.seq()).isEqualTo(3);
+        assertThat(brief.parentId()).isEqualTo(user.id());
+        assertThat(entries.loadBranch(sessionId, brief.id())).containsExactly(user, brief);
     }
 
     @Test
@@ -81,6 +100,25 @@ class BranchSummaryAppenderTest {
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code())
                                 .isEqualTo(DomainErrorCode.INVALID_STATE_TRANSITION));
+
+        assertThat(entries.countBySession(sessionId)).isEqualTo(1);
+        assertThat(sessions.findById(sessionId).orElseThrow().leafEntryId())
+                .isEqualTo(user.id());
+    }
+
+    @Test
+    void rejectsBriefForUnknownSession() {
+        SessionId missing = SessionId.newId(ids);
+
+        assertThatThrownBy(() -> summaries.append(missing,
+                new BranchSummaryPayload(SessionEntryFactory.entryId(998), "回溯简报",
+                        Map.of())))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.SESSION_NOT_FOUND));
+
+        assertThat(entries.countBySession(missing)).isZero();
+        assertThat(sessions.findById(missing)).isEmpty();
     }
 
     private ChatSession createSession() {

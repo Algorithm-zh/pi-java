@@ -75,7 +75,7 @@ public class BranchSummaryAppender {
 
     private SessionEntry build(ChatSession session, BranchSummaryPayload payload) {
         long seq = entryStore.countBySession(session.identity().id()) + 1;
-        int tokens = Math.max(1, TOKEN_COUNTER.countText(payload.summary()));
+        int tokens = TOKEN_COUNTER.count(payload);
         EntryId id = new EntryId(Ulid.parse(idGenerator.newId()));
         return new SessionEntry(id, session.identity().id(), seq, session.leafEntryId(),
                 payload.entryType(), SessionEntry.CURRENT_PAYLOAD_VERSION, payload, tokens,
