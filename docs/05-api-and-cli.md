@@ -183,8 +183,9 @@ GET /api/v1/sessions/{sessionId}
 GET /api/v1/sessions/{sessionId}/entries?leafId={entryId}
 ```
 
-省略 `leafId` 时使用会话当前 leaf；响应是**裸数组**，按 `seq` 升序。每个 entry 使用
-稳定 envelope，前端不需要理解领域 payload 的 Java 类型：
+省略 `leafId` 时使用会话当前 leaf；响应是**裸数组**，按 `seq` 升序。传入回溯简报
+`body.extra.fromEntryId` 可以只读加载已被回退放弃的历史分支，不影响当前会话。
+每个 entry 使用稳定 envelope，前端不需要理解领域 payload 的 Java 类型：
 
 ```json
 [
@@ -500,7 +501,7 @@ POST /api/v1/sessions/{id}/rewind
       "stopReason": "",
       "turns": 0,
       "toolCalls": 0,
-      "brief": "从 10:05 的决策点回退：丢弃 1 轮对话、0 次被拒绝的审批、0 次失败的验证。已还原 2 个文件。",
+      "brief": "从 10:05 的决策点回退：丢弃 1 轮对话、0 次被拒绝的审批、0 次失败的验证。已还原 2 个文件（notes.md、src/App.java）。",
       "discardedEntries": 9,
       "discardedRuns": 1,
       "evidence": null
@@ -529,7 +530,10 @@ POST /api/v1/sessions/{id}/rewind
   返回 500 `GIT_OPERATION_FAILED`，会话与文件都不改动；
 - 归档 409 `SESSION_ARCHIVED`，非空闲 409 `INVALID_STATE_TRANSITION`，
   检查点不在当前分支 409 `INVALID_BRANCH`；
-- 成功时 `restored` 为实际写的文件，`briefEntryId` 指向新增的回溯简报。
+- 成功时 `restored` 为实际写的文件，`briefEntryId` 指向新增的回溯简报；
+- 被回退放弃的 entry 保留在日志中，只是不在当前分支；简报 entry 的
+  `body.extra` 包含 `fromEntryId`（回退前的旧叶子）与 `details.restoredPaths`
+  （最多 50 个还原路径），Web 用它提供“查看回退前的记录”只读弹窗。
 
 ### 2.12 计划与自动验证（M14）
 
