@@ -1,7 +1,8 @@
 # 12 Git 检查点与撤销
 
-> 状态：M13 已实现（2026-10-25）。Git 是**可选增强**：工作区不是仓库、机器没装
-> git 或显式关闭时，Agent Loop 照常运行，只是没有改动面板与撤销能力。
+> 状态：M22 已实现（2026-11-05）。Git 是**可选增强**：工作区不是仓库、机器没装
+> git 或显式关闭时，Agent Loop 照常运行，只是没有改动面板与撤销能力。M22 起每次
+> 运行前的检查点会被内部 ref 固定，并支持回到任意一次运行之前。
 
 ## 1. 目标与边界
 
@@ -27,12 +28,16 @@ pi:
     enabled: true          # 缺省 true；关闭后使用空实现
     timeout-seconds: 10    # 单条 git 命令超时
     max-diff-chars: 60000  # 单个 turn diff 保留上限，超出截断
+    pin-checkpoints: true  # M22：用内部 ref 固定检查点，避免被 gc 回收
 ```
 
 - `enabled=true` 但工作区不是仓库时，`snapshot()` 返回空，服务降级为“没有 Git 信息”；
 - `timeout-seconds` 必须大于 0，`max-diff-chars` 不能小于 1000，启动时校验；
 - 关闭后 `WorkspaceGit` 由 `DisabledWorkspaceGit` 实现，查改动返回
   `available=false`，撤销返回 `GIT_UNAVAILABLE`。
+- `pin-checkpoints=true` 时，每次运行开始后用
+  `refs/pi/checkpoints/<sessionId>/<runId>` 指向检查点树对象，保证后续可回溯；
+  固定失败只记 WARNING，不影响运行。
 
 ## 3. 快照模型
 
@@ -175,6 +180,71 @@ POST /api/v1/sessions/{sessionId}/undo
 
 冲突不当作 HTTP 错误，前端需要拿到具体路径自己解释，而不是只显示“撤销失败”。
 
+### 6.3 决策时间线与任意检查点回溯（M22）
+
+```http
+GET  /api/v1/sessions/{id}/timeline
+POST /api/v1/sessions/{id}/rewind
+```
+
+时间线按运行分组，节点顺序与 `seq` 一致。每个节点包含：
+
+- `type`：`RUN` 或 `REWIND`；
+- `checkpointEntryId`：该次运行开始前的检查点 entry；
+- 摘要：用户意图、计划进度、审批结论、验证结果、改动文件数；
+- `evidence`：本次运行的待办、审批、验证与逐轮改动，供 Web 展开证据。
+
+回溯请求体：
+
+```json
+{"checkpointEntryId": "01JD...", "dryRun": true, "note": "换一种修法"}
+```
+
+`checkpointEntryId` 是时间线节点的 `checkpointEntryId`，不是运行 ID；`note`
+可选，最多 200 字。`dryRun` 缺省为 true，只做预览，不写任何东西。响应：
+
+```json
+{
+  "dryRun": false,
+  "rewound": true,
+  "restorable": true,
+  "files": ["notes.md", "src/App.java"],
+  "restored": ["notes.md", "src/App.java"],
+  "conflicts": [],
+  "briefEntryId": "01JE...",
+  "discardedEntries": 14,
+  "discardedRuns": 1,
+  "brief": "第 2 轮运行（修改 notes.md）已被撤销，回到第 1 轮运行之前的会话与文件。"
+}
+```
+
+语义：
+
+- 只有空闲会话可回溯；归档会话返回 409 `SESSION_ARCHIVED`，运行中返回
+  409 `INVALID_STATE_TRANSITION`；
+- `checkpointEntryId` 不在当前分支上返回 409 `INVALID_BRANCH`；
+- 先做冲突预检：只要有文件在目标检查点之后又被修改，整体放弃，返回 HTTP 200、
+  `rewound=false`，`conflicts` 带路径与原因，工作区与对话都不变；
+- 成功时先还原文件，再截断会话：`baseLeafId` 为空表示回到第一次运行之前，
+  清空该会话日志；否则把叶子节点移回 `baseLeafId`；
+- 截断后追加一条 `BRANCH_SUMMARY`（`details.kind = "rewind"`）作为“回溯简报”，
+  下一次请求会把它作为上下文的一部分；
+- 响应里的 `restored` 是实际写入的文件，`files` 是计划还原的文件；`discarded`
+  统计被截断的 entry 与运行次数；
+- 不移动 HEAD、不修改分支、不自动提交。
+
+### 6.4 检查点固定
+
+`pin-checkpoints=true` 时，运行开始后用 `git commit-tree` 生成内部提交，
+`git update-ref` 写入 `refs/pi/checkpoints/<sessionId>/<runId>`：
+
+- 提交只用于让树对象可达，`commit-tree` 的父为空，不进入任何分支；
+- 写入时显式提供 `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL` 等身份变量，避免依赖
+  用户 git 配置；时间戳固定，重复固定同一检查点结果稳定；
+- 删除会话时同时删除该会话下的所有 `refs/pi/checkpoints/<sessionId>/`；
+- 固定是尽力而为：失败只记 WARNING，不阻断运行，也不影响后续回溯（只是检查点
+  可能在 `git gc --prune=now` 后失效）。
+
 ## 7. CLI
 
 交互式 `pi chat` 与逐行模式都支持：
@@ -223,9 +293,12 @@ Git 永远不能让 Agent Loop 失败：所有记录路径都包在 try/catch �
 
 ## 10. 已知限制
 
-- 树对象只存在于对象库，没有任何 ref 指向它们；`git gc --prune=now` 之后旧检查点
-  将无法还原。日常 gc 有宽限期，一般不影响使用；
-- 只能撤销最近一次 run，不能回退到更早的检查点或单轮中间状态；
+- 未被内部 ref 固定（`pin-checkpoints=false` 或固定失败）的树对象只存在于对象库；
+  `git gc --prune=now` 之后旧检查点将无法还原。日常 gc 有宽限期，一般不影响使用；
+- 回溯以运行开始前的检查点为单位，不能回到单轮中间状态，也不能只撤销某一轮工具
+  调用；
+- 回溯会丢弃目标检查点之后的对话与文件改动，且不可再通过时间线恢复；
+- 内部检查点 ref 只在该会话删除时清理，长期保留会让对象库持续增长。
 - 新增文件被删除后可能留下空目录（Git 不跟踪目录）；
 - 不还原子模块内部内容；子模块只作为 gitlink 参与快照；
 - 二进制文件能在列表中出现，但 diff 不展示内容；
@@ -238,6 +311,7 @@ Git 永远不能让 Agent Loop 失败：所有记录路径都包在 try/catch �
 
 - [ADR 0005：临时索引检查点](adr/0005-git-checkpoints.md)
 - [M13 里程碑记录](milestones/M13.md)
+- [M22 里程碑记录](milestones/M22.md)：决策时间线与任意检查点回溯
 - [04 运行时与事件](04-runtime-and-events.md)：`workspace.changed` 事件
 - [05 API 与 CLI](05-api-and-cli.md)：接口与命令契约
 - [11 界面设计](11-interface-design.md)：改动面板的交互细节

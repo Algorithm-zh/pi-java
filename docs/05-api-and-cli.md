@@ -264,7 +264,7 @@ Accept: application/json, text/event-stream
   400 `MODEL_CAPABILITY_MISSING`，会话保持 `IDLE`、可以继续发纯文本；
   Web UI 依据 `endpoint.capabilities.vision` 提前禁用图片入口；
 - 会话 entry 里只保存 `attachmentId/mediaType/name` 引用，二进制在数据目录，
-  见 2.12。
+  见 2.13。
 
 响应 `200 text/event-stream`。服务端先同步完成“追加用户消息 + 预留 run”，再返回
 emitter；run 在虚拟线程执行，响应体随事件持续输出，终态后关闭：
@@ -443,7 +443,93 @@ POST /api/v1/sessions/{id}/undo      # 还原文件并回退对话
 
 字段细节、冲突预检与失败降级见 [12 Git 检查点与撤销](12-git.md)。
 
-### 2.11 计划与自动验证（M14）
+### 2.11 决策时间线与任意检查点回溯（M22）
+
+```http
+GET  /api/v1/sessions/{id}/timeline
+POST /api/v1/sessions/{id}/rewind
+```
+
+时间线响应：
+
+```json
+{
+  "available": true,
+  "currentCheckpointEntryId": "01JU...",
+  "nodes": [
+    {
+      "type": "RUN",
+      "checkpointEntryId": "01JU...",
+      "runId": "01JV...",
+      "at": "2026-11-05T10:00:00Z",
+      "current": false,
+      "rewindable": true,
+      "intent": "把 notes.md 改成三段",
+      "plan": {"total": 3, "done": 3},
+      "approvals": {"total": 1, "denied": 0},
+      "verification": {"total": 1, "failed": 0},
+      "changes": {"turns": 1, "files": 1, "additions": 4, "deletions": 0},
+      "stopReason": "COMPLETED",
+      "turns": 3,
+      "toolCalls": 5,
+      "brief": "",
+      "discardedEntries": 0,
+      "discardedRuns": 0,
+      "evidence": {
+        "plan": [{"content": "读 notes.md", "status": "done"}],
+        "approvals": [{"toolName": "write", "decision": "APPROVED", "reason": ""}],
+        "verifications": [{"command": "mvn -o test", "passed": true, "exitCode": 0,
+                           "timedOut": false, "output": "BUILD SUCCESS"}],
+        "changes": [{"turn": 1, "suggestedCommit": "docs: 更新 notes.md", "files": [],
+                     "diff": ""}]
+      }
+    },
+    {
+      "type": "REWIND",
+      "checkpointEntryId": null,
+      "runId": "01JY...",
+      "at": "2026-11-05T10:05:00Z",
+      "current": true,
+      "rewindable": false,
+      "intent": "",
+      "plan": null,
+      "approvals": null,
+      "verification": null,
+      "changes": null,
+      "stopReason": "",
+      "turns": 0,
+      "toolCalls": 0,
+      "brief": "第 1 轮运行已被撤销，回到它开始之前。",
+      "discardedEntries": 9,
+      "discardedRuns": 1,
+      "evidence": null
+    }
+  ]
+}
+```
+
+- `nodes` 只包含当前分支，按分支位置排列；`current=true` 至多一个；
+- `REWIND` 节点没有可回溯检查点，`checkpointEntryId=null`、`rewindable=false`，
+  计划、审批、验证、改动与证据都是 `null`；
+- `evidence` 是展开证据用的结构化数据，`REWIND` 节点为 `null`；
+- 无 Git 或不是仓库时 `available=false`，`nodes` 仍包含 run 节点，
+  `rewindable=false`；不访问磁盘，重启后仍可查询。
+
+回溯请求：
+
+```json
+{"checkpointEntryId": "01JU...", "dryRun": true, "note": "换一种修法"}
+```
+
+响应、冲突语义与错误码见 [12 Git 检查点与撤销 §6.3](12-git.md)：
+
+- `dryRun` 缺省为 true，只返回 `files` 与简报，不写文件、不动会话；
+- 冲突时 HTTP 200、`rewound=false`、`conflicts` 非空；
+- 归档 409 `SESSION_ARCHIVED`，非空闲 409 `INVALID_STATE_TRANSITION`，
+  检查点不在当前分支 409 `INVALID_BRANCH`；
+- 成功时 `restored` 为实际写的文件，`briefEntryId` 指向新增的回溯简报。
+
+### 2.12 计划与自动验证（M14）
 
 ```http
 GET /api/v1/sessions/{id}/plan
@@ -478,7 +564,7 @@ GET /api/v1/sessions/{id}/plan
 
 详见 [13 计划、待办与自动验证](13-plans-and-verification.md)。
 
-### 2.12 图片附件（M16/M17）
+### 2.13 图片附件（M16/M17）
 
 ```http
 POST /api/v1/attachments
@@ -1076,6 +1162,9 @@ v0.2 再评估是否加入。
    `/tool <工具名> <JSON>` 可在 Fake 模型下体验完整链路；
 12. 工具改变工作区后，输入框上方出现“本轮改动”面板：分支、文件数、行数、
    提交建议与逐轮 diff；撤销前二次确认，冲突时展开文件列表并说明原因。
+13. 顶栏“时间线”打开右侧决策时间线：按运行列出意图、计划进度、审批、验证与改动，
+   展开可看证据；点击“回到这次运行之前”先显示预览（文件、丢弃数量、简报），
+   确认后文件与会话一起退回，对话中出现“回溯简报”卡片，下一次请求会带上它。
 
 前端只通过 `textContent` 写入服务端与模型文本，禁止 `innerHTML`；所有密钥相关
 字段只展示环境变量名与“是否已配置”。

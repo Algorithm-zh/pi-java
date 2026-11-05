@@ -59,9 +59,12 @@ pi-java 的工具体系已经接受“依赖本机 git 可执行文件”的假�
 负面：
 
 - 每次快照都要扫描工作区，超大仓库有 IO 成本；
-- 树对象没有任何 ref 指向，`git gc --prune=now` 后旧检查点不可还原；
+- 默认情况下树对象没有 ref 指向；M22 起可用内部 ref
+  `refs/pi/checkpoints/<sessionId>/<runId>` 固定，未固定或固定失败的检查点仍会
+  在 `git gc --prune=now` 后不可还原；
 - 重命名被当作删除 + 新增，空目录可能残留；
-- 只能撤销最近一次 run，不支持任意检查点；
+- M13 只能撤销最近一次 run；M22 增加了任意检查点回溯，但回溯仍以运行开始前的
+  检查点为单位，不能回到单轮中间状态；
 - 依赖本机 git 可执行文件与 Windows 进程启动开销；
 - 子模块只作为 gitlink 参与快照，内部内容不还原。
 
@@ -73,6 +76,29 @@ pi-java 的工具体系已经接受“依赖本机 git 可执行文件”的假�
 - 不把 Git entry 放进模型上下文（`tokenEstimate=0`，投影器跳过）；
 - 撤销只处理最近一次 run 的改动路径，其余文件一律不动；
 - 冲突不自动合并、不写 `.orig` 文件，交由用户决定。
+- 内部 ref 只用于防止对象被回收，不合并、不推送、不展示为分支；
+- 删除会话时清理对应 ref，不做全局 gc 或 prune。
+
+## 2026-11-05 增补：内部检查点 ref
+
+M13 的树对象没有引用，机器执行 `git gc --prune=now` 后旧检查点会消失。M22 增加
+`refs/pi/checkpoints/<sessionId>/<runId>`：用无父 `commit-tree` 包一层树对象，
+再 `update-ref` 写入。选择内部 ref 而不是 `refs/heads/` 或 tag，是为了满足：
+
+- 不出现在 `git branch`、`git tag` 与推送默认 refspec 中；
+- 仍受 Git 可达性保护，普通 gc 不会回收；
+- 生命周期与会话绑定，删除会话即可一次清干净。
+
+代价是每轮多两次 git 调用，且长期使用会积累对象；这是“可回溯”换来的成本。
+
+需要提前回收时，按会话手动删除：
+
+```bash
+git for-each-ref --format='%(refname)' refs/pi/checkpoints/<sessionId>/ \
+  | xargs -r -n1 git update-ref -d
+```
+
+删除后未被其他 ref 引用的树对象会在下一次 `git gc` 时回收。
 
 ## 替代方案
 
