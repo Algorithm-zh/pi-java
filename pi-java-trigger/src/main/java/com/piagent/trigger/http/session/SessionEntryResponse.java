@@ -70,7 +70,7 @@ public record SessionEntryResponse(String id, String parentId, long seq, String 
                     compactionExtra(payload));
             case BranchSummaryPayload payload -> new EntryBody("system", List.of(), null, null,
                     null, extra("summary", payload.summary(), "fromEntryId",
-                            payload.fromEntryId().toString()));
+                            payload.fromEntryId().toString(), "details", payload.details()));
             case ApprovalPayload payload -> new EntryBody("system", List.of(), payload.toolCallId(),
                     payload.toolName(), null, approvalExtra(payload));
             case ModelChangePayload payload -> new EntryBody("system", List.of(), null, null, null,
