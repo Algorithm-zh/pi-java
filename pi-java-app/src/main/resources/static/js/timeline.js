@@ -312,7 +312,7 @@ function onSpineClick(event) {
 
 function nodeTitle(node) {
     if (node.type === "REWIND") {
-        return `回到 ${formatTime(node.at)} 之前`;
+        return `在 ${formatTime(node.at)} 回溯`;
     }
     return node.intent || "（没有文字意图）";
 }

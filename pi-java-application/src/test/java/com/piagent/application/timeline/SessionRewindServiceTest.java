@@ -146,6 +146,36 @@ class SessionRewindServiceTest {
     }
 
     @Test
+    void truncatesSessionBeforeWritingFiles() {
+        RunIds runs = threeRuns();
+        EntryId oldLeaf = sessions.findById(sessionId).orElseThrow().leafEntryId();
+        git.nextPlan = new GitRestorePlan("tree-0", "tree-2", List.of("a.txt"), List.of());
+        git.nextRestore = new GitRestoreResult(List.of("a.txt"), List.of());
+        git.beforeRestore = () -> assertThat(
+                sessions.findById(sessionId).orElseThrow().leafEntryId())
+                .as("会话截断必须先于工作区写入")
+                .isNotEqualTo(oldLeaf);
+
+        SessionRewindResult result = service.rewind(sessionId, runs.secondCheckpoint, false,
+                null);
+
+        assertThat(result.rewound()).isTrue();
+    }
+
+    @Test
+    void rejectsConflictDiscoveredDuringExecution() {
+        RunIds runs = threeRuns();
+        git.nextPlan = new GitRestorePlan("tree-0", "tree-2", List.of("a.txt"), List.of());
+        git.nextRestore = new GitRestoreResult(List.of(),
+                List.of(new GitConflict("a.txt", "确认后工作区又发生了变化")));
+
+        assertThatThrownBy(() -> service.rewind(sessionId, runs.secondCheckpoint, false, null))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.GIT_OPERATION_FAILED));
+    }
+
+    @Test
     void conflictKeepsEverythingUntouched() {
         RunIds runs = threeRuns();
         long before = entries.countBySession(sessionId);
@@ -288,6 +318,7 @@ class SessionRewindServiceTest {
                 List.of(), List.of());
         private GitRestoreResult nextRestore = new GitRestoreResult(List.of(), List.of());
         private boolean restoreCalled;
+        private Runnable beforeRestore;
         private String lastPlanTarget;
         private String lastPlanLatest;
         private String lastRestoreTarget;
@@ -305,6 +336,9 @@ class SessionRewindServiceTest {
 
         @Override
         public GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha) {
+            if (beforeRestore != null) {
+                beforeRestore.run();
+            }
             restoreCalled = true;
             lastRestoreTarget = baseTreeSha;
             lastRestoreLatest = treeSha;

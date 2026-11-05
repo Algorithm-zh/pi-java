@@ -224,9 +224,11 @@ POST /api/v1/sessions/{id}/rewind
   409 `INVALID_STATE_TRANSITION`；
 - `checkpointEntryId` 不在当前分支上返回 409 `INVALID_BRANCH`；
 - 先做冲突预检：只要有文件在目标检查点之后又被修改，整体放弃，返回 HTTP 200、
-  `rewound=false`，`conflicts` 带路径与原因，工作区与对话都不变；
-- 成功时先还原文件，再截断会话：`baseLeafId` 为空表示回到第一次运行之前，
-  清空该会话日志；否则把叶子节点移回 `baseLeafId`；
+  `rewound=false`，`conflicts` 带路径与原因，工作区与对话都不变；确认后工作区
+  再次变化时返回 500 `GIT_OPERATION_FAILED`，同样不产生半完成状态；
+- 成功时先在事务内截断会话并追加简报，再写工作区：数据库步骤失败会回滚事务，
+  此时工作区尚未改动；工作区写入失败则抛异常回滚事务。`baseLeafId` 为空表示
+  回到第一次运行之前，清空该会话日志；否则把叶子节点移回 `baseLeafId`；
 - 截断后追加一条 `BRANCH_SUMMARY`（`details.kind = "rewind"`）作为“回溯简报”，
   下一次请求会把它作为上下文的一部分；
 - 响应里的 `restored` 是实际写入的文件，`files` 是计划还原的文件；`discarded`

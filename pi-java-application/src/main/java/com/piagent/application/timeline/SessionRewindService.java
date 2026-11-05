@@ -27,6 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
  * 之后的改动或下一个检查点的起点。还原前先用只读计划检查冲突，冲突时一个字节
  * 都不写、一条 entry 都不删。成功后分支退回检查点记录的叶子，并追加一条回溯
  * 简报作为新分支的起点。</p>
+ *
+ * <p>会话截断与简报追加先于工作区写入，二者处于同一事务；数据库步骤失败时事务
+ * 回滚，工作区尚未改动，不会出现“文件已还原但对话没退”的半完成状态。工作区写入
+ * 失败则抛异常回滚事务；执行前的二次检查若发现冲突，工作区同样不会写入。</p>
  */
 @Service
 public class SessionRewindService {
@@ -98,22 +102,22 @@ public class SessionRewindService {
         if (!plan.restorable()) {
             return conflict(plan);
         }
-        GitRestoreResult restored = restore(session, checkpoint.baseTreeSha(), latestTree);
-        if (!restored.complete()) {
-            return new SessionRewindResult(false, false, false, plan.files(), List.of(),
-                    restored.conflicts(), null, 0, 0, "");
-        }
         EntryId oldLeaf = session.leafEntryId();
-        RewindBrief brief = briefs.build(checkpointEntry, discarded, restored.restored(), note);
         if (checkpoint.baseLeafId() == null) {
             entries.deleteAll(sessionId);
         }
         sessions.update(session.rewind(checkpoint.baseLeafId()));
         SessionEntry briefEntry = summaries.append(sessionId,
-                new BranchSummaryPayload(oldLeaf, brief.summary(), brief.details()));
+                new BranchSummaryPayload(oldLeaf, preview.summary(), preview.details()));
+        GitRestoreResult restored = restore(session, checkpoint.baseTreeSha(), latestTree);
+        if (!restored.complete()) {
+            // 预检后工作区又被改动：restore 未写任何文件，抛异常回滚会话截断。
+            throw new DomainException(DomainErrorCode.GIT_OPERATION_FAILED,
+                    "确认后工作区又发生了变化，已放弃本次回退，请重试");
+        }
         return new SessionRewindResult(false, true, true, plan.files(), restored.restored(),
                 List.of(), briefEntry.id(), discarded.size(), countRuns(discarded),
-                brief.summary());
+                preview.summary());
     }
 
     private SessionRewindResult conflict(GitRestorePlan plan) {
@@ -135,7 +139,11 @@ public class SessionRewindService {
             return 0;
         }
         int index = indexOf(branch, baseLeafId);
-        return index < 0 ? 0 : index + 1;
+        if (index < 0) {
+            throw new DomainException(DomainErrorCode.INVALID_BRANCH,
+                    "检查点的起点不在当前分支: " + baseLeafId);
+        }
+        return index + 1;
     }
 
     private String latestTree(List<SessionEntry> branch, int checkpointIndex, String fallback) {

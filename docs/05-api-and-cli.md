@@ -39,10 +39,10 @@
 | 401 | `AUTH_REQUIRED` / `AUTH_INVALID_CREDENTIALS` | 缺少或无效令牌；账号密码不正确 |
 | 403 | `AUTH_FORBIDDEN` / `AUTH_REGISTRATION_DISABLED` | 非管理员访问租户/账号管理；管理员关闭了自助注册 |
 | 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` / `APPROVAL_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` / `TENANT_NOT_FOUND` / `USER_NOT_FOUND` | 资源不存在或不属于当前租户 |
-| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` / `APPROVAL_INVALID_STATE` / `AUTH_ALREADY_INITIALIZED` / `TENANT_ALREADY_EXISTS` / `USER_ALREADY_EXISTS` | 状态或并发冲突 |
+| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `INVALID_BRANCH` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` / `APPROVAL_INVALID_STATE` / `AUTH_ALREADY_INITIALIZED` / `TENANT_ALREADY_EXISTS` / `USER_ALREADY_EXISTS` | 状态、分支或并发冲突 |
 | 422 | `PLUGIN_INCOMPATIBLE` / `PLUGIN_LOAD_FAILED` | 插件 jar/API 不兼容或加载失败 |
 | 429 | `AGENT_BUSY` / `AUTH_LOGIN_LOCKED` | 全局并发 run 已满；登录失败次数过多 |
-| 500 | 框架默认错误体 | 未映射异常；不伪装成领域错误 |
+| 500 | `GIT_OPERATION_FAILED` / 框架默认错误体 | Git 命令失败；未映射异常；不伪装成领域错误 |
 
 工具被策略拒绝、工具执行失败不产生 HTTP 错误，而是 `isError=true` 的 toolResult
 与 `tool.completed` 事件，由模型自行处理。
@@ -525,7 +525,8 @@ POST /api/v1/sessions/{id}/rewind
 响应、冲突语义与错误码见 [12 Git 检查点与撤销 §6.3](12-git.md)：
 
 - `dryRun` 缺省为 true，只返回 `files` 与简报，不写文件、不动会话；
-- 冲突时 HTTP 200、`rewound=false`、`conflicts` 非空；
+- 冲突时 HTTP 200、`rewound=false`、`conflicts` 非空；确认后工作区再次变化时
+  返回 500 `GIT_OPERATION_FAILED`，会话与文件都不改动；
 - 归档 409 `SESSION_ARCHIVED`，非空闲 409 `INVALID_STATE_TRANSITION`，
   检查点不在当前分支 409 `INVALID_BRANCH`；
 - 成功时 `restored` 为实际写的文件，`briefEntryId` 指向新增的回溯简报。

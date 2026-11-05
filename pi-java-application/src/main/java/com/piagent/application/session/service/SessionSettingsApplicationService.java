@@ -18,6 +18,8 @@ import com.piagent.domain.shared.Guard;
 import java.nio.file.Path;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 会话设置用例：重命名、切换模型与归档。
@@ -115,12 +117,28 @@ public class SessionSettingsApplicationService {
                 DomainErrorCode.INVALID_STATE_TRANSITION, "会话正在运行，请先停止再删除");
         Path cwd = current.config().cwd();
         sessions.delete(sessionId);
-        try {
-            git.clearCheckpoints(cwd, sessionId.toString());
-        } catch (RuntimeException error) {
-            LOG.log(System.Logger.Level.WARNING, "清理检查点引用失败: " + sessionId + " @ " + cwd,
-                    error);
+        clearCheckpointsAfterCommit(cwd, sessionId);
+    }
+
+    private void clearCheckpointsAfterCommit(Path cwd, SessionId sessionId) {
+        Runnable cleanup = () -> {
+            try {
+                git.clearCheckpoints(cwd, sessionId.toString());
+            } catch (RuntimeException error) {
+                LOG.log(System.Logger.Level.WARNING,
+                        "清理检查点引用失败: " + sessionId + " @ " + cwd, error);
+            }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            cleanup.run();
+            return;
         }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                cleanup.run();
+            }
+        });
     }
 
     private ChatSession save(ChatSession session) {

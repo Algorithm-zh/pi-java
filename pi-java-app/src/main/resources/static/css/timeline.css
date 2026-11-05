@@ -456,30 +456,31 @@
 
 .timeline-tick {
     display: block;
-    width: 3px;
-    height: 18px;
+    width: 24px;
+    height: 26px;
     padding: 0;
     border: 0;
     border-radius: 999px;
-    background: var(--line);
+    background: linear-gradient(var(--line), var(--line)) center / 3px 18px no-repeat;
     cursor: pointer;
-    transition: height .16s ease, background .16s ease;
+    transition: background .16s ease;
 }
 
 .timeline-tick:hover,
 .timeline-tick:focus-visible {
-    height: 26px;
-    background: var(--accent-strong);
+    background: linear-gradient(var(--accent-strong), var(--accent-strong))
+        center / 3px 26px no-repeat;
 }
 
 .timeline-tick.is-current {
-    background: var(--accent-strong);
+    background: linear-gradient(var(--accent-strong), var(--accent-strong))
+        center / 3px 18px no-repeat;
 }
 
 .timeline-tick.is-rewind {
-    width: 9px;
-    height: 3px;
-    background: var(--amber);
+    width: 24px;
+    height: 26px;
+    background: linear-gradient(var(--amber), var(--amber)) center / 9px 3px no-repeat;
     cursor: default;
 }
 
