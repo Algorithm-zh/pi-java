@@ -214,7 +214,7 @@ POST /api/v1/sessions/{id}/rewind
   "briefEntryId": "01JE...",
   "discardedEntries": 14,
   "discardedRuns": 1,
-  "brief": "第 2 轮运行（修改 notes.md）已被撤销，回到第 1 轮运行之前的会话与文件。"
+  "brief": "从 10:05 的决策点回退：丢弃 1 轮对话、0 次被拒绝的审批、0 次失败的验证。已还原 2 个文件。"
 }
 ```
 

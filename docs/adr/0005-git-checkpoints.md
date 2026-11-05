@@ -59,9 +59,9 @@ pi-java 的工具体系已经接受“依赖本机 git 可执行文件”的假�
 负面：
 
 - 每次快照都要扫描工作区，超大仓库有 IO 成本；
-- 默认情况下树对象没有 ref 指向；M22 起可用内部 ref
-  `refs/pi/checkpoints/<sessionId>/<runId>` 固定，未固定或固定失败的检查点仍会
-  在 `git gc --prune=now` 后不可还原；
+- M13 时树对象没有 ref 指向；M22 起用内部 ref
+  `refs/pi/checkpoints/<sessionId>/<runId>` 固定（`pin-checkpoints` 默认开启），
+  关闭或固定失败的检查点仍会在 `git gc --prune=now` 后不可还原；
 - 重命名被当作删除 + 新增，空目录可能残留；
 - M13 只能撤销最近一次 run；M22 增加了任意检查点回溯，但回溯仍以运行开始前的
   检查点为单位，不能回到单轮中间状态；
