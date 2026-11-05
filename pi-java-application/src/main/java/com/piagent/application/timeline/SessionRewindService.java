@@ -30,7 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>会话截断与简报追加先于工作区写入，二者处于同一事务；数据库步骤失败时事务
  * 回滚，工作区尚未改动，不会出现“文件已还原但对话没退”的半完成状态。工作区写入
- * 失败则抛异常回滚事务；执行前的二次检查若发现冲突，工作区同样不会写入。</p>
+ * 失败则抛异常回滚事务；执行前的二次检查若发现冲突，工作区同样不会写入。git 按
+ * 文件逐个写入，若写入中途失败，事务会回滚会话，但工作区可能留下部分已写文件。</p>
  */
 @Service
 public class SessionRewindService {
