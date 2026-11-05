@@ -2,6 +2,7 @@ package com.piagent.application.session.service;
 
 import com.piagent.application.session.command.ChangeSessionModelCommand;
 import com.piagent.application.session.command.RenameSessionCommand;
+import com.piagent.domain.git.port.WorkspaceGit;
 import com.piagent.domain.model.ModelId;
 import com.piagent.domain.model.ModelProfile;
 import com.piagent.domain.model.port.ModelProfileRepository;
@@ -26,9 +27,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SessionSettingsApplicationService {
 
+    private static final System.Logger LOG =
+            System.getLogger(SessionSettingsApplicationService.class.getName());
+
     private final SessionRepository sessions;
     private final ModelProfileRepository models;
     private final ModelSelectionPolicy selectionPolicy;
+    private final WorkspaceGit git;
 
     /**
      * 创建设置用例服务。
@@ -36,12 +41,15 @@ public class SessionSettingsApplicationService {
      * @param sessions 会话仓储
      * @param models 模型档案仓储
      * @param selectionPolicy 模型选择策略
+     * @param git 工作区 Git 端口，用于删除会话时清理检查点引用
      */
     public SessionSettingsApplicationService(SessionRepository sessions,
-            ModelProfileRepository models, ModelSelectionPolicy selectionPolicy) {
+            ModelProfileRepository models, ModelSelectionPolicy selectionPolicy,
+            WorkspaceGit git) {
         this.sessions = sessions;
         this.models = models;
         this.selectionPolicy = selectionPolicy;
+        this.git = git;
     }
 
     /**
@@ -103,6 +111,11 @@ public class SessionSettingsApplicationService {
                         || current.status() == SessionStatus.ARCHIVED,
                 DomainErrorCode.INVALID_STATE_TRANSITION, "会话正在运行，请先停止再删除");
         sessions.delete(sessionId);
+        try {
+            git.clearCheckpoints(current.config().cwd(), sessionId.toString());
+        } catch (RuntimeException error) {
+            LOG.log(System.Logger.Level.WARNING, "清理检查点引用失败: " + sessionId, error);
+        }
     }
 
     private ChatSession save(ChatSession session) {

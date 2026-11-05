@@ -78,6 +78,11 @@ public class GitCheckpointService {
         } catch (RuntimeException error) {
             LOG.log(System.Logger.Level.WARNING, "写入 Git 检查点失败: " + sessionId, error);
         }
+        try {
+            git.pinCheckpoint(workspace, sessionId.toString(), runId.toString(), value.treeSha());
+        } catch (RuntimeException error) {
+            LOG.log(System.Logger.Level.WARNING, "保活 Git 检查点失败: " + sessionId, error);
+        }
         return snapshot;
     }
 

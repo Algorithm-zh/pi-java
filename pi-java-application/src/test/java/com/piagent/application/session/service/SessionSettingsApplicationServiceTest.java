@@ -2,11 +2,16 @@ package com.piagent.application.session.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.piagent.application.session.command.ChangeSessionModelCommand;
 import com.piagent.application.session.command.RenameSessionCommand;
 import com.piagent.application.testsupport.InMemoryModelProfileRepository;
 import com.piagent.application.testsupport.InMemorySessionRepository;
+import com.piagent.domain.git.port.WorkspaceGit;
 import com.piagent.domain.model.ModelCapabilities;
 import com.piagent.domain.model.ModelEndpoint;
 import com.piagent.domain.model.ModelId;
@@ -33,6 +38,7 @@ class SessionSettingsApplicationServiceTest {
 
     private InMemorySessionRepository sessions;
     private InMemoryModelProfileRepository models;
+    private WorkspaceGit git;
     private SessionSettingsApplicationService service;
     private ChatSession session;
 
@@ -40,7 +46,9 @@ class SessionSettingsApplicationServiceTest {
     void setUp() {
         sessions = new InMemorySessionRepository();
         models = new InMemoryModelProfileRepository();
-        service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
+        git = mock(WorkspaceGit.class);
+        service = new SessionSettingsApplicationService(sessions, models,
+                new ModelSelectionPolicy(), git);
         session = ChatSession.createRoot(SESSION_ID, "旧标题",
                 SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
         sessions.insert(session);
@@ -127,7 +135,8 @@ class SessionSettingsApplicationServiceTest {
                 session.config(), SessionStatus.RUNNING, null, session.version());
         sessions = new InMemorySessionRepository();
         sessions.insert(running);
-        service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
+        service = new SessionSettingsApplicationService(sessions, models,
+                new ModelSelectionPolicy(), git);
 
         assertThatThrownBy(() -> service.changeModel(
                 new ChangeSessionModelCommand(SESSION_ID, "fake-demo", null)))
@@ -150,6 +159,7 @@ class SessionSettingsApplicationServiceTest {
         service.delete(SESSION_ID);
 
         assertThat(sessions.findById(SESSION_ID)).isEmpty();
+        verify(git).clearCheckpoints(any(Path.class), eq(SESSION_ID.toString()));
     }
 
     @Test
@@ -158,7 +168,8 @@ class SessionSettingsApplicationServiceTest {
                 session.config(), SessionStatus.RUNNING, null, session.version());
         sessions = new InMemorySessionRepository();
         sessions.insert(running);
-        service = new SessionSettingsApplicationService(sessions, models, new ModelSelectionPolicy());
+        service = new SessionSettingsApplicationService(sessions, models,
+                new ModelSelectionPolicy(), git);
 
         assertThatThrownBy(() -> service.delete(SESSION_ID))
                 .isInstanceOfSatisfying(DomainException.class, error ->
