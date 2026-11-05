@@ -20,6 +20,7 @@ import {
 import * as sessionSettings from "./session-settings.js";
 import * as settings from "./settings.js";
 import * as slash from "./slash.js";
+import * as timeline from "./timeline.js";
 import * as toolForm from "./tool-form.js";
 import * as tools from "./tools.js";
 import { dom, setServer, state, toast } from "./store.js";
@@ -53,6 +54,8 @@ function initShell() {
     changes.initChanges();
     changes.bindReload(reloadSession);
     plan.initPlan();
+    timeline.initTimeline();
+    timeline.bindReload(reloadSession);
     initSessionActions();
     dialog.init(createSession, () => settings.open("models"), () => {
         pendingPrompt = "";

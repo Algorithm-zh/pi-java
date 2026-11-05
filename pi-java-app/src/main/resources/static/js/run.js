@@ -14,6 +14,7 @@ import * as plan from "./plan.js";
 import { resetForConversation, renderUserBubble, stopReasonLabel } from "./render.js";
 import { reloadSession, scrollToBottom, syncSessionTitle } from "./session-view.js";
 import { dom, setRunState, state, toast } from "./store.js";
+import * as timeline from "./timeline.js";
 import { createStreamingTurn } from "./turn-view.js";
 import * as usage from "./usage.js";
 
@@ -268,6 +269,7 @@ function handleEvent({ name, payload }) {
             break;
         case "workspace.changed":
             changes.refresh();
+            timeline.refresh();
             break;
         case "plan.updated":
             plan.applyEvent(data);
@@ -322,6 +324,7 @@ function finishRun(data, failed) {
         toast(data.errorMessage, true);
     }
     changes.refresh();
+    timeline.refresh();
     plan.refresh();
 }
 

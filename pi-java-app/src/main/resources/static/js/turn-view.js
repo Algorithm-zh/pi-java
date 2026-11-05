@@ -476,6 +476,9 @@ export function renderNote(entry) {
             `上下文已压缩，压缩前 ${formatNumber(entry.body?.extra?.tokensBefore)} tokens`);
     }
     if (entry.type === "BRANCH_SUMMARY") {
+        if (entry.body?.extra?.details?.kind === "rewind") {
+            return rewindNote(entry);
+        }
         const from = entry.body?.extra?.fromEntryId ? String(entry.body.extra.fromEntryId).slice(0, 8) : "—";
         return collapsibleNote(entry, "branch-note", `分支摘要，起点 ${from}`);
     }
@@ -522,6 +525,38 @@ function collapsibleNote(entry, className, label) {
     details.append(summary, el("pre", "history-note-body",
         entry.body?.extra?.summary || "（无摘要）"));
     return details;
+}
+
+function rewindNote(entry) {
+    const template = document.getElementById("timeline-brief-template");
+    if (!template) {
+        return collapsibleNote(entry, "branch-note", "回溯简报");
+    }
+    const node = template.content.firstElementChild.cloneNode(true);
+    const extra = entry.body?.extra || {};
+    const details = extra.details || {};
+    node.querySelector(".rewind-note-summary").textContent = extra.summary || "回溯简报";
+    const facts = [];
+    if (Number(details.discardedEntries) > 0) {
+        facts.push(`丢弃 ${details.discardedEntries} 条记录`);
+    }
+    if (Number(details.discardedRuns) > 0) {
+        facts.push(`${details.discardedRuns} 次运行`);
+    }
+    if (Number(details.restoredFiles) > 0) {
+        facts.push(`还原 ${details.restoredFiles} 个文件`);
+    }
+    if (Number(details.deniedApprovals) > 0) {
+        facts.push(`${details.deniedApprovals} 次审批被拒`);
+    }
+    if (Number(details.failedVerifications) > 0) {
+        facts.push(`${details.failedVerifications} 次验证失败`);
+    }
+    if (Number(details.unfinishedPlanItems) > 0) {
+        facts.push(`${details.unfinishedPlanItems} 项待办未完成`);
+    }
+    node.querySelector(".rewind-note-facts").textContent = facts.join(" · ");
+    return node;
 }
 
 function planNote(entry) {

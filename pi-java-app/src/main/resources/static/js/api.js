@@ -279,6 +279,28 @@ export function undoSession(sessionId) {
     });
 }
 
+/**
+ * 查询当前分支的决策时间线。
+ *
+ * @param {string} sessionId 会话 ID
+ * @returns {Promise<object>} 按分支位置排列的节点
+ */
+export function sessionTimeline(sessionId) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/timeline`);
+}
+
+/**
+ * 预览或执行回退到任意检查点。
+ *
+ * @param {string} sessionId 会话 ID
+ * @param {{checkpointEntryId: string, dryRun: boolean, note?: string}} payload 回退请求
+ * @returns {Promise<object>} 预览或执行结果
+ */
+export function rewindSession(sessionId, payload) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/rewind`,
+        jsonInit("POST", payload));
+}
+
 export function listModels() {
     return request("/api/v1/models");
 }

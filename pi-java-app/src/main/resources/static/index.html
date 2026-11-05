@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="/css/theme.css">
     <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/messages.css">
+    <link rel="stylesheet" href="/css/timeline.css">
     <link rel="stylesheet" href="/css/settings.css">
 </head>
 <body>
@@ -259,6 +260,12 @@
                 <div id="session-meta" class="session-meta"></div>
             </div>
             <div class="topbar-actions">
+                <button id="timeline-toggle" class="timeline-entry hidden" type="button"
+                        title="决策时间线" aria-label="决策时间线"
+                        aria-controls="timeline-panel" aria-expanded="false">
+                    <span class="timeline-entry-mark" aria-hidden="true">◷</span>
+                    <span class="timeline-entry-label">时间线</span>
+                </button>
                 <div id="context-widget" class="context-widget hidden" title="当前上下文估算用量">
                     <span class="context-name">上下文</span>
                     <div class="context-track">
@@ -281,6 +288,23 @@
                 <button id="abort-button" class="stop-button hidden" type="button">停止生成</button>
             </div>
         </header>
+
+        <nav id="timeline-spine" class="timeline-spine hidden" aria-label="决策刻度"></nav>
+
+        <aside id="timeline-panel" class="timeline-panel" aria-label="决策时间线"
+               aria-hidden="true">
+            <header class="timeline-head">
+                <div>
+                    <p class="timeline-kicker">决策脊</p>
+                    <h2>决策时间线</h2>
+                    <p id="timeline-subtitle" class="timeline-subtitle"></p>
+                </div>
+                <button id="timeline-close" class="icon-button" type="button"
+                        aria-label="关闭时间线">×</button>
+            </header>
+            <p id="timeline-status" class="timeline-status" aria-live="polite"></p>
+            <div id="timeline-list" class="timeline-list"></div>
+        </aside>
 
         <div class="thread">
             <section id="messages" class="messages" aria-live="polite">
@@ -627,6 +651,42 @@
         </div>
     </div>
 </dialog>
+
+<dialog id="timeline-preview" class="timeline-preview" aria-modal="true">
+    <form id="timeline-preview-form" class="timeline-preview-shell">
+        <header class="timeline-preview-head">
+            <div>
+                <p id="timeline-preview-kicker" class="timeline-kicker">回退预览</p>
+                <h2 id="timeline-preview-title">回到这次运行之前</h2>
+            </div>
+            <button id="timeline-preview-close" class="icon-button" type="button"
+                    aria-label="关闭">×</button>
+        </header>
+        <div id="timeline-preview-body" class="timeline-preview-body"></div>
+        <p id="timeline-preview-error" class="dialog-error hidden"></p>
+        <label class="field timeline-note-field">
+            <span>备注（可选，会写进回溯简报）</span>
+            <textarea id="timeline-note" rows="2" maxlength="200"></textarea>
+        </label>
+        <footer>
+            <button id="timeline-cancel" class="ghost-button" type="button">取消</button>
+            <button id="timeline-confirm" class="primary-button" type="submit">确认回退</button>
+        </footer>
+    </form>
+</dialog>
+
+<template id="timeline-brief-template">
+    <details class="history-note rewind-note" open>
+        <summary>
+            <span class="history-note-title">回溯简报</span>
+            <span class="history-note-state">从这里继续</span>
+        </summary>
+        <div class="rewind-note-copy">
+            <p class="rewind-note-summary"></p>
+            <p class="rewind-note-facts"></p>
+        </div>
+    </details>
+</template>
 
 <template id="empty-template">
     <div class="welcome welcome-compact">

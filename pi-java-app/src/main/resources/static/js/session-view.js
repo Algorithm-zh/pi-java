@@ -9,6 +9,7 @@ import * as contextMeter from "./context-meter.js";
 import * as plan from "./plan.js";
 import { el, renderEntries, renderSessions, statusLabel } from "./render.js";
 import { dom, modelDisplayName, setRunState, state, toast } from "./store.js";
+import * as timeline from "./timeline.js";
 import * as usage from "./usage.js";
 
 let reconnectHandler = null;
@@ -159,6 +160,7 @@ export async function openSession(sessionId, updateUrl = true) {
         contextMeter.refresh();
         changes.refresh();
         plan.refresh();
+        timeline.refresh();
         state.stick = true;
         scrollToBottom(true);
         if (updateUrl) {
@@ -264,6 +266,7 @@ function clearSession() {
     dom.contextWidget.classList.add("hidden");
     changes.reset();
     plan.reset();
+    timeline.reset();
     history.replaceState(null, "", location.pathname);
     readyHandler?.();
 }
@@ -291,6 +294,7 @@ export async function reloadSession() {
         contextMeter.refresh();
         changes.refresh();
         plan.refresh();
+        timeline.refresh();
         state.stick = true;
         scrollToBottom(true);
     } catch (error) {
