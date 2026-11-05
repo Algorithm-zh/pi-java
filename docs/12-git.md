@@ -240,7 +240,7 @@ POST /api/v1/sessions/{id}/rewind
 
 - 提交只用于让树对象可达，`commit-tree` 的父为空，不进入任何分支；
 - 写入时显式提供 `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL` 等身份变量，避免依赖
-  用户 git 配置；时间戳固定，重复固定同一检查点结果稳定；
+  用户 git 配置；同一树对象重复固定只会生成新的内部提交，ref 始终指向最新一次；
 - 删除会话时同时删除该会话下的所有 `refs/pi/checkpoints/<sessionId>/`；
 - 固定是尽力而为：失败只记 WARNING，不阻断运行，也不影响后续回溯（只是检查点
   可能在 `git gc --prune=now` 后失效）。

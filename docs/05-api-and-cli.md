@@ -455,7 +455,7 @@ POST /api/v1/sessions/{id}/rewind
 ```json
 {
   "available": true,
-  "currentCheckpointEntryId": "01JU...",
+  "currentCheckpointEntryId": null,
   "nodes": [
     {
       "type": "RUN",

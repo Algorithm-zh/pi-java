@@ -127,9 +127,9 @@
   预览并确认回溯后，文件恢复且会话出现“回溯简报”卡片；390px 下刻度条隐藏、面板为
   底部抽屉，Esc 可关闭；控制台无错误。
 
-  ![决策时间线](../images/timeline.png)
+  ![决策时间线](images/timeline.png)
 
-  ![决策时间线（390px 底部抽屉）](../images/timeline-mobile.png)
+  ![决策时间线（390px 底部抽屉）](images/timeline-mobile.png)
 - 自动化：`AnsiTest` 覆盖品牌色与宽度；`TuiRendererTest` 覆盖流式输出与工具摘要；
   `TuiApprovalTest` 覆盖审批面板文案、按键与中断处理。
 - 本机自动化环境没有真实 TTY，交互式 TUI 的圆角组合与流式刷新由单元测试保证，
