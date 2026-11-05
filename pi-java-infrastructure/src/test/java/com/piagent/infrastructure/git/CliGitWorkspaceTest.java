@@ -177,8 +177,17 @@ class CliGitWorkspaceTest {
     @Test
     void pinCheckpointSurvivesGcAndClearRemovesRefs() throws IOException {
         GitSnapshot before = committedRepo();
+        String headBefore = trackedHead();
+        String refsBefore = git("for-each-ref", "--format=%(refname)",
+                "refs/heads", "refs/tags");
+        String statusBefore = status();
+
         workspace.pinCheckpoint(repo, "session-1", "run-1", before.treeSha());
 
+        assertThat(trackedHead()).isEqualTo(headBefore);
+        assertThat(git("for-each-ref", "--format=%(refname)", "refs/heads", "refs/tags"))
+                .isEqualTo(refsBefore);
+        assertThat(status()).isEqualTo(statusBefore);
         git("gc", "--prune=now", "--quiet");
         assertThat(git("cat-file", "-t", before.treeSha())).contains("tree");
         assertThat(git("for-each-ref", "--format=%(refname)",
@@ -187,6 +196,31 @@ class CliGitWorkspaceTest {
         workspace.clearCheckpoints(repo, "session-1");
         assertThat(git("for-each-ref", "--format=%(refname)",
                 "refs/pi/checkpoints/session-1/")).isBlank();
+    }
+
+    @Test
+    void pinFailureIsSilentAndLeavesNoRef() throws IOException {
+        committedRepo();
+
+        workspace.pinCheckpoint(repo, "session-1", "run-1",
+                "0000000000000000000000000000000000000000");
+
+        assertThat(git("for-each-ref", "--format=%(refname)",
+                "refs/pi/checkpoints/session-1/")).isBlank();
+    }
+
+    @Test
+    void clearOnlyRemovesRequestedNamespace() throws IOException {
+        GitSnapshot before = committedRepo();
+        workspace.pinCheckpoint(repo, "session-1", "run-1", before.treeSha());
+        workspace.pinCheckpoint(repo, "session-2", "run-1", before.treeSha());
+
+        workspace.clearCheckpoints(repo, "session-1");
+
+        assertThat(git("for-each-ref", "--format=%(refname)",
+                "refs/pi/checkpoints/session-1/")).isBlank();
+        assertThat(git("for-each-ref", "--format=%(refname)",
+                "refs/pi/checkpoints/session-2/")).contains("run-1");
     }
 
     @Test

@@ -7,7 +7,8 @@ import java.util.Map;
  * 检查点保活 ref 的 git CLI 实现。
  *
  * <p>为树对象创建一个只存在于 {@code refs/pi/checkpoints/} 命名空间的内部 commit，
- * 不移动 HEAD、不创建用户可见分支，也不写用户索引。所有失败都只记日志。</p>
+ * 不移动 HEAD、不创建用户可见分支，也不写用户索引。git 以非零退出码结束时只记日志
+ * 并吞掉错误；来自命令执行器的进程级异常（例如 git 不可执行、超时）会向上传播。</p>
  */
 final class GitCheckpointPins {
 

@@ -17,6 +17,19 @@ public record GitRestorePlan(String targetTreeSha, String latestTreeSha,
         List<String> files, List<GitConflict> conflicts) {
 
     /**
+     * 规范化列表。
+     *
+     * @param targetTreeSha 目标树
+     * @param latestTreeSha 最新树
+     * @param files 变化路径
+     * @param conflicts 冲突
+     */
+    public GitRestorePlan {
+        files = files == null ? List.of() : List.copyOf(files);
+        conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
+    }
+
+    /**
      * 是否可以在不覆盖用户改动的前提下执行。
      *
      * @return true 表示没有冲突

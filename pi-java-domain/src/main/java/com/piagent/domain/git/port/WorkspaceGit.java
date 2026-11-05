@@ -47,7 +47,9 @@ public interface WorkspaceGit {
     GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha);
 
     /**
-     * 计算把工作区还原到起点树的只读计划，不写任何文件。
+     * 计算把工作区还原到起点树的计划。
+     *
+     * <p>不修改工作区，也不修改用户索引；适配器可能为此创建临时对象。</p>
      *
      * <p>默认实现表示该 Git 适配器不支持预览，保持既有测试替身可编译；
      * 生产实现必须覆盖。</p>

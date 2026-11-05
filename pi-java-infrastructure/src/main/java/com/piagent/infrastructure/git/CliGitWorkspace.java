@@ -107,34 +107,20 @@ public class CliGitWorkspace implements WorkspaceGit {
 
     @Override
     public GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha) {
-        GitRestorePlan plan = planRestore(workspace, baseTreeSha, treeSha);
+        Path root = requireRoot(workspace);
+        GitRestorePlan plan = planAt(root, baseTreeSha, treeSha);
         if (!plan.restorable()) {
             return new GitRestoreResult(List.of(), plan.conflicts());
         }
         if (plan.files().isEmpty()) {
             return new GitRestoreResult(List.of(), List.of());
         }
-        Path root = repositoryRoot(workspace);
-        if (root == null) {
-            throw new DomainException(DomainErrorCode.GIT_UNAVAILABLE, "工作目录不是 Git 仓库");
-        }
         return new GitRestoreResult(apply(root, baseTreeSha, plan.files()), List.of());
     }
 
     @Override
     public GitRestorePlan planRestore(Path workspace, String baseTreeSha, String treeSha) {
-        Path root = repositoryRoot(workspace);
-        if (root == null) {
-            throw new DomainException(DomainErrorCode.GIT_UNAVAILABLE, "工作目录不是 Git 仓库");
-        }
-        GitSnapshot current = snapshot(root)
-                .orElseThrow(() -> new DomainException(DomainErrorCode.GIT_UNAVAILABLE,
-                        "无法读取当前工作区快照"));
-        List<FileChange> changed = changedPaths(root, baseTreeSha, treeSha);
-        List<String> files = changed.stream().map(FileChange::path).toList();
-        List<GitConflict> conflicts = files.isEmpty() ? List.of()
-                : conflicts(root, changed, current.treeSha(), treeSha);
-        return new GitRestorePlan(baseTreeSha, treeSha, files, conflicts);
+        return planAt(requireRoot(workspace), baseTreeSha, treeSha);
     }
 
     @Override
@@ -144,17 +130,34 @@ public class CliGitWorkspace implements WorkspaceGit {
             return;
         }
         Path root = repositoryRoot(workspace);
-        if (root != null) {
-            pins.pin(root, namespace, checkpointId, treeSha);
+        if (root == null) {
+            LOG.log(System.Logger.Level.DEBUG, "工作目录不是 Git 仓库，跳过检查点保活: {0}",
+                    workspace);
+            return;
         }
+        pins.pin(root, namespace, checkpointId, treeSha);
     }
 
     @Override
     public void clearCheckpoints(Path workspace, String namespace) {
         Path root = repositoryRoot(workspace);
-        if (root != null) {
-            pins.clear(root, namespace);
+        if (root == null) {
+            LOG.log(System.Logger.Level.DEBUG, "工作目录不是 Git 仓库，跳过清理检查点 ref: {0}",
+                    workspace);
+            return;
         }
+        pins.clear(root, namespace);
+    }
+
+    private GitRestorePlan planAt(Path root, String baseTreeSha, String treeSha) {
+        GitSnapshot current = snapshot(root)
+                .orElseThrow(() -> new DomainException(DomainErrorCode.GIT_UNAVAILABLE,
+                        "无法读取当前工作区快照"));
+        List<FileChange> changed = changedPaths(root, baseTreeSha, treeSha);
+        List<String> files = changed.stream().map(FileChange::path).toList();
+        List<GitConflict> conflicts = files.isEmpty() ? List.of()
+                : conflicts(root, changed, current.treeSha(), treeSha);
+        return new GitRestorePlan(baseTreeSha, treeSha, files, conflicts);
     }
 
     private List<FileChange> changedPaths(Path root, String baseTreeSha, String treeSha) {
@@ -236,6 +239,14 @@ public class CliGitWorkspace implements WorkspaceGit {
         GitCommandRunner.Result result = runner.run(root, Map.of(),
                 "rev-parse", "--verify", "--quiet", treeSha + ":" + path);
         return result.success() && !result.out().isBlank() ? result.out() : null;
+    }
+
+    private Path requireRoot(Path workspace) {
+        Path root = repositoryRoot(workspace);
+        if (root == null) {
+            throw new DomainException(DomainErrorCode.GIT_UNAVAILABLE, "工作目录不是 Git 仓库");
+        }
+        return root;
     }
 
     private Path repositoryRoot(Path workspace) {
