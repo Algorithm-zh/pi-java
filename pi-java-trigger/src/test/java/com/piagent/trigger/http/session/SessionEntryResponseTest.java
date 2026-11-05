@@ -23,7 +23,8 @@ class SessionEntryResponseTest {
         SessionEntry entry = new SessionEntry(EntryId.parse("01TST000000000000000000004"),
                 SessionId.parse("01TST000000000000000000001"), 1, null,
                 EntryType.BRANCH_SUMMARY, SessionEntry.CURRENT_PAYLOAD_VERSION,
-                new BranchSummaryPayload(from, "回溯简报", details), 8, Instant.now());
+                new BranchSummaryPayload(from, "回溯简报", details), 8,
+                Instant.parse("2026-11-05T10:00:00Z"));
 
         SessionEntryResponse response = SessionEntryResponse.from(entry);
 

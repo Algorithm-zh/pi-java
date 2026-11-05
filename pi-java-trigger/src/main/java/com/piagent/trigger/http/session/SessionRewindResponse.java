@@ -13,7 +13,7 @@ import java.util.List;
  * @param files 计划还原的路径
  * @param restored 实际还原的路径
  * @param conflicts 冲突列表
- * @param briefEntryId 新写入的回溯简报 entry
+ * @param briefEntryId 新写入的回溯简报 entry；预览或失败时为 null
  * @param discardedEntries 被丢弃的 entry 数
  * @param discardedRuns 被丢弃的 run 数
  * @param brief 简报正文

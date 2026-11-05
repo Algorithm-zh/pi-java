@@ -152,6 +152,47 @@ class SessionTimelineControllerTest {
     }
 
     @Test
+    void defaultsToPreviewWhenDryRunOmitted() throws Exception {
+        when(rewinds.rewind(SESSION_ID, CHECKPOINT, true, null))
+                .thenReturn(new SessionRewindResult(true, false, true, List.of("a.txt"),
+                        List.of(), List.of(), null, 3, 1, "从 14:32 的决策点回退"));
+
+        MvcResult result = mvc.perform(post("/api/v1/sessions/{id}/rewind", SESSION_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"checkpointEntryId\":\"" + CHECKPOINT + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(bodyOf(result).path("dryRun").asBoolean()).isTrue();
+        verify(rewinds).rewind(SESSION_ID, CHECKPOINT, true, null);
+    }
+
+    @Test
+    void rendersRewindNode() throws Exception {
+        SessionTimeline.RewindEvidence rewind = new SessionTimeline.RewindEvidence(
+                "从 14:32 的决策点回退", 3, 1);
+        SessionTimeline.Node node = new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND,
+                null, "run-1", Instant.parse("2026-11-05T10:05:00Z"), true, false, null, rewind);
+        when(timelines.timeline(SESSION_ID))
+                .thenReturn(new SessionTimeline(true, null, List.of(node)));
+
+        MvcResult result = mvc.perform(get("/api/v1/sessions/{id}/timeline", SESSION_ID))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = bodyOf(result);
+        assertThat(body.path("currentCheckpointEntryId").isNull()).isTrue();
+        JsonNode rewindNode = body.path("nodes").get(0);
+        assertThat(rewindNode.path("type").asText()).isEqualTo("REWIND");
+        assertThat(rewindNode.path("checkpointEntryId").isNull()).isTrue();
+        assertThat(rewindNode.path("brief").asText()).isEqualTo("从 14:32 的决策点回退");
+        assertThat(rewindNode.path("discardedEntries").asInt()).isEqualTo(3);
+        assertThat(rewindNode.path("discardedRuns").asInt()).isEqualTo(1);
+        assertThat(rewindNode.path("intent").asText()).isEmpty();
+        assertThat(rewindNode.path("evidence").isNull()).isTrue();
+    }
+
+    @Test
     void mapsInvalidBranchToConflict() throws Exception {
         when(rewinds.rewind(SESSION_ID, CHECKPOINT, true, null))
                 .thenThrow(new DomainException(DomainErrorCode.INVALID_BRANCH,
