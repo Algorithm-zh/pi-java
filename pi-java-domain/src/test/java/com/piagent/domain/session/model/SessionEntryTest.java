@@ -45,12 +45,16 @@ class SessionEntryTest {
                 new MessagePayload(SessionFixtures.user("hello")), 10, SessionFixtures.NOW))
                 .isInstanceOfSatisfying(DomainException.class,
                         error -> assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_ENTRY));
+    }
 
-        assertThatThrownBy(() -> new SessionEntry(SessionFixtures.entryId(1), sessionId, 2, null,
+    @Test
+    void allowsNewRootAfterRewindToFirstCheckpoint() {
+        SessionEntry entry = new SessionEntry(SessionFixtures.entryId(1), sessionId, 2, null,
                 EntryType.MESSAGE, 1, new MessagePayload(SessionFixtures.user("hello")), 10,
-                SessionFixtures.NOW))
-                .isInstanceOfSatisfying(DomainException.class,
-                        error -> assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_ENTRY));
+                SessionFixtures.NOW);
+
+        assertThat(entry.seq()).isEqualTo(2);
+        assertThat(entry.parentId()).isNull();
     }
 
     @Test

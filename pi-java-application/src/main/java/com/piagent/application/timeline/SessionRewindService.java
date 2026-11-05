@@ -26,9 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>目标树直接取检查点的 {@code baseTreeSha}；当前分支上最后一个已知树来自
  * 之后的改动或下一个检查点的起点。还原前先用只读计划检查冲突，冲突时一个字节
  * 都不写、一条 entry 都不删。成功后分支退回检查点记录的叶子，并追加一条回溯
- * 简报作为新分支的起点。</p>
+ * 简报作为新分支的起点。被丢弃的 entry 保留在会话日志中，只是不再属于当前分支；
+ * 简报的 {@code fromEntryId} 指向旧叶子，可用于只读回看。</p>
  *
- * <p>会话截断与简报追加先于工作区写入，二者处于同一事务；数据库步骤失败时事务
+ * <p>叶子回退与简报追加先于工作区写入，二者处于同一事务；数据库步骤失败时事务
  * 回滚，工作区尚未改动，不会出现“文件已还原但对话没退”的半完成状态。工作区写入
  * 失败则抛异常回滚事务；执行前的二次检查若发现冲突，工作区同样不会写入。git 按
  * 文件逐个写入，若写入中途失败，事务会回滚会话，但工作区可能留下部分已写文件。</p>
@@ -104,15 +105,12 @@ public class SessionRewindService {
             return conflict(plan);
         }
         EntryId oldLeaf = session.leafEntryId();
-        if (checkpoint.baseLeafId() == null) {
-            entries.deleteAll(sessionId);
-        }
         sessions.update(session.rewind(checkpoint.baseLeafId()));
         SessionEntry briefEntry = summaries.append(sessionId,
                 new BranchSummaryPayload(oldLeaf, preview.summary(), preview.details()));
         GitRestoreResult restored = restore(session, checkpoint.baseTreeSha(), latestTree);
         if (!restored.complete()) {
-            // 预检后工作区又被改动：restore 未写任何文件，抛异常回滚会话截断。
+            // 预检后工作区又被改动：restore 未写任何文件，抛异常回滚叶子与简报。
             throw new DomainException(DomainErrorCode.GIT_OPERATION_FAILED,
                     "确认后工作区又发生了变化，已放弃本次回退，请重试");
         }

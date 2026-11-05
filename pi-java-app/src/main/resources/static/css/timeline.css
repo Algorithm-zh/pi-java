@@ -438,6 +438,33 @@
     line-height: 1.5;
 }
 
+.rewind-note-history {
+    display: inline-block;
+    margin: 6px 0 0;
+    font-size: 12px;
+}
+
+/* ---------- 回退前的记录（只读） ---------- */
+
+.rewind-history-dialog {
+    width: min(760px, 94vw);
+}
+
+.rewind-history-lead {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.rewind-history-body {
+    max-height: 62vh;
+    padding: 2px 0 0;
+}
+
+.rewind-history-body .messages-inner {
+    gap: 4px;
+}
+
 /* ---------- 决策脊 ---------- */
 
 .timeline-spine {

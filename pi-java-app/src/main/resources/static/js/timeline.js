@@ -7,6 +7,7 @@
 
 import * as api from "./api.js";
 import { el, stopReasonLabel } from "./dom.js";
+import { renderEntries } from "./render.js";
 import { dom, state, toast } from "./store.js";
 
 let phase = "closed";
@@ -17,6 +18,7 @@ let previewResult = null;
 let reloadHandler = null;
 let requestId = 0;
 let previewId = 0;
+let historyRequestId = 0;
 
 const REWIND_TIMEOUT_MS = 15000;
 
@@ -57,6 +59,12 @@ export function initTimeline() {
             closePreview(true);
         }
     });
+    dom.messages?.addEventListener("click", onHistoryClick);
+    dom.rewindHistoryClose?.addEventListener("click", closeHistory);
+    dom.rewindHistoryDialog?.addEventListener("close", () => {
+        historyRequestId++;
+        clearHistory();
+    });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !dom.timelinePreview?.open) {
             closePanel();
@@ -72,6 +80,9 @@ export async function refresh() {
     if (!sessionId) {
         reset();
         return;
+    }
+    if (loadedSessionId && loadedSessionId !== sessionId) {
+        closeHistory();
     }
     if (phase === "rewinding") {
         return;
@@ -114,6 +125,7 @@ export async function refresh() {
 export function reset() {
     requestId++;
     previewId++;
+    closeHistory();
     phase = "closed";
     timeline = null;
     loadedSessionId = null;
@@ -127,6 +139,70 @@ export function reset() {
         dom.timelineSubtitle.textContent = "";
     }
     renderStatus("");
+}
+
+/**
+ * 简报里的“查看回退前的记录”：只读加载旧叶子的分支，不改变会话。
+ */
+function onHistoryClick(event) {
+    if (!(event.target instanceof Element)) {
+        return;
+    }
+    const button = event.target.closest("[data-rewind-from]");
+    if (!button) {
+        return;
+    }
+    openHistory(button.dataset.rewindFrom);
+}
+
+async function openHistory(fromEntryId) {
+    const sessionId = state.session?.id;
+    if (!sessionId || !fromEntryId || !dom.rewindHistoryDialog || !dom.rewindHistoryBody) {
+        return;
+    }
+    const token = ++historyRequestId;
+    setHistoryError("");
+    dom.rewindHistoryBody.replaceChildren(el("p", "timeline-preview-loading",
+        "正在读取回退前的记录…"));
+    if (!dom.rewindHistoryDialog.open) {
+        dom.rewindHistoryDialog.showModal();
+    }
+    try {
+        const entries = await api.listEntries(sessionId, fromEntryId);
+        if (token !== historyRequestId || state.session?.id !== sessionId) {
+            return;
+        }
+        renderEntries(dom.rewindHistoryBody, entries);
+    } catch (error) {
+        if (token !== historyRequestId) {
+            return;
+        }
+        dom.rewindHistoryBody.replaceChildren();
+        setHistoryError(error?.status === 404
+            ? "这段记录已被旧版本的回退删除，无法再找回。"
+            : (error.message || "读取回退前的记录失败"));
+    }
+}
+
+function closeHistory() {
+    historyRequestId++;
+    if (dom.rewindHistoryDialog?.open) {
+        dom.rewindHistoryDialog.close();
+    }
+    clearHistory();
+}
+
+function clearHistory() {
+    dom.rewindHistoryBody?.replaceChildren();
+    setHistoryError("");
+}
+
+function setHistoryError(message) {
+    if (!dom.rewindHistoryError) {
+        return;
+    }
+    dom.rewindHistoryError.textContent = message || "";
+    dom.rewindHistoryError.classList.toggle("hidden", !message);
 }
 
 function togglePanel() {

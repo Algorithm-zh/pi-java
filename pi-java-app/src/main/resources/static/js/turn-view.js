@@ -564,6 +564,13 @@ function rewindNote(entry) {
         facts.push(`${details.unfinishedPlanItems} 项待办未完成`);
     }
     node.querySelector(".rewind-note-facts").textContent = facts.join(" · ");
+    const historyButton = node.querySelector(".rewind-note-history");
+    if (historyButton && extra.fromEntryId) {
+        historyButton.dataset.rewindFrom = String(extra.fromEntryId);
+        historyButton.classList.remove("hidden");
+    } else if (historyButton) {
+        historyButton.remove();
+    }
     return node;
 }
 

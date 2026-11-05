@@ -129,8 +129,9 @@ class SessionRewindServiceTest {
     }
 
     @Test
-    void rewindsFirstRunToRoot() {
+    void rewindsFirstRunToRootAndKeepsDiscardedHistory() {
         RunIds runs = threeRuns();
+        long before = entries.countBySession(sessionId);
         git.nextPlan = new GitRestorePlan("tree-0", "tree-2", List.of("a.txt"), List.of());
         git.nextRestore = new GitRestoreResult(List.of("a.txt"), List.of());
 
@@ -138,10 +139,13 @@ class SessionRewindServiceTest {
                 "换一种修法");
 
         assertThat(result.rewound()).isTrue();
-        assertThat(entries.countBySession(sessionId)).isEqualTo(1);
+        assertThat(entries.countBySession(sessionId)).isEqualTo(before + 1);
         SessionEntry brief = entries.findById(sessionId, result.briefEntryId()).orElseThrow();
-        assertThat(brief.seq()).isEqualTo(1);
+        assertThat(brief.seq()).isGreaterThan(1L);
         assertThat(brief.parentId()).isNull();
+        assertThat(entries.loadBranch(sessionId, brief.id())).containsExactly(brief);
+        assertThat(entries.findById(sessionId, runs.firstCheckpoint)).isPresent();
+        assertThat(entries.findById(sessionId, runs.thirdCheckpoint)).isPresent();
         assertThat(result.brief()).contains("备注：换一种修法");
     }
 

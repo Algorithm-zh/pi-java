@@ -676,6 +676,23 @@
     </form>
 </dialog>
 
+<dialog id="rewind-history-dialog" class="timeline-preview rewind-history-dialog"
+        aria-modal="true" aria-labelledby="rewind-history-title">
+    <div class="timeline-preview-shell">
+        <header class="timeline-preview-head">
+            <div>
+                <p class="timeline-kicker">回退前记录</p>
+                <h2 id="rewind-history-title">已放弃的分支</h2>
+                <p class="rewind-history-lead">只读查看，不会加入当前上下文。</p>
+            </div>
+            <button id="rewind-history-close" class="icon-button" type="button"
+                    aria-label="关闭">×</button>
+        </header>
+        <div id="rewind-history-body" class="timeline-preview-body rewind-history-body"></div>
+        <p id="rewind-history-error" class="dialog-error hidden"></p>
+    </div>
+</dialog>
+
 <template id="timeline-brief-template">
     <details class="history-note rewind-note" open>
         <summary>
@@ -685,6 +702,8 @@
         <div class="rewind-note-copy">
             <p class="rewind-note-summary"></p>
             <p class="rewind-note-facts"></p>
+            <button class="link-button rewind-note-history hidden" type="button"
+                    data-rewind-from="">查看回退前的记录</button>
         </div>
     </details>
 </template>

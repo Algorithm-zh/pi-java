@@ -69,9 +69,8 @@ public record SessionEntry(
                 "entry 类型 " + type + " 与载荷类型 " + payload.entryType() + " 不匹配");
         if (seq == 1) {
             Guard.require(parentId == null, DomainErrorCode.INVALID_ENTRY, "根 entry 不能有父节点");
-        } else {
-            Guard.require(parentId != null, DomainErrorCode.INVALID_ENTRY, "非根 entry 必须有父节点");
         }
+        // 回退到第一个检查点后，简报会成为旧日志之后的新根：无父节点但 seq > 1。
     }
 
     /**
