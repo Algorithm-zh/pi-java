@@ -188,6 +188,13 @@ function wireEvents() {
         closeSidebar();
         settings.open("models");
     });
+    dom.accountCard.addEventListener("click", (event) => {
+        if (event.target.closest("#logout-button")) {
+            return;
+        }
+        closeSidebar();
+        settings.open("account");
+    });
     dom.refreshSessions.addEventListener("click", () => refreshSessions().catch((error) => {
         toast(error.message, true);
     }));

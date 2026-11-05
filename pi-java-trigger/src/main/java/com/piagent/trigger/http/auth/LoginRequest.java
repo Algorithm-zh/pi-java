@@ -5,7 +5,7 @@ import com.piagent.application.identity.command.LoginCommand;
 /**
  * 登录请求。
  *
- * @param tenantSlug 租户短名；空表示默认空间
+ * @param tenantSlug 目标空间短名；留空时按成员关系自动定位，多个空间需要点选
  * @param username 登录名
  * @param password 明文密码
  */

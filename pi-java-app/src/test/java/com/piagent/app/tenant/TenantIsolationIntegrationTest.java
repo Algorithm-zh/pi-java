@@ -80,6 +80,7 @@ class TenantIsolationIntegrationTest {
     @BeforeAll
     void setUpTenants() throws Exception {
         jdbc.update("DELETE FROM pi_auth_token");
+        jdbc.update("DELETE FROM pi_space_member");
         jdbc.update("DELETE FROM pi_app_user");
         jdbc.update("DELETE FROM pi_approval_request");
         jdbc.update("DELETE FROM pi_session_entry");
@@ -96,7 +97,6 @@ class TenantIsolationIntegrationTest {
         tokenA = setupAdmin();
         createTenantB();
         tokenB = login(ADMIN_B, "team-b");
-
         sessionA = createSession(tokenA, "租户 A 会话", workspaceA);
         sessionB = createSession(tokenB, "租户 B 会话", workspaceB);
         attachmentA = uploadImage(tokenA);
@@ -233,10 +233,15 @@ class TenantIsolationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(member)))
                 .andExpect(status().isCreated());
-        String memberToken = login("iso-member-a", null);
-        mockMvc.perform(get("/api/v1/tenants").header("Authorization", bearer(memberToken)))
+        String memberToken = login("iso-member-a", "default");
+        mockMvc.perform(get("/api/v1/users").header("Authorization", bearer(memberToken)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("AUTH_FORBIDDEN"));
+        mockMvc.perform(get("/api/v1/tenants").header("Authorization", bearer(memberToken)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("default")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("team-b"))));
         mockMvc.perform(get("/api/v1/tenants").header("Authorization", bearer(tokenB)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("team-b")));
@@ -253,14 +258,42 @@ class TenantIsolationIntegrationTest {
     }
 
     private void createTenantB() throws Exception {
-        mockMvc.perform(post("/api/v1/tenants")
+        Map<String, Object> account = new HashMap<>();
+        account.put("username", ADMIN_B);
+        account.put("displayName", "租户 B 管理员");
+        account.put("password", PASSWORD);
+        account.put("role", "ADMIN");
+        mockMvc.perform(post("/api/v1/users")
                         .header("Authorization", bearer(tokenA))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("slug", "team-b", "name", "团队 B",
-                                "username", ADMIN_B, "displayName", "租户 B 管理员",
-                                "password", PASSWORD))))
+                        .content(json(account)))
+                .andExpect(status().isCreated());
+
+        String tenantId = objectMapper.readTree(mockMvc.perform(post("/api/v1/tenants")
+                        .header("Authorization", bearer(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("slug", "team-b", "name", "团队 B"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.slug").value("team-b"));
+                .andExpect(jsonPath("$.slug").value("team-b"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("id").asText();
+
+        JsonNode accounts = objectMapper.readTree(mockMvc.perform(get("/api/v1/users")
+                        .header("Authorization", bearer(tokenA)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+        String adminBId = null;
+        for (JsonNode accountNode : accounts) {
+            if (ADMIN_B.equals(accountNode.path("username").asText())) {
+                adminBId = accountNode.path("id").asText();
+            }
+        }
+        assertThat(adminBId).isNotNull();
+        mockMvc.perform(post("/api/v1/tenants/{id}/members", tenantId)
+                        .header("Authorization", bearer(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("userId", adminBId, "role", "ADMIN"))))
+                .andExpect(status().isCreated());
     }
 
     private String login(String username, String tenantSlug) throws Exception {

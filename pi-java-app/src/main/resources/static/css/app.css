@@ -3124,6 +3124,13 @@ body.tool-modal-open {
     border: 1px solid var(--line);
     border-radius: 13px;
     background: var(--surface);
+    cursor: pointer;
+    transition: border-color .16s ease, background .16s ease;
+}
+
+.account-card:hover {
+    border-color: var(--line-strong);
+    background: var(--surface-soft);
 }
 
 .account-avatar {

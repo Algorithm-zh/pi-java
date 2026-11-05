@@ -30,11 +30,12 @@ public record AuthTenantRequiredResponse(String code, String message,
      *
      * @param slug 空间短名
      * @param name 空间名称
+     * @param kind 空间类型
      */
-    public record TenantChoiceResponse(String slug, String name) {
+    public record TenantChoiceResponse(String slug, String name, String kind) {
 
         static TenantChoiceResponse from(TenantChoice choice) {
-            return new TenantChoiceResponse(choice.slug(), choice.name());
+            return new TenantChoiceResponse(choice.slug(), choice.name(), choice.kind());
         }
     }
 }

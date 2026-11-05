@@ -116,6 +116,23 @@ public class AuthController {
     }
 
     /**
+     * 切换到当前账号已加入的另一个空间；旧令牌立即吊销。
+     *
+     * @param request 切换请求
+     * @param httpRequest HTTP 请求
+     * @param httpResponse HTTP 响应
+     * @return 新登录会话
+     */
+    @PostMapping("/switch")
+    public AuthSessionResponse switchSpace(@RequestBody SwitchSpaceRequest request,
+            HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        AuthSessionView session = auth.switchSpace(AuthCookies.token(httpRequest),
+                request.toCommand());
+        setCookie(httpResponse, session.token(), httpRequest.isSecure());
+        return AuthSessionResponse.from(session);
+    }
+
+    /**
      * 登出并清除会话 Cookie。
      *
      * @param httpRequest HTTP 请求

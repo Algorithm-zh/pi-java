@@ -17,6 +17,7 @@ export const dom = {
     newSession: document.getElementById("new-session"),
     refreshSessions: document.getElementById("refresh-sessions"),
     openSettings: document.getElementById("open-settings"),
+    accountCard: document.getElementById("account-card"),
     serverDot: document.getElementById("server-dot"),
     serverLabel: document.getElementById("server-label"),
     serverVersion: document.getElementById("server-version"),

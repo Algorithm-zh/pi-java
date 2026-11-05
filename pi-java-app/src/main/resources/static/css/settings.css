@@ -911,6 +911,12 @@
     background: var(--surface-soft);
 }
 
+.account-row[data-current="true"] {
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .account-row-copy {
     display: flex;
     min-width: 0;

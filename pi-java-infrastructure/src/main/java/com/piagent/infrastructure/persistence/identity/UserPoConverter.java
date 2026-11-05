@@ -1,9 +1,7 @@
 package com.piagent.infrastructure.persistence.identity;
 
 import com.piagent.domain.identity.model.AppUser;
-import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserId;
-import com.piagent.domain.identity.model.UserRole;
 import com.piagent.domain.identity.model.UserStatus;
 
 /**
@@ -20,11 +18,9 @@ public final class UserPoConverter {
     public UserPO toPo(AppUser user) {
         UserPO po = new UserPO();
         po.setId(user.id().toString());
-        po.setTenantId(user.tenantId().toString());
         po.setUsername(user.username());
         po.setDisplayName(user.displayName());
         po.setPasswordHash(user.passwordHash());
-        po.setRole(user.role().name());
         po.setStatus(user.status().name());
         po.setCreatedAt(user.createdAt());
         po.setUpdatedAt(user.updatedAt());
@@ -38,9 +34,8 @@ public final class UserPoConverter {
      * @return 账号
      */
     public AppUser toDomain(UserPO po) {
-        return new AppUser(UserId.parse(po.getId()), TenantId.parse(po.getTenantId()),
-                po.getUsername(), po.getDisplayName(), po.getPasswordHash(),
-                UserRole.valueOf(po.getRole()), UserStatus.valueOf(po.getStatus()),
+        return new AppUser(UserId.parse(po.getId()), po.getUsername(), po.getDisplayName(),
+                po.getPasswordHash(), UserStatus.valueOf(po.getStatus()),
                 po.getCreatedAt(), po.getUpdatedAt());
     }
 }

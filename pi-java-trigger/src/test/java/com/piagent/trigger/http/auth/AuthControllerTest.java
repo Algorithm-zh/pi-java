@@ -44,7 +44,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class AuthControllerTest {
 
     private static final AuthUserView USER = new AuthUserView("01TST000000000000000000011",
-            "alice", "Alice", "ADMIN", TenantId.DEFAULT.toString(), "default", "默认空间");
+            "alice", "Alice", "ADMIN", TenantId.DEFAULT.toString(), "default", "默认空间",
+            "DEFAULT");
     private static final AuthPrincipal PRINCIPAL = new AuthPrincipal(TenantId.DEFAULT,
             new UserId(Ulid.generate(Instant.parse("2026-10-29T00:00:00Z"))),
             "alice", "Alice", UserRole.ADMIN);
@@ -149,16 +150,33 @@ class AuthControllerTest {
     @Test
     void loginReturnsSelectableTenantsWhenAmbiguous() throws Exception {
         when(auth.login(any())).thenThrow(new TenantSelectionRequiredException(List.of(
-                new TenantChoice("default", "默认空间"),
-                new TenantChoice("team-b", "团队 B"))));
+                new TenantChoice("u-bob-0001", "Bob 的空间", "PERSONAL"),
+                new TenantChoice("team-b", "团队 B", "TEAM"))));
 
         mvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"bob\",\"password\":\"secret-pass-1\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("AUTH_TENANT_REQUIRED"))
-                .andExpect(jsonPath("$.tenants[0].slug").value("default"))
+                .andExpect(jsonPath("$.tenants[0].kind").value("PERSONAL"))
                 .andExpect(jsonPath("$.tenants[1].name").value("团队 B"));
+    }
+
+    @Test
+    void switchSpaceIssuesNewCookieAndRevokesOldToken() throws Exception {
+        when(auth.switchSpace(any(), any())).thenReturn(new AuthSessionView("tok-9", USER));
+
+        mvc.perform(post("/api/v1/auth/switch")
+                        .cookie(new jakarta.servlet.http.Cookie(AuthCookies.NAME, "tok-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenantSlug\":\"team-b\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("tok-9"))
+                .andExpect(cookie().value(AuthCookies.NAME, "tok-9"));
+
+        verify(auth).switchSpace(org.mockito.ArgumentMatchers.eq("tok-1"),
+                org.mockito.ArgumentMatchers.argThat(command ->
+                        "team-b".equals(command.tenantSlug())));
     }
 
     @Test

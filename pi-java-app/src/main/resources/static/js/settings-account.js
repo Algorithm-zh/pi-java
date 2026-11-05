@@ -1,10 +1,10 @@
 /**
  * 账号与空间设置页。
  *
- * 所有登录用户都能看到自己的身份；租户与账号管理只对管理员展示，
- * 非管理员不会发出管理接口请求，避免设置页出现必然 403 的入口。
- * 空间删除是软删除：需要输入空间短名确认，删除后进入“已删除”列表，
- * 可以随时恢复，空间内的数据不会丢失。
+ * 账号是全局的，空间是账号加入的一个个独立数据仓库：注册后自动拥有个人空间，
+ * 任何人还可以创建团队空间并成为管理员，或把已有账号邀请进来。
+ * 这里按空间列出“我加入了哪些空间”，可直接切换；只有团队空间的管理员
+ * 才能删除（软删除，可恢复）空间，默认空间、个人空间与当前空间始终保留。
  */
 
 import * as api from "./api.js";
@@ -16,6 +16,7 @@ import {
 } from "./settings-ui.js";
 
 const ROLE_LABELS = { ADMIN: "管理员", MEMBER: "成员" };
+const KIND_LABELS = { DEFAULT: "默认空间", PERSONAL: "个人空间", TEAM: "团队空间" };
 const STATUS_LABELS = { ACTIVE: "启用", DISABLED: "停用" };
 
 /**
@@ -27,16 +28,18 @@ export async function render(container) {
     const user = auth.currentUser();
     container.replaceChildren();
     container.append(accountSection(user));
-    if (user?.role !== "ADMIN") {
+    const tenants = await api.listTenants();
+    container.append(spacesSection(container, user, tenants));
+    if (user?.role === "ADMIN") {
+        const members = await api.listUsers();
+        container.append(memberSection(container, user, members));
+    } else {
         const note = el("div", "settings-callout");
-        note.append(el("strong", "", "需要管理员权限"));
-        note.append(el("p", "", "只有管理员可以创建空间与账号。你仍然可以正常使用当前空间里的会话与工具。"));
+        note.append(el("strong", "", "你在当前空间是成员"));
+        note.append(el("p", "",
+            "空间管理员可以邀请更多成员加入。你随时可以创建自己的团队空间，并成为它的管理员。"));
         container.append(note);
-        return;
     }
-    const [tenants, users] = await Promise.all([api.listTenants(), api.listUsers()]);
-    container.append(tenantSection(container, user, tenants));
-    container.append(userSection(container, users));
 }
 
 function accountSection(user) {
@@ -46,16 +49,25 @@ function accountSection(user) {
     section.append(definitionList([
         ["显示名", user?.displayName || user?.username || "—"],
         ["登录名", user?.username],
-        ["角色", ROLE_LABELS[user?.role] || user?.role],
-        ["所属空间", `${user?.tenantName || ""}（${user?.tenantSlug || ""}）`]
+        ["当前空间", currentSpaceLabel(user)]
     ]));
     return section;
 }
 
-function tenantSection(container, user, tenants) {
+/*
+ * 默认空间的名称与类型标签相同，重复显示会显得啰嗦；只在两者不同时补类型。
+ */
+function currentSpaceLabel(user) {
+    const name = user?.tenantName || "—";
+    const kind = spaceKindLabel(user?.tenantKind);
+    const role = roleLabel(user?.role);
+    return `${name}（${kind && kind !== name ? `${kind} · ${role}` : role}）`;
+}
+
+function spacesSection(container, user, tenants) {
     const section = el("section", "settings-storage");
-    section.append(sectionHeader("空间",
-        "每个空间拥有独立的会话、工具策略与附件；模型、插件和技能由整个进程共享。", []));
+    section.append(sectionHeader("我的空间",
+        "每个空间拥有独立的会话、工具策略与附件；切换空间后看到的是该空间自己的数据。", []));
     const active = tenants.filter((tenant) => !tenant.deletedAt);
     const archived = tenants.filter((tenant) => tenant.deletedAt);
     const list = el("div", "account-list");
@@ -63,6 +75,9 @@ function tenantSection(container, user, tenants) {
         list.append(tenantRow(container, list, user, tenant));
     }
     section.append(list);
+    if (!active.length) {
+        section.append(el("p", "settings-hint", "还没有可用的空间。"));
+    }
     section.append(tenantForm(container));
     if (archived.length) {
         section.append(archivedBlock(container, archived));
@@ -72,24 +87,48 @@ function tenantSection(container, user, tenants) {
 
 function tenantRow(container, list, user, tenant) {
     const row = el("div", "account-row");
+    row.dataset.current = String(isCurrent(user, tenant));
     const copy = el("div", "account-row-copy");
     copy.append(el("strong", "", tenant.name));
-    copy.append(el("small", "", `${tenant.slug} · ${tenant.id}`));
+    copy.append(el("small", "", `${spaceKindLabel(tenant.kind)} · ${tenant.slug} · ${roleLabel(tenant.role)}`));
     row.append(copy);
     const actions = el("div", "account-actions");
-    const isDefault = tenant.slug === "default";
-    const current = tenant.id === user?.tenantId;
-    if (isDefault) {
-        actions.append(pill("默认空间", "muted"));
-    }
+    const current = isCurrent(user, tenant);
     if (current) {
         actions.append(pill("当前空间", "ok"));
+    } else {
+        actions.append(switchButton(tenant));
     }
-    if (!isDefault && !current) {
+    if (canDelete(user, tenant)) {
         actions.append(deleteButton(container, list, row, tenant));
     }
     row.append(actions);
     return row;
+}
+
+function switchButton(tenant) {
+    const button = actionButton("进入", async () => {
+        button.disabled = true;
+        button.textContent = "切换中…";
+        try {
+            await api.switchSpace(tenant.slug);
+            window.location.reload();
+        } catch (failure) {
+            button.disabled = false;
+            button.textContent = "进入";
+            toast(failure.message || "切换空间失败", true);
+        }
+    }, "primary");
+    button.classList.add("is-mini");
+    return button;
+}
+
+function canDelete(user, tenant) {
+    return tenant.kind === "TEAM" && tenant.role === "ADMIN" && !isCurrent(user, tenant);
+}
+
+function isCurrent(user, tenant) {
+    return tenant.id === user?.tenantId;
 }
 
 function deleteButton(container, list, row, tenant) {
@@ -108,7 +147,7 @@ function confirmPanel(container, row, tenant, trigger) {
     const copy = el("div", "account-confirm-copy");
     copy.append(el("strong", "", `删除空间「${tenant.name}」？`));
     copy.append(el("small", "",
-        "空间会从列表和登录页消失，成员无法再登录；会话与文件会保留，可随时恢复。"));
+        "空间会从所有成员的空间列表和登录页消失，成员无法再进入；会话与文件会保留，可随时恢复。"));
     const input = textInput("", `输入 ${tenant.slug} 确认`);
     const actions = el("div", "account-confirm-actions");
     const cancel = actionButton("取消", () => {
@@ -147,7 +186,7 @@ function archivedBlock(container, archived) {
     const block = el("div", "account-archive");
     block.append(el("p", "settings-form-title", "已删除的空间"));
     block.append(el("p", "settings-hint",
-        "这些空间的成员暂时无法登录，数据仍然保留。恢复后成员可以正常登录。"));
+        "这些空间的成员暂时无法进入，数据仍然保留。恢复后成员可以照常使用。"));
     const list = el("div", "account-list");
     for (const tenant of archived) {
         list.append(archivedRow(container, tenant));
@@ -160,13 +199,16 @@ function archivedRow(container, tenant) {
     const row = el("div", "account-row account-row-archived");
     const copy = el("div", "account-row-copy");
     copy.append(el("strong", "", tenant.name));
-    copy.append(el("small", "", `${tenant.slug} · 删除于 ${formatDate(tenant.deletedAt)}`));
+    copy.append(el("small", "",
+        `${spaceKindLabel(tenant.kind)} · ${tenant.slug} · 删除于 ${formatDate(tenant.deletedAt)}`));
     row.append(copy);
     const actions = el("div", "account-actions");
     actions.append(pill("已删除", "danger"));
-    const restoreButton = actionButton("恢复", () => restore(container, tenant), "primary");
-    restoreButton.classList.add("is-mini");
-    actions.append(restoreButton);
+    if (tenant.role === "ADMIN") {
+        const restoreButton = actionButton("恢复", () => restore(container, tenant), "primary");
+        restoreButton.classList.add("is-mini");
+        actions.append(restoreButton);
+    }
     row.append(actions);
     return row;
 }
@@ -181,30 +223,18 @@ async function restore(container, tenant) {
     }
 }
 
-function formatDate(value) {
-    if (!value) {
-        return "—";
-    }
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("zh-CN");
-}
-
 function tenantForm(container) {
     const form = el("form", "settings-form");
-    form.append(el("p", "settings-form-title", "创建空间"));
+    form.append(el("p", "settings-form-title", "创建团队空间"));
+    form.append(el("p", "settings-hint",
+        "空间短名会出现在登录页和切换入口里；创建后你是它的管理员，可以邀请成员。"));
     const slug = textInput("", "例如 design");
     const name = textInput("", "例如 设计组");
-    const username = textInput("", "管理员登录名");
-    const displayName = textInput("", "管理员显示名，可选");
-    const password = passwordInput("至少 8 位");
     const error = el("p", "settings-form-error hidden");
     const grid = el("div", "settings-form-grid");
     grid.append(
         field("空间短名", slug, "小写字母、数字与连字符，2-32 位"),
-        field("空间名称", name),
-        field("管理员账号", username),
-        field("管理员显示名", displayName),
-        field("初始密码", password, "至少 8 位，交给该空间管理员后请尽快修改"));
+        field("空间名称", name, "成员看到的名字"));
     form.append(grid, error);
     const actions = el("div", "settings-form-actions");
     const submit = actionButton("创建空间", () => {}, "primary");
@@ -214,53 +244,130 @@ function tenantForm(container) {
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         error.classList.add("hidden");
+        submit.disabled = true;
         try {
             const tenant = await api.createTenant({
                 slug: slug.value.trim(),
-                name: name.value.trim(),
-                username: username.value.trim(),
-                displayName: displayName.value.trim(),
-                password: password.value
+                name: name.value.trim()
             });
-            toast(`已创建空间「${tenant.name}」`);
+            toast(`已创建空间「${tenant.name}」，现在可以在上方进入`);
             await render(container);
         } catch (failure) {
             error.textContent = failure.message || "创建空间失败";
             error.classList.remove("hidden");
+            submit.disabled = false;
         }
     });
     return form;
 }
 
-function userSection(container, users) {
+function memberSection(container, user, members) {
     const section = el("section", "settings-storage");
-    section.append(sectionHeader("本空间账号",
-        "账号只能访问所属空间的数据；管理员可以在这里添加成员。", []));
-    if (!users.length) {
-        section.append(el("p", "settings-hint", "还没有其他账号。"));
+    section.append(sectionHeader(`「${user?.tenantName || "当前空间"}」的成员`,
+        "只有空间管理员能管理成员；管理员可以邀请已有账号，也可以直接创建新账号。", []));
+    if (!members.length) {
+        section.append(el("p", "settings-hint", "还没有成员。"));
     } else {
         const list = el("div", "account-list");
-        for (const user of users) {
+        for (const member of members) {
             const row = el("div", "account-row");
             const copy = el("div", "account-row-copy");
-            copy.append(el("strong", "", user.displayName || user.username));
-            copy.append(el("small", "", user.username));
+            copy.append(el("strong", "", member.displayName || member.username));
+            copy.append(el("small", "", member.username));
             row.append(copy);
-            row.append(pill(ROLE_LABELS[user.role] || user.role,
-                user.role === "ADMIN" ? "warn" : "muted"));
-            row.append(pill(STATUS_LABELS[user.status] || user.status || "—",
-                user.status === "ACTIVE" ? "ok" : "danger"));
+            const actions = el("div", "account-actions");
+            actions.append(pill(roleLabel(member.role), member.role === "ADMIN" ? "warn" : "muted"));
+            actions.append(pill(STATUS_LABELS[member.status] || member.status || "—",
+                member.status === "ACTIVE" ? "ok" : "danger"));
+            row.append(actions);
             list.append(row);
         }
         section.append(list);
     }
-    section.append(userForm(container));
+    section.append(inviteForm(container));
+    section.append(createMemberForm(container));
     return section;
 }
 
-function userForm(container) {
+function inviteForm(container) {
     const form = el("form", "settings-form");
-    form.append(el("p", "settings-form-title", "添加账号"));
+    form.append(el("p", "settings-form-title", "邀请已有账号"));
+    form.append(el("p", "settings-hint",
+        "输入对方在本站的登录名，邀请后对方用原来的账号就能进入这个空间。"));
+    const username = textInput("", "对方的登录名");
+    const role = selectInput([
+        { label: "成员", value: "MEMBER" },
+        { label: "管理员", value: "ADMIN" }
+    ], "MEMBER");
+    const error = el("p", "settings-form-error hidden");
+    const grid = el("div", "settings-form-grid");
+    grid.append(field("登录名", username), field("加入后的角色", role));
+    form.append(grid, error);
+    const results = el("div", "account-list");
+    const actions = el("div", "settings-form-actions");
+    const submit = actionButton("查找并邀请", () => {}, "primary");
+    submit.type = "submit";
+    actions.append(submit);
+    form.append(actions, results);
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        error.classList.add("hidden");
+        results.replaceChildren();
+        const name = username.value.trim();
+        if (!name) {
+            showFormError(error, "请先填写对方的登录名");
+            return;
+        }
+        submit.disabled = true;
+        try {
+            const found = await api.lookupUsers(name);
+            if (!found.length) {
+                showFormError(error, `没有找到可邀请的账号「${name}」，或对方已在当前空间里`);
+                return;
+            }
+            for (const account of found) {
+                results.append(inviteRow(container, account, role));
+            }
+        } catch (failure) {
+            showFormError(error, failure.message || "查找账号失败");
+        } finally {
+            submit.disabled = false;
+        }
+    });
+    return form;
+}
+
+function inviteRow(container, account, role) {
+    const row = el("div", "account-row");
+    const copy = el("div", "account-row-copy");
+    copy.append(el("strong", "", account.displayName || account.username));
+    copy.append(el("small", "", account.username));
+    row.append(copy);
+    const actions = el("div", "account-actions");
+    const button = actionButton("邀请", () => invite(container, account, role.value, button), "primary");
+    button.classList.add("is-mini");
+    actions.append(button);
+    row.append(actions);
+    return row;
+}
+
+async function invite(container, account, role, button) {
+    button.disabled = true;
+    try {
+        await api.inviteMember(auth.currentUser().tenantId, { userId: account.id, role });
+        toast(`已邀请 ${account.displayName || account.username} 加入`);
+        await render(container);
+    } catch (failure) {
+        button.disabled = false;
+        toast(failure.message || "邀请失败", true);
+    }
+}
+
+function createMemberForm(container) {
+    const form = el("form", "settings-form");
+    form.append(el("p", "settings-form-title", "创建新账号"));
+    form.append(el("p", "settings-hint",
+        "新账号会直接成为当前空间的成员，同时自动获得属于自己的个人空间。"));
     const username = textInput("", "登录名");
     const displayName = textInput("", "显示名，可选");
     const role = selectInput([
@@ -274,17 +381,17 @@ function userForm(container) {
         field("登录名", username),
         field("显示名", displayName),
         field("角色", role),
-        field("初始密码", password)
-    );
+        field("初始密码", password));
     form.append(grid, error);
     const actions = el("div", "settings-form-actions");
-    const submit = actionButton("添加账号", () => {}, "primary");
+    const submit = actionButton("创建账号", () => {}, "primary");
     submit.type = "submit";
     actions.append(submit);
     form.append(actions);
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         error.classList.add("hidden");
+        submit.disabled = true;
         try {
             const created = await api.createUser({
                 username: username.value.trim(),
@@ -292,11 +399,11 @@ function userForm(container) {
                 password: password.value,
                 role: role.value
             });
-            toast(`已添加账号 ${created.username}`);
+            toast(`已创建账号 ${created.username}，初始密码请转交给对方`);
             await render(container);
         } catch (failure) {
-            error.textContent = failure.message || "添加账号失败";
-            error.classList.remove("hidden");
+            showFormError(error, failure.message || "创建账号失败");
+            submit.disabled = false;
         }
     });
     return form;
@@ -310,4 +417,25 @@ function passwordInput(placeholder) {
     input.maxLength = 128;
     input.placeholder = placeholder || "";
     return input;
+}
+
+function showFormError(node, message) {
+    node.textContent = message;
+    node.classList.remove("hidden");
+}
+
+function roleLabel(role) {
+    return ROLE_LABELS[role] || role || "—";
+}
+
+function spaceKindLabel(kind) {
+    return KIND_LABELS[kind] || "空间";
+}
+
+function formatDate(value) {
+    if (!value) {
+        return "—";
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("zh-CN");
 }

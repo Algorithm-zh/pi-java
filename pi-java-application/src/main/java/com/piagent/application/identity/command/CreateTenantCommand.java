@@ -1,14 +1,10 @@
 package com.piagent.application.identity.command;
 
 /**
- * 创建租户及其首个管理员。
+ * 创建团队空间；创建者自动成为管理员。
  *
- * @param slug 租户短名
- * @param name 租户名称
- * @param username 管理员登录名
- * @param displayName 管理员展示名，可为空
- * @param password 管理员明文密码
+ * @param slug 空间短名
+ * @param name 空间名称
  */
-public record CreateTenantCommand(String slug, String name, String username, String displayName,
-        String password) {
+public record CreateTenantCommand(String slug, String name) {
 }

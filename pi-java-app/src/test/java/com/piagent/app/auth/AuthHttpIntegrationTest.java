@@ -125,7 +125,8 @@ class AuthHttpIntegrationTest {
     void logoutRevokesTokenAndClearsCookie() throws Exception {
         String token = tokenOf(mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("username", USERNAME, "password", PASSWORD))))
+                        .content(json(Map.of("tenantSlug", "default", "username", USERNAME,
+                                "password", PASSWORD))))
                 .andExpect(status().isOk())
                 .andReturn());
 
@@ -152,21 +153,21 @@ class AuthHttpIntegrationTest {
                         .content(json(Map.of("username", "self-member",
                                 "displayName", "自助成员", "password", PASSWORD))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.role").value("MEMBER"))
-                .andExpect(jsonPath("$.user.tenantSlug").value("default"))
+                .andExpect(jsonPath("$.user.role").value("ADMIN"))
+                .andExpect(jsonPath("$.user.tenantKind").value("PERSONAL"))
                 .andReturn();
         assertThat(tokenOf(registered)).isNotBlank();
 
         String admin = tokenOf(mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("username", USERNAME, "password", PASSWORD))))
+                        .content(json(Map.of("tenantSlug", "default", "username", USERNAME,
+                                "password", PASSWORD))))
                 .andExpect(status().isOk())
                 .andReturn());
         String tenantId = objectMapper.readTree(mockMvc.perform(post("/api/v1/tenants")
                         .header("Authorization", "Bearer " + admin)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("slug", "temp-space", "name", "临时空间",
-                                "username", "temp-admin", "password", PASSWORD))))
+                        .content(json(Map.of("slug", "temp-space", "name", "临时空间"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8))
                 .path("id").asText();
@@ -176,13 +177,14 @@ class AuthHttpIntegrationTest {
                 .andExpect(status().isNoContent());
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("tenantSlug", "temp-space", "username", "temp-admin",
+                        .content(json(Map.of("tenantSlug", "temp-space", "username", USERNAME,
                                 "password", PASSWORD))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("username", "temp-admin", "password", PASSWORD))))
+                        .content(json(Map.of("tenantSlug", "temp-space", "username",
+                                "self-member", "password", PASSWORD))))
                 .andExpect(status().isUnauthorized());
         JsonNode tenants = objectMapper.readTree(mockMvc.perform(get("/api/v1/tenants")
                         .header("Authorization", "Bearer " + admin))
@@ -197,7 +199,7 @@ class AuthHttpIntegrationTest {
                 .andExpect(status().isNoContent());
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("tenantSlug", "temp-space", "username", "temp-admin",
+                        .content(json(Map.of("tenantSlug", "temp-space", "username", USERNAME,
                                 "password", PASSWORD))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.tenantSlug").value("temp-space"));

@@ -15,21 +15,21 @@ import org.apache.ibatis.annotations.Update;
 public interface TenantMapper {
 
     /**
-     * 插入租户。
+     * 插入空间。
      *
      * @param po 持久化对象
      * @return 影响行数
      */
     @Insert("""
-            INSERT INTO pi_tenant (id, slug, name, created_at, deleted_at)
-            VALUES (#{id}, #{slug}, #{name}, #{createdAt}, #{deletedAt})
+            INSERT INTO pi_tenant (id, slug, name, kind, created_at, deleted_at)
+            VALUES (#{id}, #{slug}, #{name}, #{kind}, #{createdAt}, #{deletedAt})
             """)
     int insert(TenantPO po);
 
     /**
      * 按标识查询。
      *
-     * @param id 租户标识
+     * @param id 空间标识
      * @return 持久化对象
      */
     @Select("SELECT * FROM pi_tenant WHERE id = #{id}")
@@ -45,7 +45,7 @@ public interface TenantMapper {
     TenantPO findBySlug(@Param("slug") String slug);
 
     /**
-     * 查询全部租户。
+     * 查询全部空间。
      *
      * @return 按创建时间升序
      */
@@ -53,7 +53,7 @@ public interface TenantMapper {
     List<TenantPO> findAll();
 
     /**
-     * 查询全部未归档租户标识。
+     * 查询全部未归档空间标识。
      *
      * @return 标识列表
      */
@@ -67,7 +67,7 @@ public interface TenantMapper {
     /**
      * 写入归档时间。
      *
-     * @param id 租户标识
+     * @param id 空间标识
      * @param deletedAt 归档时间；null 表示恢复
      * @return 影响行数
      */

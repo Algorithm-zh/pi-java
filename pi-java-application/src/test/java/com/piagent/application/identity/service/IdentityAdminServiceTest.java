@@ -7,11 +7,13 @@ import com.piagent.application.identity.AuthContext;
 import com.piagent.application.identity.AuthPrincipal;
 import com.piagent.application.identity.command.CreateTenantCommand;
 import com.piagent.application.identity.command.CreateUserCommand;
+import com.piagent.application.identity.command.InviteMemberCommand;
 import com.piagent.application.identity.command.LoginCommand;
 import com.piagent.application.identity.command.SetupCommand;
 import com.piagent.application.identity.readmodel.AuthSessionView;
 import com.piagent.application.identity.readmodel.TenantSummary;
 import com.piagent.application.testsupport.InMemoryAuthTokenRepository;
+import com.piagent.application.testsupport.InMemoryMembershipRepository;
 import com.piagent.application.testsupport.InMemoryTenantRepository;
 import com.piagent.application.testsupport.InMemoryUserRepository;
 import com.piagent.application.testsupport.MutableClock;
@@ -19,6 +21,7 @@ import com.piagent.application.testsupport.PrefixPasswordHasher;
 import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.application.testsupport.SequentialTokenCodec;
 import com.piagent.domain.identity.model.AppUser;
+import com.piagent.domain.identity.model.SpaceMember;
 import com.piagent.domain.identity.model.Tenant;
 import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserRole;
@@ -31,7 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 租户与账号管理用例测试：管理员权限、租户内隔离与重名冲突。
+ * 空间与成员管理用例测试：创建团队空间、邀请成员、角色权限与空间保护。
  */
 class IdentityAdminServiceTest {
 
@@ -39,7 +42,8 @@ class IdentityAdminServiceTest {
     private static final String PASSWORD = "secret-pass-1";
 
     private final InMemoryTenantRepository tenants = new InMemoryTenantRepository();
-    private final InMemoryUserRepository users = new InMemoryUserRepository(tenants);
+    private final InMemoryUserRepository users = new InMemoryUserRepository();
+    private final InMemoryMembershipRepository memberships = new InMemoryMembershipRepository();
     private final InMemoryAuthTokenRepository tokens = new InMemoryAuthTokenRepository();
     private final SequentialIdGenerator ids = new SequentialIdGenerator();
     private final MutableClock clock = new MutableClock(NOW);
@@ -50,13 +54,14 @@ class IdentityAdminServiceTest {
 
     @BeforeEach
     void setUp() {
-        auth = new AuthApplicationService(tenants, users, tokens, new PrefixPasswordHasher(),
-                new SequentialTokenCodec(), ids, clock, Duration.ofDays(7), true);
-        admin = new IdentityAdminService(tenants, users, tokens, new PrefixPasswordHasher(), ids,
-                clock);
+        auth = new AuthApplicationService(tenants, users, memberships, tokens,
+                new PrefixPasswordHasher(), new SequentialTokenCodec(), ids, clock,
+                Duration.ofDays(7), true);
+        admin = new IdentityAdminService(tenants, users, memberships, tokens,
+                new PrefixPasswordHasher(), ids, clock);
         auth.setup(new SetupCommand("Alice", "Alice", PASSWORD));
-        alice = users.findByUsername(TenantId.DEFAULT, "alice").orElseThrow();
-        bind(alice);
+        alice = users.findByUsername("alice").get(0);
+        bind(alice, TenantId.DEFAULT, UserRole.ADMIN);
     }
 
     @AfterEach
@@ -65,40 +70,35 @@ class IdentityAdminServiceTest {
     }
 
     @Test
-    void adminCreatesTenantWithInitialAdminWhoCanLogIn() {
-        var created = admin.createTenant(new CreateTenantCommand(
-                "team-b", "团队 B", "Bob", "Bob", PASSWORD));
+    void anyUserCreatesTeamSpaceAndBecomesItsAdmin() {
+        TenantSummary created = admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
 
         assertThat(created.slug()).isEqualTo("team-b");
-        Tenant tenant = tenants.findBySlug("team-b").orElseThrow();
-        assertThat(admin.listTenants()).hasSize(2);
+        assertThat(created.kind()).isEqualTo("TEAM");
+        assertThat(created.role()).isEqualTo("ADMIN");
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+        assertThat(memberships.find(team.id(), alice.id())).get()
+                .extracting(SpaceMember::role).isEqualTo(UserRole.ADMIN);
+        assertThat(admin.listTenants()).extracting(TenantSummary::slug)
+                .containsExactly("default", "u-alice-" + tail(alice), "team-b");
 
-        AuthSessionView session = auth.login(new LoginCommand("team-b", "bob", PASSWORD));
-        AuthPrincipal principal = auth.authenticate(session.token()).orElseThrow();
-        assertThat(principal.tenantId()).isEqualTo(tenant.id());
-        assertThat(principal.role()).isEqualTo(UserRole.ADMIN);
+        AuthSessionView session = auth.login(new LoginCommand("team-b", "alice", PASSWORD));
+        assertThat(session.user().role()).isEqualTo("ADMIN");
     }
 
     @Test
-    void memberCannotManageTenantsOrUsers() {
+    void plainMemberCanCreateTeamSpaceButCannotManageDefaultSpace() {
         admin.createUser(new CreateUserCommand("carol", "Carol", PASSWORD, UserRole.MEMBER));
-        AppUser carol = users.findByUsername(TenantId.DEFAULT, "carol").orElseThrow();
-        bind(carol);
+        AppUser carol = users.findByUsername("carol").get(0);
+        bind(carol, TenantId.DEFAULT, UserRole.MEMBER);
 
-        assertThatThrownBy(admin::listTenants)
-                .isInstanceOfSatisfying(DomainException.class, error ->
-                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
-        assertThatThrownBy(() -> admin.createTenant(new CreateTenantCommand(
-                "team-b", "团队 B", "Bob", "Bob", PASSWORD)))
-                .isInstanceOfSatisfying(DomainException.class, error ->
-                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
         assertThatThrownBy(admin::listUsers)
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
-        assertThatThrownBy(() -> admin.createUser(
-                new CreateUserCommand("dave", "Dave", PASSWORD, UserRole.MEMBER)))
-                .isInstanceOfSatisfying(DomainException.class, error ->
-                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
+
+        TenantSummary created = admin.createTenant(new CreateTenantCommand("team-c", "团队 C"));
+        assertThat(created.role()).isEqualTo("ADMIN");
+        assertThat(admin.listTenants()).hasSize(3);
     }
 
     @Test
@@ -111,10 +111,9 @@ class IdentityAdminServiceTest {
 
     @Test
     void rejectsDuplicateSlugAndUsername() {
-        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
 
-        assertThatThrownBy(() -> admin.createTenant(new CreateTenantCommand(
-                "team-b", "另一个团队", "Eve", "Eve", PASSWORD)))
+        assertThatThrownBy(() -> admin.createTenant(new CreateTenantCommand("team-b", "另一个团队")))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_ALREADY_EXISTS));
 
@@ -125,19 +124,28 @@ class IdentityAdminServiceTest {
     }
 
     @Test
-    void listsUsersOnlyForCurrentTenant() {
-        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+    void createdAccountJoinsCurrentSpaceAndGetsPersonalSpace() {
+        admin.createUser(new CreateUserCommand("carol", "Carol", PASSWORD, UserRole.MEMBER));
+        AppUser carol = users.findByUsername("carol").get(0);
 
-        assertThat(admin.listUsers())
-                .extracting("username")
-                .containsExactly("alice");
+        assertThat(memberships.find(TenantId.DEFAULT, carol.id())).get()
+                .extracting(SpaceMember::role).isEqualTo(UserRole.MEMBER);
+        assertThat(memberships.findByUser(carol.id())).hasSize(2);
+        assertThat(admin.listTenants()).extracting(TenantSummary::slug)
+                .contains("default", "u-alice-" + tail(alice));
+    }
 
-        AppUser bob = users.findByUsername(tenants.findBySlug("team-b").orElseThrow().id(), "bob")
-                .orElseThrow();
-        bind(bob);
-        assertThat(admin.listUsers())
-                .extracting("username")
-                .containsExactly("bob");
+    @Test
+    void listsUsersOnlyForCurrentSpace() {
+        admin.createUser(new CreateUserCommand("bob", "Bob", PASSWORD, UserRole.MEMBER));
+
+        assertThat(admin.listUsers()).extracting("username")
+                .containsExactly("alice", "bob");
+
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+        bind(alice, team.id(), UserRole.ADMIN);
+        assertThat(admin.listUsers()).extracting("username").containsExactly("alice");
     }
 
     @Test
@@ -152,15 +160,62 @@ class IdentityAdminServiceTest {
                         assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_ARGUMENT));
     }
 
-    private void bind(AppUser user) {
-        AuthContext.bind(new AuthPrincipal(user.tenantId(), user.id(), user.username(),
-                user.displayName(), user.role()));
+    @Test
+    void invitesExistingAccountByLookup() {
+        admin.createUser(new CreateUserCommand("bob", "Bob", PASSWORD, UserRole.MEMBER));
+        AppUser bob = users.findByUsername("bob").get(0);
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+        bind(alice, team.id(), UserRole.ADMIN);
+
+        assertThat(admin.findInvitable("bob")).extracting("username").containsExactly("bob");
+        assertThat(admin.findInvitable("alice")).isEmpty();
+        assertThat(admin.findInvitable("nobody")).isEmpty();
+
+        var invited = admin.inviteMember(team.id().toString(),
+                new InviteMemberCommand(bob.id().toString(), UserRole.MEMBER));
+        assertThat(invited.username()).isEqualTo("bob");
+        assertThat(invited.role()).isEqualTo("MEMBER");
+        assertThat(admin.findInvitable("bob")).isEmpty();
+
+        AuthSessionView session = auth.login(new LoginCommand("team-b", "bob", PASSWORD));
+        assertThat(session.user().tenantSlug()).isEqualTo("team-b");
+
+        assertThatThrownBy(() -> admin.inviteMember(team.id().toString(),
+                new InviteMemberCommand(bob.id().toString(), UserRole.MEMBER)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.USER_ALREADY_EXISTS));
+    }
+
+    @Test
+    void inviteRejectsUnknownAccountAndNonAdmin() {
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
+        Tenant team = tenants.findBySlug("team-b").orElseThrow();
+
+        assertThatThrownBy(() -> admin.inviteMember(team.id().toString(),
+                new InviteMemberCommand("not-a-ulid", UserRole.MEMBER)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.USER_NOT_FOUND));
+
+        admin.createUser(new CreateUserCommand("carol", "Carol", PASSWORD, UserRole.MEMBER));
+        AppUser carol = users.findByUsername("carol").get(0);
+        bind(carol, TenantId.DEFAULT, UserRole.MEMBER);
+        assertThatThrownBy(() -> admin.inviteMember(team.id().toString(),
+                new InviteMemberCommand(alice.id().toString(), UserRole.MEMBER)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
     }
 
     @Test
     void archivesTenantThenRestoresIt() {
-        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+        admin.createUser(new CreateUserCommand("bob", "Bob", PASSWORD, UserRole.MEMBER));
+        AppUser bob = users.findByUsername("bob").get(0);
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
         Tenant team = tenants.findBySlug("team-b").orElseThrow();
+        bind(alice, team.id(), UserRole.ADMIN);
+        admin.inviteMember(team.id().toString(),
+                new InviteMemberCommand(bob.id().toString(), UserRole.MEMBER));
+        bind(alice, TenantId.DEFAULT, UserRole.ADMIN);
         AuthSessionView bobSession = auth.login(new LoginCommand("team-b", "bob", PASSWORD));
 
         TenantSummary archived = admin.archiveTenant(team.id().toString());
@@ -175,6 +230,10 @@ class IdentityAdminServiceTest {
         assertThatThrownBy(() -> auth.login(new LoginCommand("team-b", "bob", PASSWORD)))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_INVALID_CREDENTIALS));
+        assertThatThrownBy(() -> admin.inviteMember(team.id().toString(),
+                new InviteMemberCommand(bob.id().toString(), UserRole.MEMBER)))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_PROTECTED));
 
         TenantSummary restored = admin.restoreTenant(team.id().toString());
         assertThat(restored.deletedAt()).isNull();
@@ -182,15 +241,22 @@ class IdentityAdminServiceTest {
     }
 
     @Test
-    void cannotArchiveDefaultOrCurrentSpace() {
-        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+    void cannotArchiveDefaultPersonalOrCurrentSpace() {
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
         Tenant team = tenants.findBySlug("team-b").orElseThrow();
 
         assertThatThrownBy(() -> admin.archiveTenant(TenantId.DEFAULT.toString()))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_PROTECTED));
 
-        bind(users.findByUsername(team.id(), "bob").orElseThrow());
+        String personalId = admin.listTenants().stream()
+                .filter(summary -> summary.kind().equals("PERSONAL"))
+                .findFirst().orElseThrow().id();
+        assertThatThrownBy(() -> admin.archiveTenant(personalId))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_PROTECTED));
+
+        bind(alice, team.id(), UserRole.ADMIN);
         assertThatThrownBy(() -> admin.archiveTenant(team.id().toString()))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_PROTECTED));
@@ -198,18 +264,29 @@ class IdentityAdminServiceTest {
 
     @Test
     void archiveRequiresAdminAndKnownTenant() {
-        admin.createTenant(new CreateTenantCommand("team-b", "团队 B", "Bob", "Bob", PASSWORD));
+        admin.createTenant(new CreateTenantCommand("team-b", "团队 B"));
         Tenant team = tenants.findBySlug("team-b").orElseThrow();
         admin.createUser(new CreateUserCommand("carol", "Carol", PASSWORD, UserRole.MEMBER));
-        bind(users.findByUsername(TenantId.DEFAULT, "carol").orElseThrow());
+        AppUser carol = users.findByUsername("carol").get(0);
+        bind(carol, TenantId.DEFAULT, UserRole.MEMBER);
 
         assertThatThrownBy(() -> admin.archiveTenant(team.id().toString()))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
 
-        bind(alice);
+        bind(alice, TenantId.DEFAULT, UserRole.ADMIN);
         assertThatThrownBy(() -> admin.archiveTenant("01TST9999999999999999999999"))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.TENANT_NOT_FOUND));
+    }
+
+    private void bind(AppUser user, TenantId tenantId, UserRole role) {
+        AuthContext.bind(new AuthPrincipal(tenantId, user.id(), user.username(),
+                user.displayName(), role));
+    }
+
+    private String tail(AppUser user) {
+        String id = user.id().toString();
+        return id.substring(id.length() - 4);
     }
 }

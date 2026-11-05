@@ -4,7 +4,8 @@
 > Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
 > 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）；
 > M13 已实现工作区改动查询与撤销；M14 已实现计划查询、`todo` 工具与自动验证事件；
-> M19 已实现本地账号、令牌鉴权与租户隔离（第 9 节 Web UI 含登录流程）。
+> M19 已实现本地账号、令牌鉴权与租户隔离（第 9 节 Web UI 含登录流程）；
+> M21 已改为全局账号 + 空间成员，个人空间、团队空间、邀请与空间切换见 1.2 节。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -45,64 +46,81 @@
 工具被策略拒绝、工具执行失败不产生 HTTP 错误，而是 `isError=true` 的 toolResult
 与 `tool.completed` 事件，由模型自行处理。
 
-### 1.2 鉴权、账号与租户（M19 起，M20 增强）
+### 1.2 鉴权、账号与空间（M19 起，M20–M21 增强）
 
-首次启动后必须先初始化管理员，之后所有业务接口携带令牌访问：
+首次启动后必须先初始化管理员，之后所有业务接口携带令牌访问。账号是全局的，
+空间是账号加入的一个个独立数据仓库：注册后自动获得个人空间，任何人还可以创建
+团队空间并成为其管理员，或把已有账号邀请进来。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/v1/auth/state` | 是否已初始化、当前是否已登录、是否开放注册、当前账号（公开） |
-| POST | `/api/v1/auth/setup` | 创建默认租户的首个管理员并直接登录（公开，仅一次） |
+| POST | `/api/v1/auth/setup` | 创建默认空间的首个管理员与个人空间并直接登录（公开，仅一次） |
 | POST | `/api/v1/auth/login` | `{username, password, tenantSlug?}` 登录；`tenantSlug` 可省略，服务端按账号自动定位空间 |
-| POST | `/api/v1/auth/register` | `{username, displayName, password}` 自助注册为默认空间成员并直接登录（公开，可用 `pi.auth.registration-enabled` 关闭） |
+| POST | `/api/v1/auth/register` | `{username, displayName, password}` 自助注册：创建个人空间与管理员身份并直接登录（公开，可用 `pi.auth.registration-enabled` 关闭） |
+| POST | `/api/v1/auth/switch` | `{tenantSlug}` 切换到已加入的另一个空间；签发新令牌并吊销旧令牌 |
 | POST | `/api/v1/auth/logout` | 吊销当前令牌并清除 Cookie |
-| GET | `/api/v1/auth/me` | 当前账号、角色与租户 |
-| GET | `/api/v1/tenants` | 全部租户，含已删除（管理员） |
-| POST | `/api/v1/tenants` | `{slug, name, username, displayName, password}` 建租户及其管理员 |
-| DELETE | `/api/v1/tenants/{id}` | 软删除空间：写归档时间并吊销该空间全部令牌，数据保留（管理员） |
-| POST | `/api/v1/tenants/{id}/restore` | 恢复已删除空间（管理员） |
-| GET | `/api/v1/users` | 当前租户账号（管理员） |
-| POST | `/api/v1/users` | 在当前租户内建账号（管理员），`role` 为 `ADMIN` 或 `MEMBER` |
+| GET | `/api/v1/auth/me` | 当前账号、角色、空间与空间类型 |
+| GET | `/api/v1/tenants` | 当前账号加入的空间，含已归档（任何登录用户） |
+| POST | `/api/v1/tenants` | `{slug, name}` 创建团队空间（任何登录用户），创建者成为该空间管理员 |
+| DELETE | `/api/v1/tenants/{id}` | 软删除团队空间：写归档时间并吊销该空间全部令牌（该空间管理员） |
+| POST | `/api/v1/tenants/{id}/restore` | 恢复已删除空间（该空间管理员） |
+| GET | `/api/v1/users` | 当前空间成员（该空间管理员） |
+| POST | `/api/v1/users` | 在当前空间创建新账号并自动为其建个人空间（该空间管理员），`role` 为 `ADMIN` 或 `MEMBER` |
+| GET | `/api/v1/users/lookup?username=` | 按登录名精确查找可邀请的已有账号，已在本空间的账号不返回（该空间管理员） |
+| POST | `/api/v1/tenants/{id}/members` | `{userId, role}` 把已有账号邀请进空间（该空间管理员） |
 
-登录与初始化响应同时返回 `token` 并下发 `pi_session` Cookie（HttpOnly、
-SameSite=Strict、7 天）。浏览器忽略 `token` 字段；脚本使用
-`Authorization: Bearer <token>`，两种载体等价。认证失败统一返回
-`AUTH_INVALID_CREDENTIALS`，不区分空间/账号是否存在；连续 5 次失败后
-返回 429 `AUTH_LOGIN_LOCKED`。
+登录与初始化响应同时返回 `token` 与账号信息（含 `tenantKind`，取值 `DEFAULT`、
+`PERSONAL`、`TEAM`），并下发 `pi_session` Cookie（HttpOnly、SameSite=Strict、
+7 天）。浏览器忽略 `token` 字段；脚本使用 `Authorization: Bearer <token>`，两种
+载体等价。认证失败统一返回 `AUTH_INVALID_CREDENTIALS`，不区分空间/账号是否存在；
+连续 5 次失败后返回 429 `AUTH_LOGIN_LOCKED`。
 
-不填 `tenantSlug` 时，服务端用密码在全部未删除空间中对同名账号逐一校验：
+不填 `tenantSlug` 时，服务端用密码在账号加入的全部未删除空间中对同名账号逐一校验：
 
-- 恰好一个匹配：直接登录，前端把这次的空间记在本地，下次点选时高亮；
-- 多个匹配：返回 409 `AUTH_TENANT_REQUIRED`，响应体带可点选的空间列表：
+- 恰好一个匹配：直接登录；
+- 多个匹配：返回 409 `AUTH_TENANT_REQUIRED`，响应体带可点选的空间列表（含类型）：
 
 ```json
 {
   "code": "AUTH_TENANT_REQUIRED",
   "message": "该账号属于多个空间，请选择要进入的空间",
-  "tenants": [{"slug": "default", "name": "默认空间"}, {"slug": "team-b", "name": "团队 B"}]
+  "tenants": [
+    {"slug": "u-alice-3f9k", "name": "Alice 的个人空间", "kind": "PERSONAL"},
+    {"slug": "team-b", "name": "团队 B", "kind": "TEAM"}
+  ]
 }
 ```
 
 空间列表只在密码已经匹配后才会出现，因此不会向不知道密码的人泄漏账号分布。
-显式传入 `tenantSlug` 时只查该空间；已删除空间既不参与自动定位，也不接受登录。
+显式传入 `tenantSlug` 时只查该空间；已删除空间既不参与自动定位，也不接受登录或切换。
+Web 端按登录名把进入过的空间记在浏览器本地，同一账号下次登录自动回到该空间，
+不用再点选；换账号登录不会串用其他人的记录。
 
-软删除规则：默认空间与“当前所在空间”不能删除（409 `TENANT_PROTECTED`）；
-删除只写 `pi_tenant.deleted_at` 并吊销该空间令牌，会话、附件与策略数据全部保留；
-`slug` 仍保持全局唯一，恢复后成员可立即重新登录。自助注册在
-`pi.auth.registration-enabled=false` 时返回 403 `AUTH_REGISTRATION_DISABLED`，
-服务尚未初始化（没有任何账号）时返回 409 `AUTH_SETUP_REQUIRED`。
+软删除规则：默认空间、个人空间与“当前所在空间”不能删除（409 `TENANT_PROTECTED`），
+且只有该空间的 `ADMIN` 能删除团队空间；删除只写 `pi_tenant.deleted_at` 并吊销该空间
+令牌，会话、附件与策略数据全部保留；`slug` 仍保持全局唯一，恢复后成员可立即重新登录。
+自助注册在 `pi.auth.registration-enabled=false` 时返回 403
+`AUTH_REGISTRATION_DISABLED`，服务尚未初始化（没有任何账号）时返回 409
+`AUTH_SETUP_REQUIRED`。
 
 ```bash
 curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"your-password"}'
 
+curl -s -X POST http://127.0.0.1:8080/api/v1/auth/switch \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{"tenantSlug":"team-b"}'
+
 curl -s http://127.0.0.1:8080/api/v1/sessions \
-  -H 'Authorization: Bearer <token>'
+  -H 'Authorization: Bearer <new-token>'
 ```
 
-隔离规则：会话、审批、运行、工具策略与附件按当前租户过滤；跨租户的资源 id
-一律表现为 404 或空列表。模型档案、插件、MCP 服务与技能目录仍是全局资源。
+隔离规则：会话、审批、运行、工具策略与附件按当前空间过滤，同一账号切换空间后
+看到的是该空间自己的数据；跨空间的资源 id 一律表现为 404 或空列表。模型档案、
+插件、MCP 服务与技能目录仍是全局资源。
 
 ## 2. 会话 API
 
@@ -1021,11 +1039,12 @@ v0.2 再评估是否加入。
 交互覆盖：
 
 0. 首次打开显示初始化卡片，创建管理员后直接进入主界面；之后每次启动先请求
-   `/api/v1/auth/state`，未登录显示登录卡（账号 + 密码即可，空间自动定位；
-   同名账号跨多个空间时列出空间点选，并记住上次进入的空间），登录卡还提供
-   “创建账号”自助注册入口；令牌过期或接口返回 401 时自动回到登录卡；设置中心
-   的“账号与空间”展示当前账号、角色、租户与登出入口，支持创建空间/成员、
-   软删除空间与恢复；
+   `/api/v1/auth/state`，未登录显示登录卡（账号 + 密码即可，服务端自动回到上次
+   使用的空间；账号加入多个空间且本地没有记录时列出候选并标注“个人空间/团队空间/
+   默认空间”），登录卡还提供“创建账号”自助注册入口，新账号直接进入自己的个人空间；
+   令牌过期或接口返回 401 时自动回到登录卡；点击侧栏账号卡进入设置中心的
+   “账号与空间”，可查看全部已加入空间并一键切换、创建团队空间、邀请已有账号或
+   创建新成员、归档/恢复团队空间；
 1. 新建会话（标题、工作目录、模型档案、思考级别）→ 发送消息 → 流式增量 → 完成；
 2. 工具卡片展示参数、输出与错误态；写工具触发审批弹窗，展示风险级别、工具名、
    脱敏参数、SHA-256 摘要与倒计时；批准/拒绝后写审批历史条目，多个待办串行展示，
@@ -1045,7 +1064,9 @@ v0.2 再评估是否加入。
 9. 进程重启后自动取消遗留审批、闭合悬空工具调用并复位运行态，卡住的会话
    可以直接继续对话（见 2.8.1）；
 10. 设置中心包含六个标签页：
-   - **账号与空间**：当前账号、角色、租户短名/名称、登出；
+   - **账号与空间**：当前账号，加入的空间列表（个人/团队/默认、角色、当前标记）
+     与“进入”切换；任何用户可创建团队空间；空间管理员可邀请已有账号、创建新账号、
+     归档/恢复团队空间（默认、个人与当前空间受保护）；
    - **模型与密钥**：卡片式档案列表、密钥环境变量状态、行内新建/编辑/启停；
    - **技能**：扫描 `~/.pi-java/skills`，按需查看 `SKILL.md` 正文；
    - **插件**：按本地 jar 路径安装、启用/停用、展示最近错误；

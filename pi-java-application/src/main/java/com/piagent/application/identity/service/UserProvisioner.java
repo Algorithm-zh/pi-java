@@ -2,9 +2,7 @@ package com.piagent.application.identity.service;
 
 import com.piagent.application.identity.port.PasswordHasher;
 import com.piagent.domain.identity.model.AppUser;
-import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.identity.model.UserId;
-import com.piagent.domain.identity.model.UserRole;
 import com.piagent.domain.identity.port.UserRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
@@ -13,7 +11,7 @@ import com.piagent.domain.shared.IdGenerator;
 import java.time.Clock;
 
 /**
- * 账号创建协作器：校验密码、检查重名、哈希密码并落库。
+ * 账号创建协作器：校验密码、检查全局重名、哈希密码并落库。
  */
 final class UserProvisioner {
 
@@ -42,24 +40,21 @@ final class UserProvisioner {
     }
 
     /**
-     * 在租户内创建启用账号。
+     * 创建全局账号。
      *
-     * @param tenantId 租户
      * @param username 登录名
      * @param displayName 展示名
      * @param password 明文密码
-     * @param role 角色
      * @return 新账号
      */
-    AppUser create(TenantId tenantId, String username, String displayName, String password,
-            UserRole role) {
+    AppUser create(String username, String displayName, String password) {
         String normalized = AppUser.normalizeUsername(username);
-        if (users.findByUsername(tenantId, normalized).isPresent()) {
+        if (!users.findByUsername(normalized).isEmpty()) {
             throw new DomainException(DomainErrorCode.USER_ALREADY_EXISTS,
                     "用户名已被占用: " + normalized);
         }
-        AppUser user = AppUser.create(UserId.newId(idGenerator), tenantId, normalized, displayName,
-                passwords.hash(password), role, clock.instant());
+        AppUser user = AppUser.create(UserId.newId(idGenerator), normalized, displayName,
+                passwords.hash(password), clock.instant());
         users.insert(user);
         return user;
     }

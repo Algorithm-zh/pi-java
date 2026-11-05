@@ -1,66 +1,76 @@
 package com.piagent.application.identity.service;
 
 import com.piagent.domain.identity.model.AppUser;
+import com.piagent.domain.identity.model.SpaceMember;
 import com.piagent.domain.identity.model.Tenant;
+import com.piagent.domain.identity.port.MembershipRepository;
 import com.piagent.domain.identity.port.TenantRepository;
 import com.piagent.domain.identity.port.UserRepository;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 登录时的空间定位：把“用户名 + 可选空间短名”解析成候选账号。
+ * 登录时的空间定位：把“用户名 + 可选空间短名”解析成候选空间。
  *
- * <p>未指定空间时跨全部未归档租户查找同名账号，因此普通用户不需要记住
- * 自己的空间短名；指定空间时只查该空间。已归档租户不参与任何定位。</p>
+ * <p>账号是全局身份，空间来自成员关系。未指定空间时返回账号加入的全部未归档
+ * 空间；指定空间时只返回该空间的成员关系。已归档空间不参与定位。</p>
  */
 final class AccountLocator {
 
     /**
-     * 候选账号及其所属空间。
+     * 账号在某个空间的登录候选。
      *
      * @param tenant 空间
+     * @param membership 成员关系
      * @param user 账号
      */
-    record Candidate(Tenant tenant, AppUser user) {
+    record Candidate(Tenant tenant, SpaceMember membership, AppUser user) {
     }
 
     private final TenantRepository tenants;
+    private final MembershipRepository memberships;
     private final UserRepository users;
 
     /**
      * 创建定位器。
      *
-     * @param tenants 租户仓储
+     * @param tenants 空间仓储
+     * @param memberships 成员仓储
      * @param users 账号仓储
      */
-    AccountLocator(TenantRepository tenants, UserRepository users) {
+    AccountLocator(TenantRepository tenants, MembershipRepository memberships,
+            UserRepository users) {
         this.tenants = tenants;
+        this.memberships = memberships;
         this.users = users;
     }
 
     /**
-     * 解析候选账号。
+     * 解析候选空间。
      *
      * @param username 已规范化的登录名
-     * @param slug 空间短名；null 表示自动定位
+     * @param slug 空间短名；null 表示全部空间
      * @return 候选列表，按空间创建时间排序
      */
     List<Candidate> candidates(String username, String slug) {
-        if (slug != null) {
-            Tenant tenant = tenants.findBySlug(slug).orElse(null);
-            if (tenant == null || tenant.isArchived()) {
-                return List.of();
-            }
-            return users.findByUsername(tenant.id(), username)
-                    .map(user -> List.of(new Candidate(tenant, user)))
-                    .orElse(List.of());
-        }
         List<Candidate> found = new ArrayList<>();
-        for (AppUser user : users.findActiveByUsername(username)) {
-            tenants.findById(user.tenantId())
-                    .filter(tenant -> !tenant.isArchived())
-                    .ifPresent(tenant -> found.add(new Candidate(tenant, user)));
+        for (AppUser user : users.findByUsername(username)) {
+            for (SpaceMember membership : memberships.findByUser(user.id())) {
+                Tenant tenant = tenants.findById(membership.tenantId()).orElse(null);
+                if (tenant == null || tenant.isArchived()) {
+                    continue;
+                }
+                if (slug != null && !tenant.slug().equals(slug)) {
+                    continue;
+                }
+                found.add(new Candidate(tenant, membership, user));
+            }
         }
+        found.sort((left, right) -> {
+            int byTime = left.tenant().createdAt().compareTo(right.tenant().createdAt());
+            return byTime != 0 ? byTime : left.tenant().id().toString()
+                    .compareTo(right.tenant().id().toString());
+        });
         return found;
     }
 }

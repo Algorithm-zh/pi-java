@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 应用层测试用的内存租户仓储。
+ * 应用层测试用的内存空间仓储。
  */
 public final class InMemoryTenantRepository implements TenantRepository {
 
@@ -41,7 +41,7 @@ public final class InMemoryTenantRepository implements TenantRepository {
             Tenant tenant = tenants.get(index);
             if (tenant.id().equals(id)) {
                 tenants.set(index, new Tenant(tenant.id(), tenant.slug(), tenant.name(),
-                        tenant.createdAt(), deletedAt));
+                        tenant.kind(), tenant.createdAt(), deletedAt));
                 return 1;
             }
         }

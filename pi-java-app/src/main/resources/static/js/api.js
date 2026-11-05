@@ -80,13 +80,24 @@ export function setupAdmin(payload) {
 }
 
 /**
- * 登录。
+ * 登录。不填空间短名时由服务端按成员关系定位；账号属于多个空间会返回 409
+ * 并附带可点选的空间清单。
  *
  * @param {{tenantSlug?: string, username: string, password: string}} payload 凭据
  * @returns {Promise<{token: string, user: object}>} 登录会话
  */
 export function login(payload) {
     return request("/api/v1/auth/login", jsonInit("POST", payload));
+}
+
+/**
+ * 切换到当前账号已加入的另一个空间；旧令牌立即失效。
+ *
+ * @param {string} tenantSlug 目标空间短名
+ * @returns {Promise<{token: string, user: object}>} 新登录会话
+ */
+export function switchSpace(tenantSlug) {
+    return request("/api/v1/auth/switch", jsonInit("POST", { tenantSlug }));
 }
 
 /**
@@ -118,19 +129,20 @@ export function currentUser() {
 }
 
 /**
- * 查询全部租户，仅管理员可用。
+ * 查询当前账号加入的空间，包含已归档空间。
  *
- * @returns {Promise<Array<{id: string, slug: string, name: string}>>} 租户列表
+ * @returns {Promise<Array<{id: string, slug: string, name: string, kind: string,
+ *     role: string, deletedAt: string|null}>>} 空间列表
  */
 export function listTenants() {
     return request("/api/v1/tenants");
 }
 
 /**
- * 创建租户及其首个管理员，仅管理员可用。
+ * 创建团队空间，创建者自动成为管理员。
  *
- * @param {object} payload 租户与管理员信息
- * @returns {Promise<object>} 新租户
+ * @param {{slug: string, name: string}} payload 空间信息
+ * @returns {Promise<object>} 新空间
  */
 export function createTenant(payload) {
     return request("/api/v1/tenants", jsonInit("POST", payload));
@@ -157,22 +169,44 @@ export function restoreTenant(id) {
 }
 
 /**
- * 查询当前租户的账号，仅管理员可用。
+ * 查询当前空间的成员，仅空间管理员可用。
  *
- * @returns {Promise<Array<object>>} 账号列表
+ * @returns {Promise<Array<object>>} 成员列表
  */
 export function listUsers() {
     return request("/api/v1/users");
 }
 
 /**
- * 在当前租户内创建账号，仅管理员可用。
+ * 在当前空间创建账号，仅空间管理员可用；新账号同时获得个人空间。
  *
  * @param {object} payload 账号信息
  * @returns {Promise<object>} 新账号
  */
 export function createUser(payload) {
     return request("/api/v1/users", jsonInit("POST", payload));
+}
+
+/**
+ * 按登录名查找可邀请进当前空间的已有账号，仅空间管理员可用。
+ *
+ * @param {string} username 登录名
+ * @returns {Promise<Array<{id: string, username: string, displayName: string}>>} 匹配账号
+ */
+export function lookupUsers(username) {
+    return request(`/api/v1/users/lookup?username=${encodeURIComponent(username)}`);
+}
+
+/**
+ * 把已有账号邀请进空间，仅该空间管理员可用。
+ *
+ * @param {string} tenantId 空间标识
+ * @param {{userId: string, role: string}} payload 账号与角色
+ * @returns {Promise<object>} 新成员
+ */
+export function inviteMember(tenantId, payload) {
+    return request(`/api/v1/tenants/${encodeURIComponent(tenantId)}/members`,
+        jsonInit("POST", payload));
 }
 
 /**

@@ -10,6 +10,7 @@ public class TenantPO {
     private String id;
     private String slug;
     private String name;
+    private String kind;
     private Instant createdAt;
     private Instant deletedAt;
 
@@ -35,6 +36,14 @@ public class TenantPO {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getKind() {
+        return kind;
+    }
+
+    public void setKind(String kind) {
+        this.kind = kind;
     }
 
     public Instant getCreatedAt() {

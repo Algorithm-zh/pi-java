@@ -10,6 +10,8 @@
 import * as api from "./api.js";
 
 const LAST_TENANT_KEY = "pi-last-tenant";
+const KIND_LABELS = { DEFAULT: "默认空间", PERSONAL: "个人空间", TEAM: "团队空间" };
+const ROLE_LABELS = { ADMIN: "管理员", MEMBER: "成员" };
 
 let user = null;
 let gate;
@@ -82,17 +84,30 @@ async function submitLogin(event) {
     clearError(error);
     const button = document.getElementById("login-submit");
     button.disabled = true;
+    const credentials = (tenantSlug) => ({
+        tenantSlug,
+        username: inputValue("login-username"),
+        password: document.getElementById("login-password").value
+    });
     try {
-        const session = await api.login({
-            tenantSlug: pickerVisible ? inputValue("login-tenant") : "",
-            username: inputValue("login-username"),
-            password: document.getElementById("login-password").value
-        });
+        let session;
+        try {
+            session = await api.login(credentials(pickerVisible ? inputValue("login-tenant") : ""));
+        } catch (failure) {
+            const choices = failure.details?.tenants || [];
+            const remembered = lastTenant(credentials().username);
+            if (failure.code !== "AUTH_TENANT_REQUIRED" || pickerVisible
+                    || !remembered || !choices.some((choice) => choice.slug === remembered)) {
+                throw failure;
+            }
+            // 账号属于多个空间时优先回到上次的空间，少一次点选。
+            session = await api.login(credentials(remembered));
+        }
         document.getElementById("login-password").value = "";
         await handlers.onReady(enter(session.user));
     } catch (failure) {
         if (failure.code === "AUTH_TENANT_REQUIRED") {
-            offerTenantChoice(failure.details?.tenants || [], error);
+            offerTenantChoice(failure.details?.tenants || [], error, inputValue("login-username"));
         } else {
             setError(error, failure.message || "登录失败，请重试");
         }
@@ -175,26 +190,27 @@ function expire() {
 
 function enter(account) {
     user = account;
-    rememberTenant(account.tenantSlug);
+    resetTenantPicker();
+    rememberTenant(account.username, account.tenantSlug);
     renderAccount(account);
     gate.classList.add("hidden");
     appShell.classList.remove("hidden");
     return account;
 }
 
-function rememberTenant(slug) {
+function rememberTenant(username, slug) {
     try {
-        if (slug) {
-            localStorage.setItem(LAST_TENANT_KEY, slug);
+        if (username && slug) {
+            localStorage.setItem(`${LAST_TENANT_KEY}:${username}`, slug);
         }
     } catch {
         // 隐私模式下 localStorage 可能不可用；记住空间只是便利，失败不影响登录。
     }
 }
 
-function lastTenant() {
+function lastTenant(username) {
     try {
-        return localStorage.getItem(LAST_TENANT_KEY);
+        return username ? localStorage.getItem(`${LAST_TENANT_KEY}:${username}`) : null;
     } catch {
         return null;
     }
@@ -211,8 +227,9 @@ function applyCapabilities(state) {
  *
  * @param {Array<{slug: string, name: string}>} tenants 候选空间
  * @param {HTMLElement} error 错误节点
+ * @param {string} username 登录名，用于读取该账号上次的空间
  */
-function offerTenantChoice(tenants, error) {
+function offerTenantChoice(tenants, error, username) {
     if (!tenants.length) {
         setError(error, "该账号属于多个空间，请填写空间短名后重试");
         revealPicker();
@@ -222,7 +239,7 @@ function offerTenantChoice(tenants, error) {
     const picker = document.getElementById("login-tenant-picker");
     const choices = document.getElementById("login-tenant-choices");
     const input = document.getElementById("login-tenant");
-    const remembered = lastTenant();
+    const remembered = lastTenant(username);
     choices.replaceChildren();
     for (const tenant of tenants) {
         const choice = document.createElement("button");
@@ -231,7 +248,7 @@ function offerTenantChoice(tenants, error) {
         const name = document.createElement("strong");
         name.textContent = tenant.name;
         const slug = document.createElement("small");
-        slug.textContent = tenant.slug;
+        slug.textContent = `${KIND_LABELS[tenant.kind] || "空间"} · ${tenant.slug}`;
         choice.append(name, slug);
         if (tenant.slug === remembered) {
             choice.classList.add("is-last");
@@ -248,6 +265,7 @@ function offerTenantChoice(tenants, error) {
     picker.classList.remove("hidden");
     clearError(error);
     document.getElementById("auth-login-lead").textContent = "请选择要进入的空间。";
+    document.getElementById("login-submit").textContent = "进入所选空间";
     input.focus();
 }
 
@@ -255,20 +273,27 @@ function revealPicker() {
     pickerVisible = true;
     document.getElementById("login-tenant-picker").classList.remove("hidden");
     document.getElementById("auth-login-lead").textContent = "请填写要进入的空间。";
+    document.getElementById("login-submit").textContent = "进入所选空间";
 }
 
 function resetTenantPicker() {
     pickerVisible = false;
     document.getElementById("login-tenant-picker").classList.add("hidden");
     document.getElementById("login-tenant-choices").replaceChildren();
-    document.getElementById("auth-login-lead").textContent = "输入账号和密码，自动进入你的空间。";
+    document.getElementById("login-tenant").value = "";
+    document.getElementById("auth-login-lead").textContent =
+        "输入账号和密码，自动回到上次的空间。";
+    const submit = document.getElementById("login-submit");
+    submit.textContent = "登录";
 }
 
 function renderAccount(account) {
     const display = account.displayName || account.username;
     document.getElementById("account-name").textContent = display;
-    document.getElementById("account-tenant").textContent =
-        `${account.tenantName} · ${account.role === "ADMIN" ? "管理员" : "成员"}`;
+    const tenant = document.getElementById("account-tenant");
+    const kind = KIND_LABELS[account.tenantKind] || "空间";
+    tenant.textContent = `${account.tenantName} · ${ROLE_LABELS[account.role] || account.role}`;
+    tenant.title = `${kind} · ${account.tenantName}（${account.tenantSlug}）`;
     document.getElementById("account-avatar").textContent =
         display.trim().slice(0, 1).toUpperCase();
     document.getElementById("account-card").classList.remove("hidden");

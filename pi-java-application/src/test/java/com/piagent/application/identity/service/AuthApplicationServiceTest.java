@@ -8,9 +8,11 @@ import com.piagent.application.identity.AuthPrincipal;
 import com.piagent.application.identity.command.LoginCommand;
 import com.piagent.application.identity.command.RegisterCommand;
 import com.piagent.application.identity.command.SetupCommand;
+import com.piagent.application.identity.command.SwitchSpaceCommand;
 import com.piagent.application.identity.readmodel.AuthSessionView;
 import com.piagent.application.identity.readmodel.TenantChoice;
 import com.piagent.application.testsupport.InMemoryAuthTokenRepository;
+import com.piagent.application.testsupport.InMemoryMembershipRepository;
 import com.piagent.application.testsupport.InMemoryTenantRepository;
 import com.piagent.application.testsupport.InMemoryUserRepository;
 import com.piagent.application.testsupport.MutableClock;
@@ -18,8 +20,10 @@ import com.piagent.application.testsupport.PrefixPasswordHasher;
 import com.piagent.application.testsupport.SequentialIdGenerator;
 import com.piagent.application.testsupport.SequentialTokenCodec;
 import com.piagent.domain.identity.model.AppUser;
+import com.piagent.domain.identity.model.SpaceMember;
 import com.piagent.domain.identity.model.Tenant;
 import com.piagent.domain.identity.model.TenantId;
+import com.piagent.domain.identity.model.TenantKind;
 import com.piagent.domain.identity.model.UserId;
 import com.piagent.domain.identity.model.UserRole;
 import com.piagent.domain.identity.model.UserStatus;
@@ -27,13 +31,14 @@ import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 本地鉴权用例测试：初始化、登录、锁定、令牌过期与登出。
+ * 本地鉴权用例测试：初始化、多空间登录、切换空间、锁定、令牌过期与登出。
  *
  * <p>使用内存仓储与可推进时钟，不启动 Spring；密码哈希与令牌编码用应用层
  * 测试替身，PBKDF2 与 SHA-256 适配器另有单元测试。</p>
@@ -46,6 +51,7 @@ class AuthApplicationServiceTest {
 
     private final InMemoryTenantRepository tenants = new InMemoryTenantRepository();
     private final InMemoryUserRepository users = new InMemoryUserRepository();
+    private final InMemoryMembershipRepository memberships = new InMemoryMembershipRepository();
     private final InMemoryAuthTokenRepository tokens = new InMemoryAuthTokenRepository();
     private final MutableClock clock = new MutableClock(NOW);
     private final SequentialTokenCodec tokenCodec = new SequentialTokenCodec();
@@ -56,11 +62,9 @@ class AuthApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuthApplicationService(tenants, users, tokens,
-                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, true);
+        service = newService(true);
         AuthSessionView session = service.setup(new SetupCommand("Alice", "Alice", PASSWORD));
-        alice = users.findByUsername(TenantId.DEFAULT, "alice").orElseThrow(
-                () -> new AssertionError("初始化后应存在管理员账号"));
+        alice = users.findByUsername("alice").get(0);
         assertThat(session.user().username()).isEqualTo("alice");
     }
 
@@ -70,14 +74,17 @@ class AuthApplicationServiceTest {
     }
 
     @Test
-    void setupCreatesDefaultTenantAndIssuesUsableToken() {
+    void setupCreatesDefaultTenantPersonalSpaceAndIssuesUsableToken() {
         assertThat(service.initialized()).isTrue();
         Tenant tenant = tenants.findById(TenantId.DEFAULT).orElseThrow();
         assertThat(tenant.slug()).isEqualTo(Tenant.DEFAULT_SLUG);
-        assertThat(alice.role()).isEqualTo(UserRole.ADMIN);
+        assertThat(tenant.kind()).isEqualTo(TenantKind.DEFAULT);
+        assertThat(personalSpaceOf(alice)).isPresent();
         assertThat(alice.status()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(memberships.find(TenantId.DEFAULT, alice.id())).get()
+                .extracting(SpaceMember::role).isEqualTo(UserRole.ADMIN);
 
-        AuthSessionView login = service.login(new LoginCommand(null, "Alice", PASSWORD));
+        AuthSessionView login = service.login(new LoginCommand("default", "Alice", PASSWORD));
         Optional<AuthPrincipal> principal = service.authenticate(login.token());
         assertThat(principal).hasValueSatisfying(auth -> {
             assertThat(auth.username()).isEqualTo("alice");
@@ -96,9 +103,7 @@ class AuthApplicationServiceTest {
 
     @Test
     void setupRejectsShortPassword() {
-        AuthApplicationService fresh = new AuthApplicationService(tenants, users, tokens,
-                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, true);
-        assertThatThrownBy(() -> fresh.setup(new SetupCommand("Alice", "Alice", "short")))
+        assertThatThrownBy(() -> service.setup(new SetupCommand("Alice", "Alice", "short")))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_ARGUMENT));
     }
@@ -160,9 +165,8 @@ class AuthApplicationServiceTest {
     @Test
     void disabledUserCannotLoginOrUseExistingToken() {
         String token = service.login(new LoginCommand("default", "alice", PASSWORD)).token();
-        AppUser disabled = new AppUser(alice.id(), alice.tenantId(), alice.username(),
-                alice.displayName(), alice.passwordHash(), UserRole.MEMBER, UserStatus.DISABLED,
-                NOW, NOW);
+        AppUser disabled = new AppUser(alice.id(), alice.username(), alice.displayName(),
+                alice.passwordHash(), UserStatus.DISABLED, NOW, NOW);
         users.insert(disabled);
 
         assertThatThrownBy(() -> service.login(new LoginCommand("default", "alice", PASSWORD)))
@@ -178,9 +182,10 @@ class AuthApplicationServiceTest {
                         assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_REQUIRED));
 
         AuthContext.bind(new AuthPrincipal(TenantId.DEFAULT, alice.id(), alice.username(),
-                alice.displayName(), alice.role()));
+                alice.displayName(), UserRole.ADMIN));
         assertThat(service.me().tenantSlug()).isEqualTo(Tenant.DEFAULT_SLUG);
         assertThat(service.me().tenantName()).isEqualTo("默认空间");
+        assertThat(service.me().tenantKind()).isEqualTo("DEFAULT");
         assertThat(service.me().role()).isEqualTo("ADMIN");
     }
 
@@ -192,58 +197,84 @@ class AuthApplicationServiceTest {
     }
 
     @Test
-    void loginWithoutSpaceFindsAccountAutomatically() {
-        AuthSessionView session = service.login(new LoginCommand(null, "Alice", PASSWORD));
-        assertThat(session.user().tenantSlug()).isEqualTo(Tenant.DEFAULT_SLUG);
-        assertThat(service.authenticate(session.token())).isPresent();
-        assertThat(service.login(new LoginCommand(" ", "alice", PASSWORD)).user().username())
-                .isEqualTo("alice");
+    void loginWithoutSpaceOffersDefaultAndPersonalSpaces() {
+        assertThatThrownBy(() -> service.login(new LoginCommand(null, "Alice", PASSWORD)))
+                .isInstanceOfSatisfying(TenantSelectionRequiredException.class, error ->
+                        assertThat(error.choices()).extracting(TenantChoice::kind)
+                                .containsExactly("DEFAULT", "PERSONAL"));
+        assertThatThrownBy(() -> service.login(new LoginCommand(" ", "alice", PASSWORD)))
+                .isInstanceOf(TenantSelectionRequiredException.class);
     }
 
     @Test
-    void sameUsernameInTwoSpacesRequiresSelectionThenLogsIntoChosenSpace() {
+    void loginWithSpaceSkipsSelectionAndUsesSpaceRole() {
         Tenant team = createTenant("team-b", "团队 B");
-        AppUser aliceInTeam = createMember(team, "alice", PASSWORD);
+        memberships.insert(SpaceMember.create(team.id(), alice.id(), UserRole.MEMBER, NOW));
 
-        assertThatThrownBy(() -> service.login(new LoginCommand(null, "alice", PASSWORD)))
-                .isInstanceOfSatisfying(TenantSelectionRequiredException.class, error ->
-                        assertThat(error.choices()).extracting(TenantChoice::slug)
-                                .containsExactly("default", "team-b"));
+        AuthSessionView session = service.login(new LoginCommand("team-b", "alice", PASSWORD));
+        assertThat(session.user().tenantId()).isEqualTo(team.id().toString());
+        assertThat(session.user().tenantName()).isEqualTo("团队 B");
+        assertThat(session.user().role()).isEqualTo("MEMBER");
+        assertThat(service.authenticate(session.token())).get()
+                .extracting(AuthPrincipal::role).isEqualTo(UserRole.MEMBER);
+    }
 
-        AuthSessionView chosen = service.login(new LoginCommand("team-b", "alice", PASSWORD));
-        assertThat(chosen.user().tenantId()).isEqualTo(aliceInTeam.tenantId().toString());
-        assertThat(chosen.user().tenantName()).isEqualTo("团队 B");
+    @Test
+    void switchingSpaceIssuesNewTokenAndRevokesOldOne() {
+        Tenant team = createTenant("team-b", "团队 B");
+        memberships.insert(SpaceMember.create(team.id(), alice.id(), UserRole.MEMBER, NOW));
+        String original = service.login(new LoginCommand("default", "alice", PASSWORD)).token();
+
+        AuthSessionView switched = service.switchSpace(original,
+                new SwitchSpaceCommand("team-b"));
+
+        assertThat(switched.user().tenantSlug()).isEqualTo("team-b");
+        assertThat(service.authenticate(original)).isEmpty();
+        assertThat(service.authenticate(switched.token())).get()
+                .extracting(AuthPrincipal::tenantId).isEqualTo(team.id());
+    }
+
+    @Test
+    void switchingToSpaceWithoutMembershipIsForbidden() {
+        Tenant team = createTenant("team-b", "团队 B");
+        String token = service.login(new LoginCommand("default", "alice", PASSWORD)).token();
+
+        assertThatThrownBy(() -> service.switchSpace(token, new SwitchSpaceCommand("team-b")))
+                .isInstanceOfSatisfying(DomainException.class, error ->
+                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_FORBIDDEN));
+        assertThat(service.authenticate(token)).isPresent();
     }
 
     @Test
     void archivedSpaceIsSkippedWhenLocatingAndWhenNamedExplicitly() {
+        AppUser bob = createAccount("bob", PASSWORD);
         Tenant team = createTenant("team-b", "团队 B");
-        createMember(team, "bob", PASSWORD);
+        memberships.insert(SpaceMember.create(team.id(), bob.id(), UserRole.MEMBER, NOW));
+        memberships.insert(SpaceMember.create(TenantId.DEFAULT, bob.id(), UserRole.MEMBER, NOW));
         tenants.updateDeletion(team.id(), NOW);
 
-        assertThatThrownBy(() -> service.login(new LoginCommand(null, "bob", PASSWORD)))
-                .isInstanceOfSatisfying(DomainException.class, error ->
-                        assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_INVALID_CREDENTIALS));
+        AuthSessionView session = service.login(new LoginCommand(null, "bob", PASSWORD));
+        assertThat(session.user().tenantSlug()).isEqualTo(Tenant.DEFAULT_SLUG);
         assertThatThrownBy(() -> service.login(new LoginCommand("team-b", "bob", PASSWORD)))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_INVALID_CREDENTIALS));
     }
 
     @Test
-    void registerCreatesMemberInDefaultSpaceAndLogsIn() {
+    void registerCreatesPersonalSpaceAndLogsIn() {
         AuthSessionView session = service.register(new RegisterCommand("Bob", "Bob", PASSWORD));
 
-        assertThat(session.user().role()).isEqualTo("MEMBER");
-        assertThat(session.user().tenantSlug()).isEqualTo(Tenant.DEFAULT_SLUG);
-        AppUser bob = users.findByUsername(TenantId.DEFAULT, "bob").orElseThrow();
-        assertThat(bob.role()).isEqualTo(UserRole.MEMBER);
+        assertThat(session.user().role()).isEqualTo("ADMIN");
+        assertThat(session.user().tenantKind()).isEqualTo("PERSONAL");
+        assertThat(session.user().tenantSlug()).startsWith("u-bob-");
+        AppUser bob = users.findByUsername("bob").get(0);
+        assertThat(personalSpaceOf(bob)).isPresent();
         assertThat(service.authenticate(session.token())).isPresent();
     }
 
     @Test
     void registerIsRejectedWhenDisabled() {
-        AuthApplicationService closed = new AuthApplicationService(tenants, users, tokens,
-                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, false);
+        AuthApplicationService closed = newService(false);
 
         assertThatThrownBy(() -> closed.register(new RegisterCommand("bob", "Bob", PASSWORD)))
                 .isInstanceOfSatisfying(DomainException.class, error ->
@@ -254,8 +285,9 @@ class AuthApplicationServiceTest {
     @Test
     void registerRequiresSetupAndRejectsDuplicateUsername() {
         AuthApplicationService fresh = new AuthApplicationService(new InMemoryTenantRepository(),
-                new InMemoryUserRepository(), new InMemoryAuthTokenRepository(),
-                new PrefixPasswordHasher(), new SequentialTokenCodec(), ids, clock, TTL, true);
+                new InMemoryUserRepository(), new InMemoryMembershipRepository(),
+                new InMemoryAuthTokenRepository(), new PrefixPasswordHasher(),
+                new SequentialTokenCodec(), ids, clock, TTL, true);
         assertThatThrownBy(() -> fresh.register(new RegisterCommand("bob", "Bob", PASSWORD)))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.AUTH_SETUP_REQUIRED));
@@ -265,16 +297,41 @@ class AuthApplicationServiceTest {
                         assertThat(error.code()).isEqualTo(DomainErrorCode.USER_ALREADY_EXISTS));
     }
 
+    @Test
+    void legacyAccountGetsPersonalSpaceOnNextLogin() {
+        AppUser carol = createAccount("carol", PASSWORD);
+        memberships.insert(SpaceMember.create(TenantId.DEFAULT, carol.id(), UserRole.MEMBER, NOW));
+        assertThat(personalSpaceOf(carol)).isEmpty();
+
+        service.login(new LoginCommand("default", "carol", PASSWORD));
+
+        assertThat(personalSpaceOf(carol)).isPresent();
+    }
+
+    private AuthApplicationService newService(boolean registrationEnabled) {
+        return new AuthApplicationService(tenants, users, memberships, tokens,
+                new PrefixPasswordHasher(), tokenCodec, ids, clock, TTL, registrationEnabled);
+    }
+
     private Tenant createTenant(String slug, String name) {
-        Tenant tenant = Tenant.create(TenantId.newId(ids), slug, name, NOW);
+        Tenant tenant = Tenant.create(TenantId.newId(ids), slug, name, TenantKind.TEAM, NOW);
         tenants.insert(tenant);
         return tenant;
     }
 
-    private AppUser createMember(Tenant tenant, String username, String password) {
-        AppUser user = AppUser.create(UserId.newId(ids), tenant.id(), username, username,
-                new PrefixPasswordHasher().hash(password), UserRole.MEMBER, NOW);
+    private AppUser createAccount(String username, String password) {
+        AppUser user = AppUser.create(UserId.newId(ids), username, username,
+                new PrefixPasswordHasher().hash(password), NOW);
         users.insert(user);
         return user;
+    }
+
+    private Optional<Tenant> personalSpaceOf(AppUser user) {
+        List<SpaceMember> joined = memberships.findByUser(user.id());
+        return joined.stream()
+                .map(member -> tenants.findById(member.tenantId()))
+                .flatMap(Optional::stream)
+                .filter(Tenant::isPersonal)
+                .findFirst();
     }
 }

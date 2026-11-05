@@ -8,14 +8,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 租户与账号管理控制器；全部接口要求管理员身份。
+ * 空间与成员管理控制器。
  *
- * <p>租户列表是全局的（含已归档空间），账号列表只包含当前租户；新建租户同时
- * 创建其首个管理员，新账号只能落在当前租户内。删除租户是软删除，可随时恢复。</p>
+ * <p>空间列表只包含当前账号加入的空间（含已归档）；任何登录用户都能创建团队
+ * 空间并成为其管理员。成员列表、创建账号、邀请已有账号与删除/恢复空间要求
+ * 该空间的管理员身份。删除空间是软删除，可随时恢复。</p>
  */
 @RestController
 public class IdentityAdminController {
@@ -32,9 +34,9 @@ public class IdentityAdminController {
     }
 
     /**
-     * 查询全部租户。
+     * 查询当前账号加入的空间。
      *
-     * @return 租户列表
+     * @return 空间列表
      */
     @GetMapping("/api/v1/tenants")
     public List<TenantResponse> listTenants() {
@@ -42,10 +44,10 @@ public class IdentityAdminController {
     }
 
     /**
-     * 创建租户及其首个管理员。
+     * 创建团队空间，创建者自动成为管理员。
      *
      * @param request 创建请求
-     * @return 新租户
+     * @return 新空间
      */
     @PostMapping("/api/v1/tenants")
     @ResponseStatus(HttpStatus.CREATED)
@@ -54,9 +56,9 @@ public class IdentityAdminController {
     }
 
     /**
-     * 归档（软删除）租户；数据保留，成员立即无法登录。
+     * 归档（软删除）团队空间；默认空间、个人空间与当前空间不能删除。
      *
-     * @param id 租户标识
+     * @param id 空间标识
      */
     @DeleteMapping("/api/v1/tenants/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -65,9 +67,9 @@ public class IdentityAdminController {
     }
 
     /**
-     * 恢复归档租户。
+     * 恢复归档空间。
      *
-     * @param id 租户标识
+     * @param id 空间标识
      */
     @PostMapping("/api/v1/tenants/{id}/restore")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -76,9 +78,9 @@ public class IdentityAdminController {
     }
 
     /**
-     * 查询当前租户的账号。
+     * 查询当前空间的成员。
      *
-     * @return 账号列表
+     * @return 成员列表
      */
     @GetMapping("/api/v1/users")
     public List<UserResponse> listUsers() {
@@ -86,7 +88,7 @@ public class IdentityAdminController {
     }
 
     /**
-     * 在当前租户内创建账号。
+     * 在当前空间创建新账号；新账号同时获得自己的个人空间。
      *
      * @param request 创建请求
      * @return 新账号
@@ -95,5 +97,30 @@ public class IdentityAdminController {
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse createUser(@RequestBody CreateUserRequest request) {
         return UserResponse.from(admin.createUser(request.toCommand()));
+    }
+
+    /**
+     * 按登录名查找可邀请进当前空间的已有账号。
+     *
+     * @param username 登录名
+     * @return 匹配的账号；没有匹配时为空列表
+     */
+    @GetMapping("/api/v1/users/lookup")
+    public List<AccountResponse> lookupUsers(@RequestParam("username") String username) {
+        return admin.findInvitable(username).stream().map(AccountResponse::from).toList();
+    }
+
+    /**
+     * 把已有账号邀请进指定空间。
+     *
+     * @param id 空间标识
+     * @param request 邀请请求
+     * @return 新成员
+     */
+    @PostMapping("/api/v1/tenants/{id}/members")
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserResponse inviteMember(@PathVariable("id") String id,
+            @RequestBody InviteMemberRequest request) {
+        return UserResponse.from(admin.inviteMember(id, request.toCommand()));
     }
 }
