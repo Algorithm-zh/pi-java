@@ -18,6 +18,8 @@ let reloadHandler = null;
 let requestId = 0;
 let previewId = 0;
 
+const REWIND_TIMEOUT_MS = 15000;
+
 /**
  * 注入回退后的会话重载回调，避免与 session-view 形成循环依赖。
  *
@@ -31,6 +33,9 @@ export function bindReload(handler) {
  * 页面初始化：绑定面板、预览与键盘交互。
  */
 export function initTimeline() {
+    if (dom.timelinePanel) {
+        dom.timelinePanel.inert = true;
+    }
     dom.timelineToggle?.addEventListener("click", togglePanel);
     dom.timelineClose?.addEventListener("click", closePanel);
     dom.timelineSpine?.addEventListener("click", onSpineClick);
@@ -42,6 +47,7 @@ export function initTimeline() {
         confirmRewind();
     });
     dom.timelinePreview?.addEventListener("cancel", (event) => {
+        // 回退请求在飞行中时不允许关闭，超时兜底保证 Escape 最终可用。
         if (phase === "rewinding") {
             event.preventDefault();
         }
@@ -68,6 +74,10 @@ export async function refresh() {
         return;
     }
     if (phase === "rewinding") {
+        return;
+    }
+    // 预览打开时不让后台刷新（workspace.changed / finishRun）覆盖预览上下文。
+    if (phase === "previewing" && dom.timelinePreview?.open) {
         return;
     }
     const token = ++requestId;
@@ -112,6 +122,9 @@ export function reset() {
     dom.timelineList?.replaceChildren();
     dom.timelineSpine?.replaceChildren();
     dom.timelineSpine?.classList.add("hidden");
+    if (dom.timelineSubtitle) {
+        dom.timelineSubtitle.textContent = "";
+    }
     renderStatus("");
     dom.timelineToggle?.classList.add("hidden");
 }
@@ -123,7 +136,11 @@ function togglePanel() {
     }
     dom.timelinePanel?.classList.add("open");
     dom.timelinePanel?.setAttribute("aria-hidden", "false");
+    if (dom.timelinePanel) {
+        dom.timelinePanel.inert = false;
+    }
     dom.timelineToggle?.setAttribute("aria-expanded", "true");
+    dom.timelineClose?.focus();
     if (phase === "error" || loadedSessionId !== state.session?.id) {
         refresh();
     } else if (timeline) {
@@ -132,9 +149,16 @@ function togglePanel() {
 }
 
 function closePanel() {
+    const wasOpen = Boolean(dom.timelinePanel?.classList.contains("open"));
     dom.timelinePanel?.classList.remove("open");
     dom.timelinePanel?.setAttribute("aria-hidden", "true");
+    if (dom.timelinePanel) {
+        dom.timelinePanel.inert = true;
+    }
     dom.timelineToggle?.setAttribute("aria-expanded", "false");
+    if (wasOpen && dom.timelineToggle && !dom.timelineToggle.classList.contains("hidden")) {
+        dom.timelineToggle.focus();
+    }
 }
 
 function showToggle() {
@@ -142,20 +166,26 @@ function showToggle() {
 }
 
 function render() {
+    const list = dom.timelineList;
+    if (!list) {
+        return;
+    }
     const nodes = Array.isArray(timeline?.nodes) ? timeline.nodes : [];
-    dom.timelineSubtitle.textContent = nodes.length
-        ? `${nodes.length} 个决策点${timeline.available ? "" : " · 无 Git 检查点"}`
-        : "还没有可回看的运行";
-    dom.timelineList.replaceChildren();
+    if (dom.timelineSubtitle) {
+        dom.timelineSubtitle.textContent = nodes.length
+            ? `${nodes.length} 个决策点${timeline.available ? "" : " · 无 Git 检查点"}`
+            : "还没有可回看的运行";
+    }
+    list.replaceChildren();
     renderSpine(nodes);
     if (!nodes.length) {
-        dom.timelineList.append(el("p", "timeline-empty",
+        list.append(el("p", "timeline-empty",
             "还没有决策点，发送第一条消息后出现。"));
         renderStatus("");
         return;
     }
     for (const node of nodes) {
-        dom.timelineList.append(renderNode(node));
+        list.append(renderNode(node));
     }
     const canRewind = nodes.some((node) => node.rewindable);
     renderStatus(timelineHint(canRewind));
@@ -261,6 +291,9 @@ function renderSpine(nodes) {
 }
 
 function onSpineClick(event) {
+    if (!(event.target instanceof Element)) {
+        return;
+    }
     const tick = event.target.closest("button[data-spine]");
     if (!tick) {
         return;
@@ -269,6 +302,10 @@ function onSpineClick(event) {
         togglePanel();
     }
     const cards = Array.from(dom.timelineList?.querySelectorAll("[data-node]") || []);
+    if (!cards.length) {
+        // 刷新尚未落地：只打开面板，不报错。
+        return;
+    }
     const target = cards.find((card) => card.dataset.node === tick.dataset.spine);
     target?.scrollIntoView({ block: "center", behavior: "smooth" });
 }
@@ -474,12 +511,19 @@ function openPreview() {
 
 function renderPreview(result) {
     const body = dom.timelinePreviewBody;
+    if (!body) {
+        return;
+    }
     body.replaceChildren();
     const node = nodeOf(selectedCheckpoint);
-    dom.timelinePreviewTitle.textContent = node?.intent
-        ? `回到「${shorten(node.intent, 48)}」之前`
-        : "回到这次运行之前";
-    dom.timelinePreviewKicker.textContent = result.restorable ? "回退预览" : "存在冲突";
+    if (dom.timelinePreviewTitle) {
+        dom.timelinePreviewTitle.textContent = node?.intent
+            ? `回到「${shorten(node.intent, 48)}」之前`
+            : "回到这次运行之前";
+    }
+    if (dom.timelinePreviewKicker) {
+        dom.timelinePreviewKicker.textContent = result.restorable ? "回退预览" : "存在冲突";
+    }
     if (result.brief) {
         body.append(el("p", "timeline-preview-brief", result.brief));
     }
@@ -512,12 +556,30 @@ function renderPreview(result) {
     setPreviewError("");
 }
 
+/**
+ * 给请求加超时，避免回退请求悬挂时对话框永远停在 rewinding。
+ *
+ * @param {Promise<unknown>} promise 原请求
+ * @param {number} ms 超时毫秒
+ * @returns {Promise<unknown>} 原请求结果；超时则 reject
+ */
+function withTimeout(promise, ms) {
+    let timer = 0;
+    const timeout = new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("回退超时，请检查网络后重试")), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function confirmRewind() {
     const sessionId = state.session?.id;
     if (!sessionId || !selectedCheckpoint || phase !== "previewing"
             || !previewResult?.restorable) {
         return;
     }
+    // token 在 closePreview() 时递增，关闭对话框即可让飞行中的响应作废。
+    const token = ++previewId;
+    const checkpointEntryId = selectedCheckpoint;
     const note = String(dom.timelineNote?.value || "").trim();
     phase = "rewinding";
     dom.timelineConfirm.disabled = true;
@@ -527,11 +589,14 @@ async function confirmRewind() {
         "正在还原文件并把对话退回检查点…"));
     setPreviewError("");
     try {
-        const result = await api.rewindSession(sessionId, {
-            checkpointEntryId: selectedCheckpoint,
+        const result = await withTimeout(api.rewindSession(sessionId, {
+            checkpointEntryId,
             dryRun: false,
             note
-        });
+        }), REWIND_TIMEOUT_MS);
+        if (token !== previewId || state.session?.id !== sessionId) {
+            return;
+        }
         if (!result.rewound) {
             previewResult = result;
             phase = "previewing";
@@ -544,15 +609,29 @@ async function confirmRewind() {
         closePreview(true);
         phase = "ready";
         toast(`已回退，还原 ${(result.restored || []).length} 个文件`);
-        await reloadHandler?.();
+        try {
+            await reloadHandler?.();
+        } catch (error) {
+            toast("回退完成，但刷新会话失败", true);
+        }
         dom.input?.focus();
     } catch (error) {
+        if (token !== previewId) {
+            return;
+        }
+        // 超时或失败：退回预览态，允许重试或取消。
         phase = "previewing";
-        setPreviewError(error.message || "回退失败");
-    } finally {
         dom.timelineCancel.disabled = false;
-        if (phase === "previewing") {
-            dom.timelineConfirm.disabled = !previewResult?.restorable;
+        dom.timelinePreviewKicker.textContent =
+            previewResult?.restorable ? "回退预览" : "存在冲突";
+        setPreviewError(error.message || "回退失败");
+        dom.timelineConfirm.disabled = !previewResult?.restorable;
+    } finally {
+        if (token === previewId) {
+            dom.timelineCancel.disabled = false;
+            if (phase === "previewing") {
+                dom.timelineConfirm.disabled = !previewResult?.restorable;
+            }
         }
     }
 }
@@ -561,6 +640,7 @@ function closePreview(force = false) {
     if (phase === "rewinding" && !force) {
         return;
     }
+    previewId++;
     if (dom.timelinePreview?.open) {
         dom.timelinePreview.close();
     }

@@ -264,6 +264,10 @@ export function renderTurn(items, results) {
                 isError: Boolean(body.isError),
                 pending: false
             }));
+        } else if (entry.type === "BRANCH_SUMMARY"
+                && entry.body?.extra?.details?.kind === "rewind") {
+            // 回溯简报是继续对话的锚点，默认直接出现在轮次里，不埋进折叠的执行过程。
+            wrap.append(renderNote(entry));
         } else if (["APPROVAL", "COMPACTION", "BRANCH_SUMMARY", "MODEL_CHANGE",
             "PLAN", "VERIFICATION"].includes(entry.type)) {
             ensureProcess().body.append(renderNote(entry));
