@@ -1,5 +1,6 @@
 package com.piagent.application.timeline;
 
+import com.piagent.domain.governance.model.ApprovalStatus;
 import com.piagent.domain.plan.model.PlanItem;
 import com.piagent.domain.plan.model.PlanItemStatus;
 import com.piagent.domain.session.model.SessionEntry;
@@ -44,8 +45,9 @@ public class RewindBriefBuilder {
     /**
      * 生成简报。
      *
-     * @param checkpointEntry 目标检查点 entry
-     * @param discarded 将被丢弃的 entry
+     * @param checkpointEntry 目标检查点 entry，payload 必须是 GitCheckpointPayload（调用方已校验）
+     * @param discarded 将被丢弃的 entry；只扫描这里出现的 entry，检查点之前创建且未被后续 run
+     *        更新的计划不会出现在简报中
      * @param restoredFiles 将还原的路径
      * @param note 用户备注，可为 null
      * @return 摘要与 details
@@ -66,7 +68,7 @@ public class RewindBriefBuilder {
     private String requireNote(String note) {
         String cleanNote = note == null ? "" : note.strip();
         if (cleanNote.length() > MAX_NOTE) {
-            throw new DomainException(DomainErrorCode.INVALID_ARGUMENT, "备注不能超过 200 字");
+            throw new DomainException(DomainErrorCode.INVALID_ARGUMENT, "备注不能超过 " + MAX_NOTE + " 字");
         }
         return cleanNote;
     }
@@ -86,7 +88,7 @@ public class RewindBriefBuilder {
             } else if (payload instanceof GitCheckpointPayload) {
                 runs++;
             } else if (payload instanceof ApprovalPayload approval
-                    && "DENIED".equalsIgnoreCase(approval.decision())) {
+                    && ApprovalStatus.DENIED.name().equalsIgnoreCase(approval.decision())) {
                 denied++;
                 deniedTools.add(approval.toolName());
             } else if (payload instanceof VerificationPayload verification
