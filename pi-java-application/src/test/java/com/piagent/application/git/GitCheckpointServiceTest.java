@@ -12,7 +12,6 @@ import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.git.model.GitChangeKind;
 import com.piagent.domain.git.model.GitChangeSet;
 import com.piagent.domain.git.model.GitConflict;
-import com.piagent.domain.git.model.GitRestorePlan;
 import com.piagent.domain.git.model.GitRestoreResult;
 import com.piagent.domain.git.model.GitSnapshot;
 import com.piagent.domain.git.port.WorkspaceGit;
@@ -27,6 +26,7 @@ import com.piagent.domain.session.model.SessionStatus;
 import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.model.TokenUsage;
 import com.piagent.domain.session.model.payload.GitChangeSetPayload;
+import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
@@ -241,12 +241,34 @@ class GitCheckpointServiceTest {
     void pinsCheckpointWhenRunStarts() {
         SessionId sessionId = createSession().identity().id();
         appender.appendUserAndStart(sessionId, "改一下文件");
+        RunId runId = RunId.newId(ids);
         git.snapshots.add(new GitSnapshot("tree-0", "head-0", "main"));
 
-        checkpoints.beginRun(sessionId, WORKSPACE, RunId.newId(ids), null);
+        checkpoints.beginRun(sessionId, WORKSPACE, runId, null);
 
         assertThat(git.pinnedNamespace).isEqualTo(sessionId.toString());
+        assertThat(git.pinnedCheckpointId).isEqualTo(runId.toString());
         assertThat(git.pinnedTree).isEqualTo("tree-0");
+    }
+
+    @Test
+    void pinFailureDoesNotBreakRun() {
+        SessionId sessionId = createSession().identity().id();
+        appender.appendUserAndStart(sessionId, "改一下文件");
+        RunId runId = RunId.newId(ids);
+        git.snapshots.add(new GitSnapshot("tree-0", "head-0", "main"));
+        git.throwOnPin = true;
+
+        Optional<GitSnapshot> snapshot = checkpoints.beginRun(sessionId, WORKSPACE, runId, null);
+
+        assertThat(snapshot).contains(new GitSnapshot("tree-0", "head-0", "main"));
+        assertThat(branch(sessionId)).extracting(SessionEntry::type)
+                .containsExactly(EntryType.MESSAGE, EntryType.GIT_CHECKPOINT);
+        assertThat(branch(sessionId).getLast().payload())
+                .isInstanceOfSatisfying(GitCheckpointPayload.class, checkpoint -> {
+                    assertThat(checkpoint.runId()).isEqualTo(runId.toString());
+                    assertThat(checkpoint.baseTreeSha()).isEqualTo("tree-0");
+                });
     }
 
     private void appendRun(SessionId sessionId, RunId runId, String baseTree, String endTree) {
@@ -289,13 +311,13 @@ class GitCheckpointServiceTest {
         private final Deque<GitSnapshot> snapshots = new ArrayDeque<>();
         private GitChangeSet nextChanges;
         private GitRestoreResult nextRestore = new GitRestoreResult(List.of(), List.of());
-        private GitRestorePlan nextPlan = new GitRestorePlan("tree-0", "tree-0",
-                List.of(), List.of());
         private String pinnedNamespace;
+        private String pinnedCheckpointId;
         private String pinnedTree;
         private String restoreBaseTree;
         private String restoreTargetTree;
         private boolean available = true;
+        private boolean throwOnPin;
 
         @Override
         public Optional<GitSnapshot> snapshot(Path workspace) {
@@ -321,14 +343,13 @@ class GitCheckpointServiceTest {
         }
 
         @Override
-        public GitRestorePlan planRestore(Path workspace, String baseTreeSha, String treeSha) {
-            return nextPlan;
-        }
-
-        @Override
         public void pinCheckpoint(Path workspace, String namespace, String checkpointId,
                 String treeSha) {
+            if (throwOnPin) {
+                throw new IllegalStateException("boom");
+            }
             pinnedNamespace = namespace;
+            pinnedCheckpointId = checkpointId;
             pinnedTree = treeSha;
         }
 

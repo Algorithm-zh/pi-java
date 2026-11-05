@@ -59,6 +59,9 @@ public class GitCheckpointService {
     /**
      * 在 run 开始时捕获快照并写入检查点 entry。
      *
+     * <p>同时尽力为该检查点创建内部保活引用，保证 run 起点的树对象可达；保活失败只记日志，
+     * 不影响 run 本身。</p>
+     *
      * @param sessionId 会话标识
      * @param workspace 工作目录
      * @param runId run 标识

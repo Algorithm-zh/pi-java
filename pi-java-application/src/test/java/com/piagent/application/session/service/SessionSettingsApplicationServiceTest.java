@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -159,7 +160,16 @@ class SessionSettingsApplicationServiceTest {
         service.delete(SESSION_ID);
 
         assertThat(sessions.findById(SESSION_ID)).isEmpty();
-        verify(git).clearCheckpoints(any(Path.class), eq(SESSION_ID.toString()));
+        verify(git).clearCheckpoints(eq(WORKSPACE), eq(SESSION_ID.toString()));
+    }
+
+    @Test
+    void deleteSucceedsWhenCheckpointCleanupFails() {
+        doThrow(new IllegalStateException("boom")).when(git).clearCheckpoints(any(), any());
+
+        service.delete(SESSION_ID);
+
+        assertThat(sessions.findById(SESSION_ID)).isEmpty();
     }
 
     @Test

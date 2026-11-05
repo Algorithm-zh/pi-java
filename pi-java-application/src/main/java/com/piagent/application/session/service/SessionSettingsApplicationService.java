@@ -15,6 +15,7 @@ import com.piagent.domain.session.port.SessionRepository;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.shared.Guard;
+import java.nio.file.Path;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,6 +103,8 @@ public class SessionSettingsApplicationService {
      * <p>运行中的会话不允许删除：先停止 run，避免后台线程继续写已删除的会话。
      * entry 与审批记录由数据库外键级联删除。</p>
      *
+     * <p>删除成功后会尽力清理该会话的检查点保活引用，失败只记日志，绝不向调用方传播。</p>
+     *
      * @param sessionId 会话标识
      */
     @Transactional
@@ -110,11 +113,13 @@ public class SessionSettingsApplicationService {
         Guard.require(current.status() == SessionStatus.IDLE
                         || current.status() == SessionStatus.ARCHIVED,
                 DomainErrorCode.INVALID_STATE_TRANSITION, "会话正在运行，请先停止再删除");
+        Path cwd = current.config().cwd();
         sessions.delete(sessionId);
         try {
-            git.clearCheckpoints(current.config().cwd(), sessionId.toString());
+            git.clearCheckpoints(cwd, sessionId.toString());
         } catch (RuntimeException error) {
-            LOG.log(System.Logger.Level.WARNING, "清理检查点引用失败: " + sessionId, error);
+            LOG.log(System.Logger.Level.WARNING, "清理检查点引用失败: " + sessionId + " @ " + cwd,
+                    error);
         }
     }
 
