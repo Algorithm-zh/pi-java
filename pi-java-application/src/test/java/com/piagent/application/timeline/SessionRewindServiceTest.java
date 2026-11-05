@@ -89,6 +89,12 @@ class SessionRewindServiceTest {
         assertThat(entries.countBySession(sessionId)).isEqualTo(before);
         assertThat(sessions.findById(sessionId).orElseThrow().leafEntryId()).isEqualTo(leafBefore);
         assertThat(git.restoreCalled).isFalse();
+        assertThat(git.lastPlanTarget).isEqualTo("tree-1");
+        // 快照队列整体滞后一次 poll：endTurn 读到的树等于本轮起点，改动 entry 未落盘；
+        // 第二个检查点之后最后一个已知树是第三轮检查点的起点 tree-2，而非 fallback 的 tree-1。
+        assertThat(git.lastPlanLatest).isEqualTo("tree-2");
+        assertThat(git.lastRestoreTarget).isNull();
+        assertThat(git.lastRestoreLatest).isNull();
     }
 
     @Test
@@ -103,6 +109,10 @@ class SessionRewindServiceTest {
 
         assertThat(result.rewound()).isTrue();
         assertThat(result.restored()).containsExactly("a.txt");
+        assertThat(git.lastPlanTarget).isEqualTo("tree-1");
+        assertThat(git.lastPlanLatest).isEqualTo("tree-2");
+        assertThat(git.lastRestoreTarget).isEqualTo("tree-1");
+        assertThat(git.lastRestoreLatest).isEqualTo("tree-2");
         SessionEntry brief = entries.findById(sessionId, result.briefEntryId()).orElseThrow();
         assertThat(brief.type()).isEqualTo(EntryType.BRANCH_SUMMARY);
         assertThat(brief.parentId()).isEqualTo(runs.secondBaseLeaf);
@@ -184,6 +194,37 @@ class SessionRewindServiceTest {
                                 .isEqualTo(DomainErrorCode.INVALID_STATE_TRANSITION));
     }
 
+    @Test
+    void rejectsNonCheckpointEntryOnBranch() {
+        threeRuns();
+        EntryId summaryEntry = branch().stream()
+                .filter(entry -> entry.payload() instanceof RunSummaryPayload)
+                .map(SessionEntry::id)
+                .findFirst().orElseThrow();
+
+        assertThatThrownBy(() -> service.rewind(sessionId, summaryEntry, true, null))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.INVALID_BRANCH));
+        assertThat(git.lastPlanTarget).isNull();
+    }
+
+    @Test
+    void rejectsTooLongNoteWithoutRestoring() {
+        RunIds runs = threeRuns();
+        long before = entries.countBySession(sessionId);
+        EntryId leafBefore = sessions.findById(sessionId).orElseThrow().leafEntryId();
+
+        assertThatThrownBy(() -> service.rewind(sessionId, runs.secondCheckpoint, false,
+                "x".repeat(201)))
+                .isInstanceOfSatisfying(DomainException.class,
+                        error -> assertThat(error.code())
+                                .isEqualTo(DomainErrorCode.INVALID_ARGUMENT));
+        assertThat(git.restoreCalled).isFalse();
+        assertThat(entries.countBySession(sessionId)).isEqualTo(before);
+        assertThat(sessions.findById(sessionId).orElseThrow().leafEntryId()).isEqualTo(leafBefore);
+    }
+
     private EntryId entryIdBeforeUser() {
         return sessions.findById(sessionId).orElseThrow().leafEntryId();
     }
@@ -247,6 +288,10 @@ class SessionRewindServiceTest {
                 List.of(), List.of());
         private GitRestoreResult nextRestore = new GitRestoreResult(List.of(), List.of());
         private boolean restoreCalled;
+        private String lastPlanTarget;
+        private String lastPlanLatest;
+        private String lastRestoreTarget;
+        private String lastRestoreLatest;
 
         @Override
         public Optional<GitSnapshot> snapshot(Path workspace) {
@@ -261,11 +306,15 @@ class SessionRewindServiceTest {
         @Override
         public GitRestoreResult restore(Path workspace, String baseTreeSha, String treeSha) {
             restoreCalled = true;
+            lastRestoreTarget = baseTreeSha;
+            lastRestoreLatest = treeSha;
             return nextRestore;
         }
 
         @Override
         public GitRestorePlan planRestore(Path workspace, String baseTreeSha, String treeSha) {
+            lastPlanTarget = baseTreeSha;
+            lastPlanLatest = treeSha;
             return nextPlan;
         }
 
