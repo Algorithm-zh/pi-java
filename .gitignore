@@ -26,6 +26,9 @@ Thumbs.db
 plugins/*.jar
 examples/**/target/
 
+# 隔离工作区
+.worktrees/
+
 # 个人文件，不进入开源仓库
 .workbuddy/
 resume/
