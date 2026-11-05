@@ -15,6 +15,7 @@ import com.piagent.domain.shared.DomainException;
 import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -126,7 +127,7 @@ public class RewindBriefBuilder {
         details.put("deniedApprovals", facts.denied());
         details.put("failedVerifications", facts.failed());
         details.put("unfinishedPlanItems", facts.unfinished().size());
-        return Map.copyOf(details);
+        return Collections.unmodifiableMap(details);
     }
 
     private String render(SessionEntry checkpointEntry, Facts facts) {
