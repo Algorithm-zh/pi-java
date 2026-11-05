@@ -1,5 +1,6 @@
 package com.piagent.application.timeline;
 
+import com.piagent.domain.governance.model.ApprovalStatus;
 import com.piagent.domain.plan.model.PlanItem;
 import com.piagent.domain.plan.model.PlanItemStatus;
 import com.piagent.domain.session.model.ChatSession;
@@ -60,18 +61,16 @@ public class SessionTimelineService {
             return new SessionTimeline(hasCheckpoint, null, List.of());
         }
         int last = indexed.size() - 1;
-        IndexedNode tail = indexed.get(last);
         List<SessionTimeline.Node> nodes = new ArrayList<>();
         EntryId currentCheckpoint = null;
         for (int index = 0; index < indexed.size(); index++) {
             SessionTimeline.Node node = indexed.get(index).node();
             boolean current = index == last;
-            if (current && tail.node().kind() == SessionTimeline.NodeKind.RUN) {
+            if (current && indexed.get(last).node().kind() == SessionTimeline.NodeKind.RUN) {
                 currentCheckpoint = node.checkpointEntryId();
             }
-            nodes.add(new SessionTimeline.Node(node.kind(), node.checkpointEntryId(),
-                    node.runId(), node.at(), current, node.rewindable(), node.run(),
-                    node.rewind()));
+            nodes.add(new SessionTimeline.Node(node.kind(), node.checkpointEntryId(), node.runId(),
+                    node.at(), current, node.rewindable(), node.run(), node.rewind()));
         }
         return new SessionTimeline(hasCheckpoint, currentCheckpoint, List.copyOf(nodes));
     }
@@ -123,14 +122,13 @@ public class SessionTimelineService {
     private SessionTimeline.Node runNode(List<SessionEntry> branch, RunSlice slice) {
         SessionTimeline.RunEvidence evidence = evidence(branch, slice.start(), slice.end(),
                 slice.runId(), slice.checkpointEntry() != null);
-        EntryId checkpointId = slice.checkpointEntry() == null ? null : slice.checkpointEntry().id();
-        return new SessionTimeline.Node(SessionTimeline.NodeKind.RUN, checkpointId, slice.runId(),
+        return new SessionTimeline.Node(SessionTimeline.NodeKind.RUN,
+                slice.checkpointEntry() == null ? null : slice.checkpointEntry().id(), slice.runId(),
                 slice.atEntry().createdAt(), false, slice.rewindable(), evidence, null);
     }
 
     private SessionTimeline.RunEvidence evidence(List<SessionEntry> branch, int start, int end,
             String runId, boolean checkpointed) {
-        PlanPayload latestPlan = null;
         List<ApprovalPayload> approvals = new ArrayList<>();
         List<VerificationPayload> verifications = new ArrayList<>();
         List<GitChangeSetPayload> changes = new ArrayList<>();
@@ -139,9 +137,7 @@ public class SessionTimelineService {
         int toolCalls = 0;
         for (int index = start; index < end; index++) {
             Object payload = branch.get(index).payload();
-            if (payload instanceof PlanPayload plan) {
-                latestPlan = plan;
-            } else if (payload instanceof ApprovalPayload approval) {
+            if (payload instanceof ApprovalPayload approval) {
                 approvals.add(approval);
             } else if (payload instanceof VerificationPayload verification
                     && matches(verification.runId(), runId)) {
@@ -156,7 +152,14 @@ public class SessionTimelineService {
                 toolCalls = summary.toolCalls();
             }
         }
-        List<PlanItem> planItems = latestPlan == null ? List.of() : latestPlan.items();
+        // 计划 entry 是整份快照：节点展示其结束时的最新一份，可沿用更早的 run 或手工编辑。
+        List<PlanItem> planItems = List.of();
+        for (int index = Math.min(end, branch.size()) - 1; index >= 0; index--) {
+            if (branch.get(index).payload() instanceof PlanPayload plan) {
+                planItems = plan.items();
+                break;
+            }
+        }
         SessionTimeline.Stats stats = stats(planItems, approvals, verifications, changes);
         return new SessionTimeline.RunEvidence(intent(branch, start, end, checkpointed), stats,
                 stopReason, turns, toolCalls, planItems, List.copyOf(approvals),
@@ -165,10 +168,8 @@ public class SessionTimelineService {
 
     private SessionTimeline.Stats stats(List<PlanItem> planItems, List<ApprovalPayload> approvals,
             List<VerificationPayload> verifications, List<GitChangeSetPayload> changes) {
-        int done = (int) planItems.stream()
-                .filter(item -> item.status() == PlanItemStatus.DONE).count();
-        int denied = (int) approvals.stream()
-                .filter(item -> "DENIED".equalsIgnoreCase(item.decision())).count();
+        int done = (int) planItems.stream().filter(item -> item.status() == PlanItemStatus.DONE).count();
+        int denied = (int) approvals.stream().filter(item -> ApprovalStatus.DENIED.name().equalsIgnoreCase(item.decision())).count();
         int failed = (int) verifications.stream().filter(item -> !item.passed()).count();
         Set<String> paths = new LinkedHashSet<>();
         int additions = 0;
@@ -184,11 +185,10 @@ public class SessionTimelineService {
                 new SessionTimeline.PlanSummary(planItems.size(), done),
                 new SessionTimeline.ApprovalSummary(approvals.size(), denied),
                 new SessionTimeline.VerificationSummary(verifications.size(), failed),
-                new SessionTimeline.ChangeSummary(changes.size(), paths.size(), additions,
-                        deletions));
+                new SessionTimeline.ChangeSummary(changes.size(), paths.size(), additions, deletions));
     }
 
-    // 触发 run 的用户文本；检查点模式下向前回溯，避免算进下一条 run 的消息。
+    // 触发 run 的用户文本；先在节点内向前扫描，否则回溯并遇到 run/分支边界即停止。
     private String intent(List<SessionEntry> branch, int start, int end, boolean checkpointed) {
         if (!checkpointed) {
             for (int index = start; index < end; index++) {
@@ -198,7 +198,12 @@ public class SessionTimelineService {
                 }
             }
         }
-        for (int index = Math.min(start - 1, branch.size() - 1); index >= 0; index--) {
+        for (int index = start - 1; index >= 0; index--) {
+            Object payload = branch.get(index).payload();
+            if (payload instanceof GitCheckpointPayload || payload instanceof RunSummaryPayload
+                    || payload instanceof BranchSummaryPayload) {
+                break;
+            }
             String text = userTextAt(branch, index);
             if (!text.isBlank()) {
                 return truncate(text, MAX_INTENT);
@@ -230,8 +235,7 @@ public class SessionTimelineService {
 
     private int firstUserMessage(List<SessionEntry> branch, int start, int end) {
         for (int index = start; index < end; index++) {
-            if (branch.get(index).payload() instanceof MessagePayload message
-                    && message.message() instanceof UserMessage) {
+            if (branch.get(index).payload() instanceof MessagePayload message && message.message() instanceof UserMessage) {
                 return index;
             }
         }
@@ -252,8 +256,7 @@ public class SessionTimelineService {
         return new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND, null,
                 text(details.get("runId")), entry.createdAt(), false, false, null,
                 new SessionTimeline.RewindEvidence(payload.summary(),
-                        number(details.get("discardedEntries")),
-                        number(details.get("discardedRuns"))));
+                        number(details.get("discardedEntries")), number(details.get("discardedRuns"))));
     }
 
     private boolean isRewind(BranchSummaryPayload payload) {
@@ -285,8 +288,7 @@ public class SessionTimelineService {
 
     private ChatSession require(SessionId sessionId) {
         return sessions.findById(sessionId)
-                .orElseThrow(() -> new DomainException(DomainErrorCode.SESSION_NOT_FOUND,
-                        "会话不存在: " + sessionId));
+                .orElseThrow(() -> new DomainException(DomainErrorCode.SESSION_NOT_FOUND, "会话不存在: " + sessionId));
     }
 
     private record IndexedNode(int index, SessionTimeline.Node node) { }

@@ -75,7 +75,7 @@ class SessionTimelineServiceTest {
         append(new RunSummaryPayload("run-1", "COMPLETED", TokenUsage.zero(), 1, 2, 900, null));
         EntryId run2 = append(new MessagePayload(new UserMessage(
                 List.of(new com.piagent.domain.session.model.message.TextBlock("补测试")), NOW)));
-        append(new GitCheckpointPayload("run-2", leaf, "tree-1", "head-0", "main"));
+        append(new GitCheckpointPayload("run-2", run2, "tree-1", "head-0", "main"));
         append(new VerificationPayload("run-2", "mvn test", true, 0, false, false, 80, "ok"));
         append(new RunSummaryPayload("run-2", "COMPLETED", TokenUsage.zero(), 1, 0, 300, null));
         moveLeaf();
@@ -86,7 +86,11 @@ class SessionTimelineServiceTest {
         assertThat(timeline.nodes()).hasSize(2);
         SessionTimeline.Node first = timeline.nodes().getFirst();
         assertThat(first.checkpointEntryId()).isEqualTo(checkpoint1);
+        assertThat(first.rewindable()).isTrue();
         assertThat(first.run().intent()).isEqualTo("修复登录");
+        assertThat(first.run().stopReason()).isEqualTo("COMPLETED");
+        assertThat(first.run().turns()).isEqualTo(1);
+        assertThat(first.run().toolCalls()).isEqualTo(2);
         assertThat(first.run().stats().plan().total()).isEqualTo(2);
         assertThat(first.run().stats().plan().done()).isEqualTo(1);
         assertThat(first.run().stats().approvals().denied()).isEqualTo(1);
@@ -94,10 +98,15 @@ class SessionTimelineServiceTest {
         assertThat(first.run().stats().changes().files()).isEqualTo(1);
         assertThat(first.run().stats().changes().additions()).isEqualTo(10);
         assertThat(first.current()).isFalse();
-        assertThat(timeline.nodes().getLast().current()).isTrue();
-        assertThat(timeline.currentCheckpointEntryId())
-                .isEqualTo(timeline.nodes().getLast().checkpointEntryId());
-        assertThat(run2).isNotNull();
+        SessionTimeline.Node second = timeline.nodes().getLast();
+        assertThat(second.current()).isTrue();
+        assertThat(second.runId()).isEqualTo("run-2");
+        assertThat(second.run().turns()).isEqualTo(1);
+        assertThat(second.run().toolCalls()).isZero();
+        // run-2 没有自己的 PlanPayload，计划快照从更早的 run 沿用。
+        assertThat(second.run().stats().plan().total()).isEqualTo(2);
+        assertThat(second.run().stats().plan().done()).isEqualTo(1);
+        assertThat(timeline.currentCheckpointEntryId()).isEqualTo(second.checkpointEntryId());
     }
 
     @Test
@@ -147,6 +156,39 @@ class SessionTimelineServiceTest {
         assertThat(service.timeline(sessionId).nodes()).isEmpty();
         assertThat(service.timeline(sessionId).available()).isFalse();
         assertThat(service.timeline(sessionId).currentCheckpointEntryId()).isNull();
+    }
+
+    @Test
+    void disablesRewindWhenSessionIsArchived() {
+        append(new MessagePayload(new UserMessage(
+                List.of(new com.piagent.domain.session.model.message.TextBlock("归档前")), NOW)));
+        append(new GitCheckpointPayload("run-1", null, "tree-0", "head-0", "main"));
+        append(new RunSummaryPayload("run-1", "COMPLETED", TokenUsage.zero(), 1, 0, 100, null));
+        moveLeaf();
+        sessions.update(sessions.findById(sessionId).orElseThrow().archive());
+
+        SessionTimeline timeline = service.timeline(sessionId);
+
+        assertThat(timeline.nodes()).isNotEmpty();
+        assertThat(timeline.nodes()).allSatisfy(
+                node -> assertThat(node.rewindable()).isFalse());
+    }
+
+    @Test
+    void intentDoesNotCrossRunBoundary() {
+        append(new MessagePayload(new UserMessage(
+                List.of(new com.piagent.domain.session.model.message.TextBlock("第一轮")), NOW)));
+        append(new GitCheckpointPayload("run-1", null, "tree-0", "head-0", "main"));
+        append(new RunSummaryPayload("run-1", "COMPLETED", TokenUsage.zero(), 1, 0, 100, null));
+        append(new GitCheckpointPayload("run-2", leaf, "tree-1", "head-0", "main"));
+        append(new RunSummaryPayload("run-2", "COMPLETED", TokenUsage.zero(), 1, 0, 100, null));
+        moveLeaf();
+
+        SessionTimeline timeline = service.timeline(sessionId);
+
+        assertThat(timeline.nodes()).hasSize(2);
+        assertThat(timeline.nodes().getFirst().run().intent()).isEqualTo("第一轮");
+        assertThat(timeline.nodes().getLast().run().intent()).isEmpty();
     }
 
     private EntryId append(EntryPayload payload) {

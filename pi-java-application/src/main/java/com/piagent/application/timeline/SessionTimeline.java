@@ -57,6 +57,26 @@ public record SessionTimeline(boolean available, EntryId currentCheckpointEntryI
             int turns, int toolCalls, List<PlanItem> planItems,
             List<ApprovalPayload> approvals, List<VerificationPayload> verifications,
             List<GitChangeSetPayload> changes) {
+
+        /**
+         * 规范化列表。
+         *
+         * @param intent 触发文本
+         * @param stats 汇总统计
+         * @param stopReason 停止原因
+         * @param turns 轮数
+         * @param toolCalls 工具调用数
+         * @param planItems 待办快照
+         * @param approvals 审批
+         * @param verifications 验证
+         * @param changes 改动
+         */
+        public RunEvidence {
+            planItems = planItems == null ? List.of() : List.copyOf(planItems);
+            approvals = approvals == null ? List.of() : List.copyOf(approvals);
+            verifications = verifications == null ? List.of() : List.copyOf(verifications);
+            changes = changes == null ? List.of() : List.copyOf(changes);
+        }
     }
 
     /**
