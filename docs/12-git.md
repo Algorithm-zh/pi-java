@@ -36,8 +36,8 @@ pi:
 - 关闭后 `WorkspaceGit` 由 `DisabledWorkspaceGit` 实现，查改动返回
   `available=false`，撤销返回 `GIT_UNAVAILABLE`。
 - `pin-checkpoints=true` 时，每次运行开始后用
-  `refs/pi/checkpoints/<sessionId>/<runId>` 指向检查点树对象，保证后续可回溯；
-  固定失败只记 WARNING，不影响运行。
+  `refs/pi/checkpoints/<sessionId>/<runId>` 指向包裹检查点树对象的内部提交，
+  保证后续可回溯；固定失败只记 WARNING，不影响运行。
 
 ## 3. 快照模型
 
