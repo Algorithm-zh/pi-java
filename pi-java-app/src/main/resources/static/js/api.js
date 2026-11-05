@@ -506,8 +506,9 @@ export function getSession(sessionId) {
     return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`);
 }
 
-export function listEntries(sessionId) {
-    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/entries`);
+export function listEntries(sessionId, leafId = null) {
+    const suffix = leafId ? `?leafId=${encodeURIComponent(leafId)}` : "";
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/entries${suffix}`);
 }
 
 export function createSession(payload) {

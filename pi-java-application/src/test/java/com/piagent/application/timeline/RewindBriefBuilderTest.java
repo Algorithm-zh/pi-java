@@ -57,7 +57,7 @@ class RewindBriefBuilderTest {
                 .contains("丢弃 1 轮对话")
                 .contains("1 次被拒绝的审批")
                 .contains("1 次失败的验证")
-                .contains("已还原 2 个文件")
+                .contains("已还原 2 个文件（a.txt、b.txt）")
                 .contains("未完成：补登录测试")
                 .contains("write（已拒绝）")
                 .contains("mvn test（已验证失败）")
@@ -68,6 +68,7 @@ class RewindBriefBuilderTest {
                 .containsEntry("discardedEntries", 5)
                 .containsEntry("discardedRuns", 1)
                 .containsEntry("restoredFiles", 2)
+                .containsEntry("restoredPaths", List.of("a.txt", "b.txt"))
                 .containsEntry("deniedApprovals", 1)
                 .containsEntry("failedVerifications", 1)
                 .containsEntry("unfinishedPlanItems", 1);

@@ -31,6 +31,7 @@ public class RewindBriefBuilder {
 
     private static final int MAX_SUMMARY = 400;
     private static final int MAX_NOTE = 200;
+    private static final int MAX_DETAIL_PATHS = 50;
 
     private final DateTimeFormatter timeFormat;
 
@@ -60,7 +61,7 @@ public class RewindBriefBuilder {
         Scan scan = scan(discarded);
         List<String> unfinished = unfinished(discarded);
         Facts facts = new Facts(scan.userMessages(), scan.runs(), scan.denied(), scan.failed(),
-                restoredFiles.size(), unfinished, scan.deniedTools(), scan.failedCommands(),
+                List.copyOf(restoredFiles), unfinished, scan.deniedTools(), scan.failedCommands(),
                 cleanNote);
         String summary = render(checkpointEntry, facts);
         return new RewindBrief(summary, details(checkpointEntry, checkpoint, discarded, facts));
@@ -123,7 +124,9 @@ public class RewindBriefBuilder {
         details.put("runId", checkpoint.runId());
         details.put("discardedEntries", discarded.size());
         details.put("discardedRuns", facts.runs());
-        details.put("restoredFiles", facts.restoredFiles());
+        details.put("restoredFiles", facts.restoredFiles().size());
+        details.put("restoredPaths", facts.restoredFiles().stream()
+                .limit(MAX_DETAIL_PATHS).toList());
         details.put("deniedApprovals", facts.denied());
         details.put("failedVerifications", facts.failed());
         details.put("unfinishedPlanItems", facts.unfinished().size());
@@ -136,7 +139,10 @@ public class RewindBriefBuilder {
                 .append(" 的决策点回退：丢弃 ").append(facts.userMessages()).append(" 轮对话、")
                 .append(facts.denied()).append(" 次被拒绝的审批、").append(facts.failed())
                 .append(" 次失败的验证。");
-        text.append("已还原 ").append(facts.restoredFiles()).append(" 个文件");
+        text.append("已还原 ").append(facts.restoredFiles().size()).append(" 个文件");
+        if (!facts.restoredFiles().isEmpty()) {
+            text.append("（").append(joinLimit(facts.restoredFiles(), 3)).append("）");
+        }
         if (!facts.unfinished().isEmpty()) {
             text.append("；未完成：").append(joinLimit(facts.unfinished(), 3));
         }
@@ -165,8 +171,8 @@ public class RewindBriefBuilder {
             List<String> deniedTools, List<String> failedCommands) {
     }
 
-    private record Facts(int userMessages, int runs, int denied, int failed, int restoredFiles,
-            List<String> unfinished, List<String> deniedTools, List<String> failedCommands,
-            String note) {
+    private record Facts(int userMessages, int runs, int denied, int failed,
+            List<String> restoredFiles, List<String> unfinished, List<String> deniedTools,
+            List<String> failedCommands, String note) {
     }
 }
