@@ -1,20 +1,22 @@
 # 08 路线图
 
-> 状态：M0–M22 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
+> 状态：M0–M23 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
 > 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26，M15 工程化与 v0.2.0
 > 于 2026-10-26，M16 图片与多模态输入、M17 附件生命周期与压缩于 2026-10-27，
 > M18 仓库地图与代码检索于 2026-10-28，M19 多租户与最小鉴权、
 > M20 登录免选空间/自助注册/空间软删除于 2026-10-29，
 > M21 个人空间与团队协作用于 2026-11-05，
-> M22 决策时间线与任意检查点回溯于 2026-11-05）。详见
+> M22 决策时间线与任意检查点回溯于 2026-11-05，
+> M23 分叉对比于 2026-11-06）。详见
 > [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
 > [M13 记录](milestones/M13.md)、[M14 记录](milestones/M14.md)、
 > [M15 记录](milestones/M15.md)、[M16 记录](milestones/M16.md)、
 > [M17 记录](milestones/M17.md)、[M18 记录](milestones/M18.md)、
 > [M19 记录](milestones/M19.md)、[M20 记录](milestones/M20.md)、
-> [M21 记录](milestones/M21.md) 与 [M22 记录](milestones/M22.md)；
+> [M21 记录](milestones/M21.md)、[M22 记录](milestones/M22.md) 与
+> [M23 记录](milestones/M23.md)；
 > `v0.3.0` tag 与 GitHub Release 已于 2026-11-06 发布。
-> v0.3 已完成，下一步候选见第 6 节。
+> v0.3 已发布，v0.4 从 M23 开始，后续候选见第 6 节。
 
 ## 1. 交付策略
 
@@ -50,6 +52,7 @@
 | **M19** | 多租户与最小鉴权 | 租户/账号/令牌领域、PBKDF2、鉴权过滤器、租户隔离、登录与账号设置 UI | 单元/触发/集成测试、两租户隔离走查、浏览器登录流程 | `feat(auth): local accounts, tenant isolation and login ui` |
 | **M20** | 登录免选空间、自助注册与空间软删除 | 跨空间账号定位、409 空间选择、`/auth/register`、`deleted_at` 软删除与恢复 | 应用/触发/集成测试、OpenAPI 断言、浏览器走查 | `feat(auth): auto-locate space, self registration and soft delete` |
 | **M21** | 个人空间与团队协作 | 全局账号、空间成员关系、`DEFAULT/PERSONAL/TEAM`、邀请已有账号、`/auth/switch` | 成员/切换/保护集成测试、946 测试、浏览器走查 | `feat(auth): personal spaces, memberships and space switching` |
+| **M23** | 分叉对比 | 被放弃分支投影、双分支对比 API、Web 对比对话框、CLI `/timeline` `/compare` `/rewind` | 1012 测试、桌面与 375px 走查、CLI 回车取消与确认回退 | `docs(m23): record branch comparison milestone` |
 
 ## 3. 各里程碑详情
 
@@ -842,6 +845,16 @@ v0.3 以“多模态输入、登录协作与更接近真实使用的交互”为
 
 约束不变：每个里程碑独立提交，tag 与发布需用户确认；鉴权已上线，默认仍只监听
 回环地址，公网部署必须置于 HTTPS 反向代理之后。
+
+### 6.3 v0.4（2026-11-06 起）
+
+v0.4 继续围绕“人决定走哪条路”打磨决策回看与协作体验，每项独立成里程碑：
+
+1. **M23 分叉对比**（已完成 2026-11-06）：被放弃分支的只读投影、双分支对比 API、
+   Web 对比对话框与 CLI `/timeline` `/compare` `/rewind`；见
+   [M23 记录](milestones/M23.md)。
+2. 后续候选（未排期）：切回被放弃分支并还原工作区、逐行分支 diff、跨会话对比、
+   Anthropic 原生 provider、并行子代理、LSP/跨文件引用。
 
 ## 7. 风险与应对
 

@@ -12,7 +12,7 @@
 6. [05 API 与 CLI](05-api-and-cli.md)：REST/SSE 契约、CLI 命令、Web UI
 7. [06 插件 SDK](06-plugin-sdk.md)：插件契约、生命周期、类加载隔离、示例
 8. [07 测试与质量](07-testing-and-quality.md)：测试策略、质量门禁、验收
-9. [08 路线图](08-roadmap.md)：M0–M22 与后续候选、依赖、风险、完成定义
+9. [08 路线图](08-roadmap.md)：M0–M23 与后续候选、依赖、风险、完成定义
 10. [09 快速上手](09-quick-start.md)：启动脚本、接入真实模型、技能与常见问题
 11. [10 MCP 客户端](10-mcp.md)：配置、传输、命名空间、风险映射、断线与超时
 12. [11 界面设计](11-interface-design.md)：设计原则、视觉令牌、Web/TUI 交互与可访问性
@@ -53,6 +53,7 @@
 - [M20：登录免选空间、自助注册与空间软删除](milestones/M20.md)
 - [M21：个人空间与团队协作](milestones/M21.md)
 - [M22：决策时间线与任意检查点回溯](milestones/M22.md)
+- [M23：分叉对比](milestones/M23.md)
 
 ## 发布说明
 

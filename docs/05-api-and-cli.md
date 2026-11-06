@@ -6,7 +6,9 @@
 > M13 已实现工作区改动查询与撤销；M14 已实现计划查询、`todo` 工具与自动验证事件；
 > M19 已实现本地账号、令牌鉴权与租户隔离（第 9 节 Web UI 含登录流程）；
 > M21 已改为全局账号 + 空间成员，个人空间、团队空间、邀请与空间切换见 1.2 节；
-> M22 已实现决策时间线与任意检查点回溯（2.11 节），运行开始时用内部 ref 固定检查点。
+> M22 已实现决策时间线与任意检查点回溯（2.11 节），运行开始时用内部 ref 固定检查点；
+> M23 已实现被放弃分支与当前分支的只读对比（2.11 节），并为 CLI 补齐
+> `/timeline`、`/compare`、`/rewind`。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -537,6 +539,55 @@ POST /api/v1/sessions/{id}/rewind
   `body.extra` 包含 `fromEntryId`（回退前的旧叶子）与 `details.restoredPaths`
   （最多 50 个还原路径）。Web 用 `parentId` 与 `fromEntryId` 界定回退点之后的
   片段，提供“查看被放弃的记录”只读弹窗；多次回退可在片段里逐层往前追溯。
+
+#### 2.11.1 分叉对比（M23）
+
+```http
+GET /api/v1/sessions/{id}/comparison
+GET /api/v1/sessions/{id}/comparison?rewind={briefEntryId}
+```
+
+响应（省略空值）：
+
+```json
+{
+  "available": true,
+  "rewindEntryId": "01J...",
+  "forkEntryId": "01J...",
+  "at": "2026-11-06T13:20:00Z",
+  "abandoned": {
+    "leafEntryId": "01J...",
+    "intents": ["把 notes.md 改成三段"],
+    "runs": 2,
+    "completedRuns": 2,
+    "turns": 4,
+    "toolCalls": 3,
+    "stopReasons": ["COMPLETED"],
+    "approvals": {"total": 1, "denied": 1, "deniedTools": ["write"]},
+    "verifications": {"total": 1, "failed": 1, "failedCommands": ["mvn -o test"]},
+    "plan": {"total": 2, "done": 1, "unfinished": ["补测试"]},
+    "changes": {"turns": 3, "files": 2, "additions": 40, "deletions": 12},
+    "files": [{"path": "notes.md", "additions": 40, "deletions": 12, "changes": 1}]
+  },
+  "current": {"leafEntryId": "01J...", "intents": [], "runs": 1, "...": "..."},
+  "files": {
+    "onlyAbandoned": ["a.java"],
+    "onlyCurrent": ["b.java"],
+    "both": ["notes.md"],
+    "truncated": false
+  },
+  "summary": "旧分支：2 个 run、4 轮对话…… 当前分支：1 个 run……"
+}
+```
+
+- 分叉点由两侧分支的 entry id 最长公共前缀求得；分叉点之前的共同历史不计入任一侧；
+- 被放弃侧取 `loadBranch(sessionId, fromEntryId)`；当前侧取当前叶子，**包含**回退
+  简报本身，但简报不参与统计；
+- 省略 `rewind` 时取当前分支上最近一次回退；指定更早的简报时，当前侧覆盖到当前叶子，
+  更晚的回退简报同样不参与统计；指定的简报不在当前分支上返回 409 `INVALID_BRANCH`；
+- 没有回退时返回 200 与 `available=false`，两侧为空、`summary` 为空字符串；
+- 只读：不要求空闲、不追加 entry、不访问磁盘、不调用模型；列表与摘要全部在服务端
+  截断（意图 20 条/每条 400 字、原因与命令 10 条、文件 100 条、摘要 500 字）。
 
 ### 2.12 计划与自动验证（M14）
 
@@ -1072,6 +1123,14 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 - `/session` → 打印会话 id、模型、思考级别与状态；
 - `/diff` → 最近一次运行的分支、文件、行数、提交建议与 diff（最多 120 行）；
 - `/undo` → 撤销上一轮：还原文件并回退对话；冲突时逐条打印原因；
+- `/timeline` → 打印当前分支的决策点：序号、时间、run/回退、意图或简报与统计，
+  `*` 标记当前节点；
+- `/compare [序号]` → 对比被放弃的分支与当前分支；省略序号时取最近一次回退，
+  指定序号时必须是 `/timeline` 里的回退节点；输出两侧统计、意图、拒绝与失败验证，
+  以及“仅旧分支 / 仅新分支 / 两边都改过”的文件差异；
+- `/rewind <序号>` → 回退到该决策点之前的检查点：先打印将丢弃的记录与还原文件，
+  直接回车取消；仅空闲会话可回退，冲突时整体放弃；无法读取标准输入时拒绝执行并
+  提示在 chat 中手动操作；确认后打印“已回退 · 还原 N 个文件 · 丢弃 …”；
 - `/plan` → 打印当前待办、完成数与最近一次自动验证结果；
 - `/skill:name [args]` → 作为普通消息交给 Agent Loop 的技能解析器；
 - EOF（Ctrl+D/Ctrl+Z）退出。
