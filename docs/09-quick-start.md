@@ -90,7 +90,7 @@ $env:PI_DEEPSEEK_KEY = "sk-你的key"
 
 1. 检测 JDK 21+；
 2. 启动服务（demo profile，H2 文件库落在 `.\data\`）；
-3. 等待 `/api/v1/system/info` 就绪；
+3. 等待公开的 `/api/v1/auth/state` 就绪（`/api/v1/system/info` 需要登录）；
 4. 若 `deepseek` 模型档案不存在则创建（**只存环境变量名**，不存 Key）；
 5. 打印访问地址。
 

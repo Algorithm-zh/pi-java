@@ -52,7 +52,8 @@ Cookie 或 Bearer 令牌），但默认口令与单实例限流仍不适合直�
 | `PI_DATA_DIR=/app/data` | 镜像内固定值 |
 | `SPRING_PROFILES_ACTIVE=demo` | 默认离线演示，可覆盖为 `mysql` |
 
-`HEALTHCHECK` 每 30 秒访问 `/api/v1/system/info`，失败 3 次标记 unhealthy。
+`HEALTHCHECK` 每 30 秒访问公开的 `/api/v1/auth/state`，失败 3 次标记 unhealthy；
+M19 起 `/api/v1/system/info` 需要登录，不能用于健康检查。
 
 构建与运行：
 
