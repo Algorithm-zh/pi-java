@@ -72,6 +72,8 @@ class SessionBranchComparisonServiceTest {
         assertThat(comparison.rewindEntryId()).isNull();
         assertThat(comparison.abandoned().intents()).isEmpty();
         assertThat(comparison.current().intents()).isEmpty();
+        assertThat(service.compare(sessionId, SessionEntryFactory.entryId(9999)).available())
+                .isFalse();
     }
 
     @Test
@@ -139,7 +141,7 @@ class SessionBranchComparisonServiceTest {
         SessionBranchComparison latest = service.compare(sessionId, null);
 
         assertThat(latest.rewindEntryId()).isEqualTo(secondBrief);
-        assertThat(latest.abandoned().intents()).containsExactly("修复登录", "第二条路");
+        assertThat(latest.abandoned().intents()).containsExactly("第二条路");
         assertThat(latest.current().intents()).containsExactly("第三条路");
         assertThatThrownBy(() -> service.compare(sessionId, firstBrief))
                 .isInstanceOfSatisfying(DomainException.class,
@@ -148,10 +150,11 @@ class SessionBranchComparisonServiceTest {
 
     @Test
     void rejectsUnknownRewindEntry() {
-        append(user("没有回退"));
+        append(user("修复登录"));
         append(new GitCheckpointPayload("run-1", null, "tree-0", "head-0", "main"));
         append(new RunSummaryPayload("run-1", "COMPLETED", TokenUsage.zero(), 1, 0, 100, null));
-        moveLeaf();
+        EntryId oldLeaf = leaf;
+        rewindTo(oldLeaf, null, "run-1");
 
         assertThatThrownBy(() -> service.compare(sessionId, SessionEntryFactory.entryId(9999)))
                 .isInstanceOfSatisfying(DomainException.class,
