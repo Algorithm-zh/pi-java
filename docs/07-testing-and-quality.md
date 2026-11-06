@@ -364,7 +364,7 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 - Web 走查：打开即用、无登录卡与账号入口；`/write` 审批批准与拒绝、时间线、
   设置五个标签页均正常。
 
-M24 结束共 941 个测试，2 个符号链接用例条件跳过；Checkstyle 与 ArchUnit 通过。
+M24 结束共 948 个测试，2 个符号链接用例条件跳过；Checkstyle 与 ArchUnit 通过。
 
 ## 9. Windows 与跨平台
 

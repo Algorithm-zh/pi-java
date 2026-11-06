@@ -14,7 +14,7 @@ pi-java 用 **Java 21 + DDD 分层 + 插件化** 实现，提供一个 jar、两
 
 > **当前版本 v0.3.0**（2026-11-06 发布）。`main` 已合入 M24 去账号化：
 > 删除账号、令牌与空间体系，恢复为单用户本地服务，打开页面即可使用。
-> 941 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
+> 948 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
 
 ![pi-java 欢迎页](docs/images/welcome.png)
 
@@ -210,7 +210,7 @@ java -jar $JAR serve --port 8081
 mvn -q verify
 ```
 
-当前 `main`（M24 后）：**941 个测试**通过（2 个符号链接用例按条件跳过），
+当前 `main`（M24 后）：**948 个测试**通过（2 个符号链接用例按条件跳过），
 Checkstyle、ArchUnit、OpenAPI 校验通过；Web 与 CLI 都有真实浏览器 / 终端走查。
 
 > **验证前先停止正在运行的服务。** `verify` 包含 `package`，会重写

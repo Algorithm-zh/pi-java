@@ -54,7 +54,7 @@
 | **M21** | 个人空间与团队协作（M24 已移除） | 全局账号、空间成员关系、`DEFAULT/PERSONAL/TEAM`、邀请已有账号、`/auth/switch` | 成员/切换/保护集成测试、946 测试、浏览器走查 | `feat(auth): personal spaces, memberships and space switching` |
 | **M22** | 决策时间线与回溯 | 运行级决策时间线、任意检查点预览与回退、回溯简报、检查点固定 | 时间线/回退集成测试、桌面与移动端走查 | `feat(timeline): decision timeline and rewind` |
 | **M23** | 分叉对比 | 被放弃分支投影、双分支对比 API、Web 对比对话框、CLI `/timeline` `/compare` `/rewind` | 1012 测试、桌面与 375px 走查、CLI 回车取消与确认回退 | `docs(m23): record branch comparison milestone` |
-| **M24** | 去账号化 | 删除账号/空间/令牌与鉴权过滤；V9 合并策略并删表；回环绑定保护与 `/health`；Web/CLI 去登录 | 941 测试、全新 H2 迁移 V1–V9、浏览器与 CLI 实测 | `feat!: remove accounts and run as a local single-user agent` |
+| **M24** | 去账号化 | 删除账号/空间/令牌与鉴权过滤；V9 合并策略并删表；回环绑定保护与 `/health`；Web/CLI 去登录 | 948 测试、全新 H2 迁移 V1–V9、浏览器与 CLI 实测 | `feat!: remove accounts and run as a local single-user agent` |
 | **M25** | 分支切回（未实施） | 从被放弃分支继续对话并还原工作区 | 待设计 | 待定 |
 
 ## 3. 各里程碑详情
@@ -787,7 +787,7 @@ CLI 契约见 [05 API 与 CLI](05-api-and-cli.md) §8。
 
 验收结果：
 
-- `mvn -q test` 941 个测试通过（2 个符号链接用例条件跳过）；
+- `mvn -q test` 948 个测试通过（2 个符号链接用例条件跳过）；
 - 全新 H2 库顺序执行 V1–V9，迁移成功且无身份表；
 - 浏览器走查：打开即用、审批批准/拒绝、时间线与设置中心正常；
 - CLI `chat` 与只读命令不依赖任何账号或租户上下文。
