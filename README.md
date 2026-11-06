@@ -1,55 +1,101 @@
 # pi-java
 
+**一个会留下决策记录的 Java coding agent。** 每一步的意图、审批、验证和改动都能回看；
+走错了可以退回任意检查点，被放弃的那条路也能拿出来对比。
+
+[![CI](https://github.com/Algorithm-zh/pi-java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Algorithm-zh/pi-java/actions/workflows/ci.yml)
 [![Java 21](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
 [![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 coding agent。
-它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
-并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
+pi-java 用 **Java 21 + DDD 分层 + 插件化** 实现，提供一个 jar、两种入口：
+浏览器里的 Web 工作台和终端里的 `pi` CLI。数据、工具、审批、插件全部跑在本机，
+离线 Fake 模型不需要任何 API Key 就能完整体验。
 
-> 当前状态：**v0.3.0 已发布**（2026-11-06，M16–M22）。已具备树形会话日志、
-> 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
-> Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
-> 文件系统 Skills、同步子代理、会话设置与上下文用量仪表，以及工作区检查点、
-> 逐轮 diff 与一键撤销；模型可用 `todo` 维护待办，改过工作区后自动跑验证命令，
-> 失败时把真实输出交回模型修复一次。
-> 对话支持图片输入：可选择、粘贴或拖拽 PNG/JPEG/WebP/GIF，发送前显示缩略图预览，
-> 模型具备视觉能力时以多模态消息送出，不具备时前端与后端都会先行拦下并给出提示。
-> 大图在浏览器内先缩放到 1568 px 并转 WebP；服务端按内容去重、剥离 EXIF/XMP
-> 等元数据、以 512 MB 总配额兜底，并在设置页展示用量、支持回收无人引用的附件。
-> 模型可以用 `repo_map` 先看语言分布、目录结构与关键文件，再按任务关键词定位
-> 相关文件、符号与匹配行；索引只用 JDK、在内存中增量维护，不执行工作区代码。
-> Web UI 采用“纸面工作室”视觉：暖纸底色、苔绿主操作与圆角卡片，内置浅色/深色主题，
-> 字体离线可用；侧栏支持搜索与窄屏抽屉，对话区默认折叠思考与工具过程，
-> 支持斜杠命令提示、安全 Markdown 渲染、一键复制与回到底部。终端 TUI 使用同一套配色，
-> 提供圆角输入框、中文风险标签与安全默认的审批面板。设计细节见 [界面设计](docs/11-interface-design.md)。
-> 同一个 jar 既是 Web 服务也是 CLI：`pi run`、`pi chat`、`pi sessions/models/tools`、
-> `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
-> v0.3 起 Web 与 HTTP API 需要登录：首次启动创建管理员，任何用户可自助注册并拥有
-> 个人空间，也能创建团队空间、邀请已有账号；会话、策略、审批与附件按空间隔离。
-> 决策时间线把每次运行的意图、计划、审批、验证与改动摆在一起，可预览并回退到任意
-> 检查点，对话与工作区一起退回，回溯简报会进入下一轮上下文。被放弃的那条路也不会
-> 消失：回退节点可以打开“对比两条分支”，并排查看两边的意图、统计与文件差异，
-> Web、CLI 都支持。
-> `v0.3.0` tag 与 GitHub Release 已发布（2026-11-06）；下一步候选见 [路线图](docs/08-roadmap.md)。
+> **当前版本 v0.3.0**（2026-11-06 发布）。M23 分叉对比已合入 `main`：
+> 回退后可以并排查看“被放弃的分支”和“当前分支”的意图、统计与文件差异。
+> 1012 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
 
-![欢迎页与示例任务](docs/images/welcome.png)
+![pi-java 欢迎页](docs/images/welcome.png)
 
-![聊天与工具审批](docs/images/chat.png)
+## 为什么是 pi-java
+
+大多数 coding agent 只给你一个结果。pi-java 更关心**结果是怎么来的**：
+
+| | |
+|---|---|
+| **决策可见** | 每次运行的意图、计划、审批、验证和逐轮 diff 都在时间线上，不用翻日志猜。 |
+| **可以反悔** | 预览并回到任意一次运行之前，对话和工作区一起退回，回溯简报自动进入下一轮上下文。 |
+| **放弃的也有价值** | 回退节点可以对比两条分支：旧分支试过什么、哪里失败、两边改了哪些文件，一目了然。 |
+| **本地优先** | 一个 jar 启动 Web 与 CLI，H2 文件库、插件、审批都在本机；不依赖 Redis。 |
+| **Java 团队的顺手工具** | 领域层只依赖 JDK，Spring/MyBatis/插件加载都在外层，边界和测试都按 Java 工程的习惯组织。 |
+
+## 核心能力
+
+### 看得见，也退得回
+
+- **决策时间线**：按运行列出意图、计划、审批、验证、改动与证据；当前节点高亮，可展开细节。
+- **任意检查点回退**：先 dry-run 预览将丢弃的对话与将还原的文件，确认后一起退回；
+  冲突时整体放弃，不会写一半。
+- **分叉对比**：回退之后继续走的新路与旧路并排展示；桌面双列、手机上下堆叠，
+  CLI 用 `/compare` 输出同样的事实。
+- **回溯简报**：回退结果会写回会话，模型下一轮知道自己为什么回到这里。
+
+![决策时间线](docs/images/timeline.png)
+
+### 敢让它动文件
+
+- `write` / `edit` 默认弹出审批，批准后才落盘；可以直接拒绝并附一句原因。
+- `bash` 默认拒绝，需要显式策略放行；所有文件工具都走路径沙箱。
+- 每次运行结束展示本轮改动、逐轮 diff 与提交建议；一键撤销只还原本轮文件，
+  不碰你的分支、HEAD 或已有提交。
+- 改过工作区后可以自动跑验证命令；失败的真实输出会交回模型修复一次。
+
+![审批弹窗](docs/images/approval.png)
+
+### 大仓库不用靠猜
+
+- `repo_map` 先给出语言分布、目录结构与关键文件，再按关键词定位相关文件、符号和匹配行。
+- 索引只用 JDK、内存中增量维护，不执行工作区代码。
+- 上下文接近窗口时结构化压缩；不收敛时降级为剪枝，不会陷入无限压缩。
+- Skills 按需加载：system prompt 只放名称与描述，正文由模型读取或 `/skill:名称` 注入。
+
+### 一个 jar，两种用法
+
+- **Web**：会话、设置中心、审批、时间线、对比、附件与空间管理都在浏览器里完成。
+- **CLI**：`pi run`、`pi chat`、`pi sessions/models/tools`、`pi serve` 共用同一套用例、
+  数据库和审批管线，不是另一套简化实现。
+- `chat` 在真实终端里是带补全和历史记录的交互界面；管道里自动退回逐行模式。
+
+### 团队可以一起用
+
+- 本地账号 + HttpOnly Cookie 或 Bearer 令牌，密码只存 PBKDF2 哈希。
+- 注册即拥有个人空间；任何用户都能创建团队空间、按登录名邀请已有账号。
+- 会话、工具策略、审批和附件按空间隔离；空间可软删除并恢复。
+
+### 可扩展，不锁死
+
+- 零依赖 `plugin-api`，每个插件独立 ClassLoader，工具自动带插件前缀。
+- 配置 `pi.mcp.servers` 接入 stdio 或 Streamable HTTP 的 MCP 服务器，
+  工具自动进入目录、策略与审批管线。
+- 受限子代理：工具子集只能收紧、深度有上限，失败与超时以结构化结果回写。
+
+## 界面一览
+
+| 时间线与回溯 | 分叉对比 |
+|---|---|
+| ![时间线](docs/images/timeline.png) | ![分叉对比](docs/images/compare.png) |
 
 <details>
-<summary>更多截图：过程折叠、斜杠命令、Markdown、深色主题、审批弹窗与设置</summary>
-
-![折叠的执行过程](docs/images/process-collapsed.png)
+<summary>更多截图：深色主题、过程折叠、斜杠命令、Markdown、改动面板与设置</summary>
 
 ![深色主题](docs/images/theme-dark.png)
+
+![折叠的执行过程](docs/images/process-collapsed.png)
 
 ![斜杠命令提示](docs/images/slash.png)
 
 ![Markdown 回复](docs/images/markdown.png)
-
-![审批弹窗](docs/images/approval.png)
 
 ![本轮改动与撤销](docs/images/changes.png)
 
@@ -57,245 +103,138 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 
 </details>
 
-## 快速体验
+## 快速开始
 
-推荐用脚本启动（自动探测 JDK 21、检查 Key；模型档案在登录后于设置中心创建，
-或设置 `PI_AUTH_TOKEN` 时由脚本代劳）：
+需要 **JDK 21**；没有 Key 也能用 Fake 模型离线体验。
 
 ```powershell
-$env:PI_DEEPSEEK_KEY = "sk-你的key"   # 可选；不设则只能用 Fake 离线模型
 .\scripts\start.ps1
 ```
 
-也可以手动启动：
+脚本会自动探测 JDK 21。也可以手动构建启动：
 
 ```bash
 mvn -q -DskipTests package
 java -jar pi-java-app/target/pi-java-app-0.3.0.jar
 ```
 
-打开 <http://127.0.0.1:8080>：首次启动先创建管理员（登录名 + 至少 8 位密码），
-之后只用账号密码登录——服务端会回到你上次使用的空间，账号加入多个空间且本地没有
-记录时才需要点选；登录页也支持自助创建账号，新账号直接进入自己的个人空间。
-会话、工具策略、审批与附件按空间隔离；任何用户都能创建团队空间并邀请已有账号，
-空间可以软删除并恢复。登录后在新建会话里输入
-`/read README.md`、`/ls .` 或
-`/write notes.txt 你好`。写工具会弹出审批框，批准后才真正落盘；也可以在弹窗中拒绝。
-工具改变工作区后，输入框上方会出现“本轮改动”面板，可展开查看逐轮 diff 并一键撤销；
-撤销只还原本轮文件，不碰你的分支、HEAD 或提交。输入 `/tool todo {"todos":[{"content":"读代码","status":"in_progress"},{"content":"改实现","status":"pending"}]}`
-可体验待办面板；配置 `PI_VERIFY_COMMAND` 后，代理改过文件并准备收尾时会自动执行验证，
-失败输出会回给模型修复一次。
-侧栏可搜索历史会话，底部可切换浅色/深色主题或进入设置中心（账号与空间、模型档案与密钥环境变量、
-技能、插件、工具策略）；顶栏仪表显示上下文用量，空闲时可手动压缩。默认 demo profile 使用 H2 文件库与 Fake LLM，
-**不需要任何 API Key**。服务默认只监听 `127.0.0.1`；v0.3 起 Web 与 HTTP API 需要登录，
-但仍不建议把默认端口直接暴露到公网。
-启动后可访问 `/v3/api-docs` 与 `/swagger-ui.html` 查看接口契约。
+打开 <http://127.0.0.1:8080>，首次启动创建管理员，之后用账号密码登录。
+服务端会自动回到你上次使用的空间；账号加入多个空间时才需要点选。
 
-接入真实模型、技能配置与常见问题见 [快速上手](docs/09-quick-start.md)。
+新建会话，选 **Fake Demo（离线）**，然后试试：
+
+| 输入 | 会发生什么 |
+|---|---|
+| `/read README.md` | 读取文件 |
+| `/write notes.txt 你好` | 弹出审批框，批准后才写入 |
+| `/tool repo_map {"query":"审批 策略"}` | 按关键词定位相关文件 |
+| `/timeline` | 查看当前分支的决策点 |
+| `/compare` | 对比最近一次回退前后的两条分支 |
+| `/rewind 2` | 预览并回退到第 2 个检查点之前 |
+
+侧栏可以搜索历史会话；顶栏仪表显示上下文用量；设置中心管理账号与空间、模型档案、
+技能、插件和工具策略。默认只监听 `127.0.0.1`。
 
 ### Docker
 
-没有 JDK 21 时可以直接用容器；H2 数据放在命名卷，仓库目录挂到 `/workspace`：
-
 ```bash
 docker compose up --build
-
-# 或手动构建/运行
-docker build -t pi-java:0.3.0 .
-docker run --rm -p 127.0.0.1:8080:8080 \
-  -v "$PWD:/workspace" -v pi-data:/app/data pi-java:0.3.0
 ```
 
-MySQL 变体、环境变量与安全说明见 [部署、容器与 CI](docs/14-deployment.md)。
+H2 数据放在命名卷，仓库目录挂到 `/workspace`。MySQL 变体、环境变量与安全说明见
+[部署、容器与 CI](docs/14-deployment.md)。
 
-### CLI
+### 接入真实模型
 
-同一个 jar 既启动 Web，也提供命令行入口；不带参数仍是 Web 服务。
+启动前设置密钥环境变量，登录后在“设置 → 模型”创建档案即可：
+
+```bash
+export PI_DEEPSEEK_KEY="..."      # PowerShell: $env:PI_DEEPSEEK_KEY = "..."
+```
+
+数据库只保存环境变量名，密钥值不会写入日志或接口响应。更多 provider 与参数见
+[快速上手](docs/09-quick-start.md)。
+
+## CLI 速查
+
+同一个 jar 不带参数启动 Web，带子命令就是 CLI：
 
 ```bash
 JAR=pi-java-app/target/pi-java-app-0.3.0.jar
 
 java -jar $JAR run "读取 pom.xml 并总结依赖" --cwd D:/code/demo
-java -jar $JAR run "跑一遍测试并总结失败" --json --timeout 900
 java -jar $JAR chat --cwd D:/code/demo
-java -jar $JAR chat --session <sessionId>
 java -jar $JAR sessions list --cwd D:/code/demo
-java -jar $JAR sessions show <sessionId>
 java -jar $JAR models list
 java -jar $JAR tools list
 java -jar $JAR serve --port 8081
 ```
 
-- `run` 默认流式打印文本、思考与工具轨迹；`--json` 时 stdout 只有一个 JSON 对象，
-  提示信息走 stderr。退出码：`0` 成功、`1` 失败/超时、`2` 参数错误、
-  `3` 审批被拒绝、`4` 取消。
-- 写工具审批在终端询问 `y/N`；没有输入（EOF）按拒绝处理；`--approve` 自动批准本次
-  run 的全部审批，仅建议在可信工作区使用。
-- `chat` 在真实终端里是方框输入区的交互界面：彩色流式输出、输入 `/` 列出可用命令、
-  `Tab` 补全、`↑/↓` 翻历史；`Ctrl+C` 运行中取消任务，空闲时连按两次退出，
-  `Ctrl+D` 随时退出。管道或脚本里自动退回逐行模式，`--plain` 可强制逐行。
-- `chat` 支持 `/help`、`/exit`、`/abort`、`/compact`、`/model`、`/tree`、
-  `/session` 与 `/skill:名称`；逐行模式下运行期间输入 `/abort` 可取消当前任务。
-- CLI 与 Web 使用同一数据库、同一套用例与同一条审批管线；CLI 不直接操作 Mapper。
+`run` 默认流式输出，`--json` 时 stdout 只有一个 JSON 对象；退出码 `0` 成功、
+`1` 失败或超时、`2` 参数错误、`3` 审批被拒绝、`4` 取消。
 
-上下文压缩与技能（M7）：
+`chat` 常用命令：`/help`、`/abort`、`/compact`、`/model`、`/tree`、`/session`、
+`/timeline`、`/compare [序号]`、`/rewind <序号>`、`/undo`、`/skill:名称`。
+完整参数与行为见 [API 与 CLI](docs/05-api-and-cli.md)。
 
-```bash
-# 查看技能目录（默认读取 ~/.pi-java/skills，可用 pi.agent.skills 覆盖）
-curl http://127.0.0.1:8080/api/v1/skills
+## 安全默认
 
-# 手动压缩空闲会话；内容不足时返回 applied=false 并说明原因
-curl -X POST http://127.0.0.1:8080/api/v1/sessions/<sessionId>/compact
+- 只读工具放行；`write` / `edit` 询问并阻塞等待人工审批；`bash` 默认拒绝。
+- 路径沙箱覆盖全部文件工具；`bash` 无法做路径级沙箱，因此用 cwd、审批、超时和输出上限约束。
+- 模型密钥只从环境变量读取；密码与令牌只存哈希或摘要。
+- 插件类加载隔离不是安全沙箱，只安装可信来源；MCP 工具由外部服务器执行。
+- Web 与 HTTP API 需要登录，默认只监听回环地址；公网部署请置于 HTTPS 反向代理之后。
 
-# 在对话中使用技能：正文会被展开后发送并落库
-/skill:deploy 发布 1.2.0
-```
-
-技能目录结构：`skills/<name>/SKILL.md`，可选 frontmatter：
-
-```markdown
----
-name: deploy
-description: 打包与发布流程
----
-第一步：执行 mvn -q package
-```
-
-体验插件（另开终端）：
-
-```bash
-mvn -q -pl examples/pi-plugin-example -am package
-
-curl -X POST http://127.0.0.1:8080/api/v1/plugins \
-  -H 'Content-Type: application/json' \
-  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.3.0.jar"}'
-curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enable
-```
-
-然后在会话输入 `/tool com.piagent.example.hello.greet {"name":"pi"}`。
-完整步骤见 [示例插件说明](examples/pi-plugin-example/README.md)。
-
-## 核心设计
-
-- **会话日志是唯一事实源**：消息、压缩摘要、审批决策、运行摘要都是 append-only entry，
-  分支只移动 leaf，不复制历史。
-- **领域纯净**：`domain` 只依赖 JDK；Spring、Jackson、MyBatis、插件加载都在外层。
-- **安全默认**：只读工具放行；`write/edit` 默认询问并阻塞等待人工审批，批准后才执行；
-  `bash` 默认拒绝，需要显式策略放行；路径沙箱对所有文件工具生效。
-- **插件化**：零依赖 `plugin-api`，每个插件独立 ClassLoader，工具带插件前缀。
-- **MCP 动态工具**：配置 `pi.mcp.servers` 即可接入 stdio 或 Streamable HTTP 服务器，
-  工具自动带 `<server>.` 前缀进入目录、策略与审批管线；超时/断线转为工具错误，
-  不打断 run。
-- **仓库地图**：`repo_map` 在读取前给出语言分布、目录结构与关键文件；带关键词时
-  按 BM25 风格返回相关文件、符号与匹配行。只用 JDK 建内存索引，按大小 + 修改时间
-  增量重建，不执行工作区代码。
-- **子代理受限**：`subagent` 工具同步委派子任务；工具子集只能收紧、深度有上限、
-  失败/超时都以结构化结果回写，父循环不中断。
-- **上下文有界**：接近窗口时结构化压缩（目标/约束/进展/决策/下一步/关键上下文），
-  不收敛时降级为只剪枝，绝不进入无限压缩。
-- **技能按需加载**：只把名称与描述放进 system prompt，正文由模型 `read` 或
-  `/skill:name` 注入，避免每次请求都携带全部知识。
-- **单机强一致**：一个 session 同时只有一个活跃 run；不引入 Redis。
-- **可测试**：Fake LLM、Fake 时钟、H2、WireMock，离线可跑完整链路。
-
-## 模块
+## 架构
 
 | 模块 | 职责 |
 |---|---|
-| `pi-java-domain` | 纯领域：7 个限界上下文、聚合、值对象、领域服务、仓储/端口 |
+| `pi-java-domain` | 纯领域：限界上下文、聚合、值对象、领域服务、仓储与端口 |
 | `pi-java-application` | 用例编排、Agent Loop、事务边界、读模型 |
 | `pi-java-plugin-api` | 零依赖的第三方插件契约 |
-| `pi-java-infrastructure` | LLM 接入、MyBatis 仓储、内置工具、插件加载、MCP 客户端、缓存 |
-| `pi-java-trigger` | HTTP/SSE 接口与 picocli CLI 命令 |
+| `pi-java-infrastructure` | LLM 接入、MyBatis 仓储、内置工具、插件加载、MCP 客户端 |
+| `pi-java-trigger` | HTTP/SSE 接口与 picocli CLI |
 | `pi-java-app` | Spring Boot 装配、Flyway、Web UI、架构测试 |
 | `examples/pi-plugin-example` | 示例插件，验证契约纯度 |
 
-依赖方向：`app -> trigger/infrastructure`，`trigger -> application`，
-`infrastructure -> application/domain/plugin-api`，`application -> domain`。
+依赖方向：`app → trigger/infrastructure`，`trigger → application`，
+`infrastructure → application/domain/plugin-api`，`application → domain`。
 
-## 构建
+会话日志是唯一事实源：消息、压缩摘要、审批、运行摘要和回溯简报都是 append-only entry，
+分支只移动叶子，不复制历史。详见 [整体架构](docs/01-architecture.md) 与
+[领域模型](docs/02-domain-model.md)。
 
-需要 JDK 21 与 Maven 3.9+。
+## 质量
 
 ```bash
 mvn -q verify
 ```
 
-当前 M18 已验证通过：861 个测试（2 个符号链接用例条件跳过），
-Checkstyle/ArchUnit 通过。
+当前 `main`：**1012 个测试**通过（2 个符号链接用例按条件跳过），Checkstyle、ArchUnit、
+OpenAPI 校验通过；Web 与 CLI 都有真实浏览器 / 终端走查。
 
 > **验证前先停止正在运行的服务。** `verify` 包含 `package`，会重写
-> `pi-java-app/target/*.jar`；运行中的实例随后无法再惰性加载类与静态资源，
-> 表现为端口可连但页面一直转圈。`-Dspring-boot.repackage.skip=true` 并不能
-> 避免这一点：它只跳过 repackage，`jar:jar` 仍会把可执行 jar 覆盖成瘦 jar。
-> 只想跑测试而不打包时用 `mvn -q test`。
+> `pi-java-app/target/*.jar`；运行中的实例随后无法惰性加载类与静态资源。
+> 只想跑测试时用 `mvn -q test`，不触碰 jar。
 
 ## 文档
 
-完整文档见 [docs/README.md](docs/README.md)。
+- **开始使用**：[快速上手](docs/09-quick-start.md) · [API 与 CLI](docs/05-api-and-cli.md) ·
+  [部署、容器与 CI](docs/14-deployment.md) · [发布说明 v0.3.0](docs/releases/v0.3.0.md)
+- **理解设计**：[整体架构](docs/01-architecture.md) · [领域模型](docs/02-domain-model.md) ·
+  [数据库设计](docs/03-database-design.md) · [运行时与事件](docs/04-runtime-and-events.md) ·
+  [界面设计](docs/11-interface-design.md)
+- **扩展能力**：[插件 SDK](docs/06-plugin-sdk.md) · [MCP 客户端](docs/10-mcp.md) ·
+  [示例插件](examples/pi-plugin-example/README.md)
+- **决策与检查点**：[Git 检查点与撤销](docs/12-git.md) ·
+  [计划、待办与自动验证](docs/13-plans-and-verification.md) ·
+  [M23 分叉对比](docs/milestones/M23.md)
+- **项目记录**：[路线图](docs/08-roadmap.md) · [完整文档索引](docs/README.md) ·
+  [全部里程碑](docs/README.md#里程碑记录) · [架构决策](docs/adr/)
+- **测试与质量**：[测试与质量](docs/07-testing-and-quality.md)
 
-- [愿景与范围](docs/00-vision-and-scope.md)
-- [整体架构](docs/01-architecture.md)
-- [领域模型](docs/02-domain-model.md)
-- [数据库设计（6 张表完整 DDL）](docs/03-database-design.md)
-- [运行时与事件](docs/04-runtime-and-events.md)
-- [API 与 CLI](docs/05-api-and-cli.md)
-- [插件 SDK](docs/06-plugin-sdk.md)
-- [测试与质量](docs/07-testing-and-quality.md)
-- [路线图](docs/08-roadmap.md)
-- [快速上手](docs/09-quick-start.md)
-- [MCP 客户端](docs/10-mcp.md)
-- [Git 检查点与撤销](docs/12-git.md)
-- [计划、待办与自动验证](docs/13-plans-and-verification.md)
-- [部署、容器与 CI](docs/14-deployment.md)
-- [v0.3.0 发布说明](docs/releases/v0.3.0.md)
-- [v0.2.0 发布说明](docs/releases/v0.2.0.md)
-- [M0 里程碑记录](docs/milestones/M0.md)
-- [M1 里程碑记录](docs/milestones/M1.md)
-- [M2 里程碑记录](docs/milestones/M2.md)
-- [M3 里程碑记录](docs/milestones/M3.md)
-- [M4 里程碑记录](docs/milestones/M4.md)
-- [M5 里程碑记录](docs/milestones/M5.md)
-- [M6 里程碑记录](docs/milestones/M6.md)
-- [M7 里程碑记录](docs/milestones/M7.md)
-- [M8 里程碑记录](docs/milestones/M8.md)
-- [M9 里程碑记录（Web UI 与开源准备）](docs/milestones/M9.md)
-- [M10 里程碑记录（界面重构 · 信号工作台）](docs/milestones/M10.md)
-- [M11 里程碑记录（CLI 与 v0.1.0 收尾）](docs/milestones/M11.md)
-- [M12 里程碑记录（MCP 客户端）](docs/milestones/M12.md)
-- [M13 里程碑记录（Git 检查点）](docs/milestones/M13.md)
-- [M14 里程碑记录（计划、待办与自动验证）](docs/milestones/M14.md)
-- [M15 里程碑记录（工程化与 v0.2.0）](docs/milestones/M15.md)
-- [M16 里程碑记录（图片与多模态输入）](docs/milestones/M16.md)
-- [M17 里程碑记录（附件生命周期与压缩）](docs/milestones/M17.md)
-- [M18 里程碑记录（仓库地图与代码检索）](docs/milestones/M18.md)
-- [M19 里程碑记录（多租户与最小鉴权）](docs/milestones/M19.md)
-- [M20 里程碑记录（登录免选空间、自助注册与空间软删除）](docs/milestones/M20.md)
-- [M21 里程碑记录（个人空间与团队协作）](docs/milestones/M21.md)
-- [M22 里程碑记录（决策时间线与任意检查点回溯）](docs/milestones/M22.md)
-- [M23 里程碑记录（分叉对比）](docs/milestones/M23.md)
+## 许可证
 
-架构决策：
+[MIT](LICENSE)
 
-- [ADR 0001：会话日志是唯一事实源](docs/adr/0001-session-log-as-source-of-truth.md)
-- [ADR 0002：不引入 Redis，只使用本地 Caffeine](docs/adr/0002-no-redis-local-cache.md)
-- [ADR 0003：插件 API 零依赖](docs/adr/0003-plugin-api-zero-dependency.md)
-- [ADR 0004：手写 LLM Gateway](docs/adr/0004-hand-rolled-llm-gateway.md)
-- [ADR 0005：临时索引检查点](docs/adr/0005-git-checkpoints.md)
-
-## 安全
-
-- 服务默认只监听 `127.0.0.1`；Web 与 HTTP API 需要登录（本地账号 + HttpOnly Cookie
-  或 Bearer 令牌），但仍不建议把默认端口直接暴露到公网；
-- 密码只存 PBKDF2 哈希，登录令牌只存 SHA-256 摘要；认证失败统一文案；
-- 模型密钥只从环境变量读取，数据库只保存环境变量名；
-- 插件类加载隔离不是安全沙箱，只安装可信来源；
-- MCP 工具由外部服务器执行，路径沙箱不覆盖其内部行为；token 只写 `${ENV_VAR}`。
-- `bash` 无法做路径级沙箱，只能限制 cwd、审批、超时与输出，文档与 UI 会明确提示。
-
-## 开发约定
-
-- 主代码文件 ≤ 300 行，方法 ≤ 50 行，参数 ≤ 6；一个文件一个顶层类型；
-- public 类型必须有中文 Javadoc，核心算法解释“为什么”与不变量；
-- 每个里程碑：实现 → 测试 → 实际运行 → 更新文档 → 单独提交；
-- 不主动 push，发布 tag 需明确确认。
+pi-java 参考 pi 的极简 harness 思路与 DeepSeek Harness 的工程经验，代码与文档均为本项目独立实现。
