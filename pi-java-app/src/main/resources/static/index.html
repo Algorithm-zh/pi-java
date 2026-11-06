@@ -681,12 +681,16 @@
     <div class="timeline-preview-shell">
         <header class="timeline-preview-head">
             <div>
-                <p class="timeline-kicker">回退前记录</p>
-                <h2 id="rewind-history-title">已放弃的分支</h2>
+                <p class="timeline-kicker">被放弃的记录</p>
+                <h2 id="rewind-history-title">回退时放弃的对话</h2>
                 <p class="rewind-history-lead">只读查看，不会加入当前上下文。</p>
             </div>
-            <button id="rewind-history-close" class="icon-button" type="button"
-                    aria-label="关闭">×</button>
+            <div class="rewind-history-actions">
+                <button id="rewind-history-back" class="link-button hidden" type="button"
+                        aria-label="返回上一段">← 返回上一段</button>
+                <button id="rewind-history-close" class="icon-button" type="button"
+                        aria-label="关闭">×</button>
+            </div>
         </header>
         <div id="rewind-history-body" class="timeline-preview-body rewind-history-body"></div>
         <p id="rewind-history-error" class="dialog-error hidden"></p>
@@ -703,7 +707,7 @@
             <p class="rewind-note-summary"></p>
             <p class="rewind-note-facts"></p>
             <button class="link-button rewind-note-history hidden" type="button"
-                    data-rewind-from="">查看回退前的记录</button>
+                    data-rewind-from="">查看被放弃的记录</button>
         </div>
     </details>
 </template>

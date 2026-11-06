@@ -567,6 +567,8 @@ function rewindNote(entry) {
     const historyButton = node.querySelector(".rewind-note-history");
     if (historyButton && extra.fromEntryId) {
         historyButton.dataset.rewindFrom = String(extra.fromEntryId);
+        historyButton.dataset.rewindAfter = entry.parentId ? String(entry.parentId) : "";
+        historyButton.dataset.rewindCount = String(details.discardedEntries || 0);
         historyButton.classList.remove("hidden");
     } else if (historyButton) {
         historyButton.remove();

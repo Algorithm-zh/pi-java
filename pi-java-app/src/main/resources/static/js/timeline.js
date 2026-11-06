@@ -19,6 +19,8 @@ let reloadHandler = null;
 let requestId = 0;
 let previewId = 0;
 let historyRequestId = 0;
+let historyView = null;
+const historyStack = [];
 
 const REWIND_TIMEOUT_MS = 15000;
 
@@ -60,6 +62,8 @@ export function initTimeline() {
         }
     });
     dom.messages?.addEventListener("click", onHistoryClick);
+    dom.rewindHistoryBody?.addEventListener("click", onHistoryClick);
+    dom.rewindHistoryBack?.addEventListener("click", goBackHistory);
     dom.rewindHistoryClose?.addEventListener("click", closeHistory);
     dom.rewindHistoryDialog?.addEventListener("close", () => {
         historyRequestId++;
@@ -142,37 +146,63 @@ export function reset() {
 }
 
 /**
- * 简报里的“查看回退前的记录”：只读加载旧叶子的分支，不改变会话。
+ * 简报里的“查看被放弃的记录”：只读加载旧叶子的分支，不改变会话。
+ * 只截取回退点之后被放弃的片段；更早的回退可以在片段里继续点开。
  */
 function onHistoryClick(event) {
     if (!(event.target instanceof Element)) {
         return;
     }
     const button = event.target.closest("[data-rewind-from]");
-    if (!button) {
+    if (!button || !button.dataset.rewindFrom) {
         return;
     }
-    openHistory(button.dataset.rewindFrom);
+    const nested = Boolean(dom.rewindHistoryBody?.contains(button));
+    if (nested && historyView) {
+        historyStack.push(historyView);
+    } else {
+        historyStack.length = 0;
+    }
+    loadHistory({
+        from: button.dataset.rewindFrom,
+        after: button.dataset.rewindAfter || "",
+        count: Number(button.dataset.rewindCount || 0)
+    });
 }
 
-async function openHistory(fromEntryId) {
+function goBackHistory() {
+    const previous = historyStack.pop();
+    if (previous) {
+        loadHistory(previous);
+    }
+}
+
+async function loadHistory(view) {
     const sessionId = state.session?.id;
-    if (!sessionId || !fromEntryId || !dom.rewindHistoryDialog || !dom.rewindHistoryBody) {
+    if (!sessionId || !view?.from || !dom.rewindHistoryDialog || !dom.rewindHistoryBody) {
         return;
     }
     const token = ++historyRequestId;
+    historyView = view;
+    updateHistoryChrome();
     setHistoryError("");
     dom.rewindHistoryBody.replaceChildren(el("p", "timeline-preview-loading",
-        "正在读取回退前的记录…"));
+        "正在读取被放弃的记录…"));
     if (!dom.rewindHistoryDialog.open) {
         dom.rewindHistoryDialog.showModal();
     }
     try {
-        const entries = await api.listEntries(sessionId, fromEntryId);
+        const branch = await api.listEntries(sessionId, view.from);
         if (token !== historyRequestId || state.session?.id !== sessionId) {
             return;
         }
-        renderEntries(dom.rewindHistoryBody, entries);
+        const segment = sliceAfter(branch, view.after);
+        if (!segment.length) {
+            dom.rewindHistoryBody.replaceChildren(el("p", "timeline-preview-loading",
+                "这次回退没有放弃任何对话记录。"));
+            return;
+        }
+        renderEntries(dom.rewindHistoryBody, segment);
     } catch (error) {
         if (token !== historyRequestId) {
             return;
@@ -180,7 +210,36 @@ async function openHistory(fromEntryId) {
         dom.rewindHistoryBody.replaceChildren();
         setHistoryError(error?.status === 404
             ? "这段记录已被旧版本的回退删除，无法再找回。"
-            : (error.message || "读取回退前的记录失败"));
+            : (error.message || "读取被放弃的记录失败"));
+    }
+}
+
+/**
+ * 回退点之前的 entry 仍在当前对话里，弹窗只展示之后被放弃的片段。
+ *
+ * @param {Array<object>} entries 旧叶子所在分支
+ * @param {string} afterEntryId 回退后重新接上的 entry；空表示从根开始
+ * @returns {Array<object>} 被放弃的 entry
+ */
+function sliceAfter(entries, afterEntryId) {
+    if (!afterEntryId) {
+        return entries;
+    }
+    const index = entries.findIndex((entry) => entry.id === afterEntryId);
+    return index < 0 ? entries : entries.slice(index + 1);
+}
+
+function updateHistoryChrome() {
+    if (dom.rewindHistoryBack) {
+        dom.rewindHistoryBack.classList.toggle("hidden", historyStack.length === 0);
+    }
+    if (dom.rewindHistoryLead) {
+        const count = Number(historyView?.count || 0);
+        dom.rewindHistoryLead.textContent = !historyView
+            ? "只读查看，不会加入当前上下文。"
+            : count > 0
+                ? `这次回退放弃了 ${count} 条记录。只读查看，不会加入当前上下文。`
+                : "以下是回退时放弃的对话。只读查看，不会加入当前上下文。";
     }
 }
 
@@ -193,8 +252,11 @@ function closeHistory() {
 }
 
 function clearHistory() {
+    historyView = null;
+    historyStack.length = 0;
     dom.rewindHistoryBody?.replaceChildren();
     setHistoryError("");
+    updateHistoryChrome();
 }
 
 function setHistoryError(message) {

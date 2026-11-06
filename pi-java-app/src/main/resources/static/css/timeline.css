@@ -456,6 +456,18 @@
     font-size: 12px;
 }
 
+.rewind-history-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+}
+
+.rewind-history-actions .link-button {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 .rewind-history-body {
     max-height: 62vh;
     padding: 2px 0 0;
