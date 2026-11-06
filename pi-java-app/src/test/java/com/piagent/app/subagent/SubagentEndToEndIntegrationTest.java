@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.piagent.app.PiJavaApplication;
-import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
 import com.piagent.application.subagent.SubagentService;
@@ -34,7 +33,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -44,7 +42,6 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>验证：{@code subagent} 出现在工具目录且需要审批；用例服务真实创建的子会话
  * 在会话树中的 parent / origin / depth 正确落库；工具子集按深度收敛。</p>
  */
-@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class)
 @ActiveProfiles("test")
 @AutoConfigureMockMvc

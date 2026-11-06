@@ -59,19 +59,10 @@ class OpenApiDocumentIntegrationTest {
         assertThat(paths.has("/api/v1/tools")).isTrue();
         assertThat(paths.has("/api/v1/attachments")).isTrue();
         assertThat(paths.has("/api/v1/attachments/{id}")).isTrue();
-        assertThat(paths.has("/api/v1/auth/state")).isTrue();
-        assertThat(paths.has("/api/v1/auth/setup")).isTrue();
-        assertThat(paths.has("/api/v1/auth/login")).isTrue();
-        assertThat(paths.has("/api/v1/auth/register")).isTrue();
-        assertThat(paths.has("/api/v1/auth/switch")).isTrue();
-        assertThat(paths.has("/api/v1/auth/logout")).isTrue();
-        assertThat(paths.has("/api/v1/auth/me")).isTrue();
-        assertThat(paths.has("/api/v1/tenants")).isTrue();
-        assertThat(paths.has("/api/v1/tenants/{id}")).isTrue();
-        assertThat(paths.has("/api/v1/tenants/{id}/restore")).isTrue();
-        assertThat(paths.has("/api/v1/tenants/{id}/members")).isTrue();
-        assertThat(paths.has("/api/v1/users")).isTrue();
-        assertThat(paths.has("/api/v1/users/lookup")).isTrue();
+        assertThat(paths.has("/api/v1/health")).isTrue();
+        assertThat(paths.has("/api/v1/auth/state")).isFalse();
+        assertThat(paths.has("/api/v1/tenants")).isFalse();
+        assertThat(paths.has("/api/v1/users")).isFalse();
         assertThat(document.at("/components/schemas").size()).isPositive();
     }
 

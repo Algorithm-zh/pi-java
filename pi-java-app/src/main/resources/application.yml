@@ -60,12 +60,6 @@ mybatis:
 # 运行时参数。全部有安全默认值，后续里程碑由配置绑定逐步消费。
 pi:
   version: "0.3.0"
-  auth:
-    # 会话令牌有效期；浏览器 HttpOnly Cookie 与 Bearer 令牌共用该期限。
-    token-ttl: 7d
-    # 自助注册：登录页可自行创建成员账号（加入默认空间）。
-    # 公网部署建议关闭，改由管理员在“设置 → 账号与空间”开通账号。
-    registration-enabled: true
   fake:
     # 默认回声；demo profile 下开启确定性指令脚本（/read、/ls）。
     demo-mode: false

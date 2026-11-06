@@ -97,9 +97,8 @@ public interface ApprovalMapper {
     int updateIfPending(ApprovalPO po);
 
     /**
-     * 批量过期当前租户遗留的待办。
+     * 批量过期遗留的待办。
      *
-     * @param tenantId 租户标识
      * @param now 处理时间
      * @param reason 过期原因
      * @param decider 系统决策者
@@ -112,8 +111,7 @@ public interface ApprovalMapper {
                 decided_by = #{decider},
                 decided_at = #{now}
             WHERE status = 'PENDING'
-              AND session_id IN (SELECT id FROM pi_session WHERE tenant_id = #{tenantId})
             """)
-    int expireAllPending(@Param("tenantId") String tenantId, @Param("now") Instant now,
-            @Param("reason") String reason, @Param("decider") String decider);
+    int expireAllPending(@Param("now") Instant now, @Param("reason") String reason,
+            @Param("decider") String decider);
 }

@@ -1,6 +1,5 @@
 package com.piagent.infrastructure.persistence.governance;
 
-import com.piagent.application.identity.AuthContext;
 import com.piagent.domain.agent.RunId;
 import com.piagent.domain.governance.model.ApprovalId;
 import com.piagent.domain.governance.model.ApprovalRequest;
@@ -67,7 +66,6 @@ public class MyBatisApprovalRepository implements ApprovalRepository {
 
     @Override
     public int expireAllPending(Instant now) {
-        return mapper.expireAllPending(AuthContext.tenantId().toString(), now, RESTART_REASON,
-                ApprovalRequest.SYSTEM_DECIDER);
+        return mapper.expireAllPending(now, RESTART_REASON, ApprovalRequest.SYSTEM_DECIDER);
     }
 }

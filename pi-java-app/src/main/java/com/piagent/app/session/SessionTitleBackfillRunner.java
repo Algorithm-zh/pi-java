@@ -1,6 +1,5 @@
 package com.piagent.app.session;
 
-import com.piagent.application.identity.TenantTaskRunner;
 import com.piagent.application.session.service.SessionTitleBackfillService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,26 +19,20 @@ public class SessionTitleBackfillRunner implements ApplicationRunner {
     private static final Logger LOG = LoggerFactory.getLogger(SessionTitleBackfillRunner.class);
 
     private final SessionTitleBackfillService backfill;
-    private final TenantTaskRunner tenants;
 
     /**
      * 创建启动器。
      *
      * @param backfill 回填服务
-     * @param tenants 逐租户执行器
      */
-    public SessionTitleBackfillRunner(SessionTitleBackfillService backfill,
-            TenantTaskRunner tenants) {
+    public SessionTitleBackfillRunner(SessionTitleBackfillService backfill) {
         this.backfill = backfill;
-        this.tenants = tenants;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         try {
-            int renamed = tenants.forEachTenant(tenant -> backfill.backfill()).stream()
-                    .mapToInt(Integer::intValue)
-                    .sum();
+            int renamed = backfill.backfill();
             if (renamed > 0) {
                 LOG.info("已根据首条消息为 {} 个会话补充标题", renamed);
             }

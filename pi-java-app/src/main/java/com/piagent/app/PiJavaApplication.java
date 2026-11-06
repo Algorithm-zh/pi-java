@@ -35,6 +35,7 @@ public class PiJavaApplication {
             out.println(CliMode.serveUsage());
             return;
         }
+        RemoteBindingGuard.verify(args);
         SpringApplication.run(PiJavaApplication.class, CliMode.webArgs(args));
     }
 }

@@ -1,7 +1,6 @@
 package com.piagent.app.session;
 
 import com.piagent.application.agent.service.StaleRunRecoveryService;
-import com.piagent.application.identity.TenantTaskRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -20,25 +19,20 @@ public class StaleRunStartupRunner implements ApplicationRunner {
     private static final Logger LOG = LoggerFactory.getLogger(StaleRunStartupRunner.class);
 
     private final StaleRunRecoveryService recovery;
-    private final TenantTaskRunner tenants;
 
     /**
      * 创建启动器。
      *
      * @param recovery 恢复服务
-     * @param tenants 逐租户执行器
      */
-    public StaleRunStartupRunner(StaleRunRecoveryService recovery, TenantTaskRunner tenants) {
+    public StaleRunStartupRunner(StaleRunRecoveryService recovery) {
         this.recovery = recovery;
-        this.tenants = tenants;
     }
 
     @Override
     public void run(ApplicationArguments args) {
         try {
-            int recovered = tenants.forEachTenant(tenant -> recovery.recover()).stream()
-                    .mapToInt(Integer::intValue)
-                    .sum();
+            int recovered = recovery.recover();
             if (recovered > 0) {
                 LOG.info("已恢复 {} 个重启前中断的会话", recovered);
             }

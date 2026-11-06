@@ -11,7 +11,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.app.PiJavaApplication;
-import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
 import com.piagent.domain.model.ModelEndpoint;
@@ -34,7 +33,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -46,7 +44,6 @@ import org.springframework.test.web.servlet.MvcResult;
  * {@code /write}，运行阻塞在审批门面；测试通过 HTTP 查询并决策审批，
  * 再校验 SSE 事件顺序、审批持久化与文件最终状态。</p>
  */
-@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class,
         properties = "pi.fake.demo-mode=true")
 @ActiveProfiles("test")
@@ -54,7 +51,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class ApprovalEndToEndIntegrationTest {
 
     private static final String MODEL_ID = "approval-e2e-fake";
-    private static final String DECIDER = AuthenticatedMockMvcConfig.ADMIN_USERNAME;
+    private static final String DECIDER = "local";
     private static final Duration ASYNC_TIMEOUT = Duration.ofSeconds(30);
     private static final int POLL_ATTEMPTS = 100;
     private static final long POLL_MILLIS = 100;

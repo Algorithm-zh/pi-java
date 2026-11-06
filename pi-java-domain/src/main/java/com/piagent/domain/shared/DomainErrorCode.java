@@ -132,44 +132,5 @@ public enum DomainErrorCode {
     ATTACHMENT_QUOTA_EXCEEDED,
 
     /** 附件写入或读取失败。 */
-    ATTACHMENT_STORE_FAILED,
-
-    /** 请求缺少有效登录凭证。 */
-    AUTH_REQUIRED,
-
-    /** 用户名或密码不正确。 */
-    AUTH_INVALID_CREDENTIALS,
-
-    /** 服务尚未完成首次初始化。 */
-    AUTH_SETUP_REQUIRED,
-
-    /** 服务已经完成首次初始化，不能重复创建管理员。 */
-    AUTH_ALREADY_INITIALIZED,
-
-    /** 当前账号无权执行该操作。 */
-    AUTH_FORBIDDEN,
-
-    /** 登录失败次数过多，暂时锁定。 */
-    AUTH_LOGIN_LOCKED,
-
-    /** 同一账号存在于多个空间，需要用户指定空间后再登录。 */
-    AUTH_TENANT_REQUIRED,
-
-    /** 自助注册已关闭。 */
-    AUTH_REGISTRATION_DISABLED,
-
-    /** 租户不存在。 */
-    TENANT_NOT_FOUND,
-
-    /** 租户短名已被占用。 */
-    TENANT_ALREADY_EXISTS,
-
-    /** 租户受保护，不能归档（默认空间与当前所在空间）。 */
-    TENANT_PROTECTED,
-
-    /** 账号不存在。 */
-    USER_NOT_FOUND,
-
-    /** 租户内登录名已被占用。 */
-    USER_ALREADY_EXISTS
+    ATTACHMENT_STORE_FAILED
 }

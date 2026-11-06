@@ -11,7 +11,6 @@ import java.time.Instant;
 public class ToolPolicyPO {
 
     private long id;
-    private String tenantId;
     private String scope;
     private String workspaceKey;
     private String toolName;
@@ -30,14 +29,6 @@ public class ToolPolicyPO {
 
     public void setId(long id) {
         this.id = id;
-    }
-
-    public String getTenantId() {
-        return tenantId;
-    }
-
-    public void setTenantId(String tenantId) {
-        this.tenantId = tenantId;
     }
 
     public String getScope() {

@@ -1,6 +1,5 @@
 package com.piagent.infrastructure.tool;
 
-import com.piagent.application.identity.AuthContext;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import com.piagent.domain.tool.model.ToolDescriptor;
@@ -57,7 +56,7 @@ public final class BuiltInToolInvoker implements ToolInvoker, AutoCloseable {
         }
         Future<ToolResult> future;
         try {
-            future = executor.submit(AuthContext.wrap(() -> handler.execute(invocation)));
+            future = executor.submit(() -> handler.execute(invocation));
         } catch (RejectedExecutionException error) {
             return failure(invocation, "工具执行器已关闭", "TOOL_EXECUTION_FAILED", Map.of());
         }

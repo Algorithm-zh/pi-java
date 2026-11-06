@@ -34,15 +34,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 单个租户的附件目录。
+ * 附件目录。
  *
  * <p>每个附件由 {@code <id>.bin} 与 {@code <id>.json} 两个文件组成；先写二进制，
- * 最后写元数据，元数据存在即视为提交完成。摘要索引与去重只在租户目录内生效，
- * 不同租户上传相同内容也各自保存，避免通过摘要推断他租户数据。</p>
+ * 最后写元数据，元数据存在即视为提交完成。摘要索引与去重只在根目录内生效。</p>
  */
-final class TenantAttachmentScope {
+final class AttachmentScope {
 
-    private static final Logger LOG = LoggerFactory.getLogger(TenantAttachmentScope.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AttachmentScope.class);
     private static final int MAX_NAME_LENGTH = 120;
 
     private final Path root;
@@ -51,7 +50,7 @@ final class TenantAttachmentScope {
     private final Map<String, String> digests = new HashMap<>();
     private boolean digestsLoaded;
 
-    TenantAttachmentScope(Path root, IdGenerator idGenerator, ObjectMapper mapper) {
+    AttachmentScope(Path root, IdGenerator idGenerator, ObjectMapper mapper) {
         this.root = root;
         this.idGenerator = idGenerator;
         this.mapper = mapper;

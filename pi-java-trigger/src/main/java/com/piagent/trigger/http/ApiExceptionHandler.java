@@ -1,9 +1,7 @@
 package com.piagent.trigger.http;
 
-import com.piagent.application.identity.service.TenantSelectionRequiredException;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
-import com.piagent.trigger.http.auth.AuthTenantRequiredResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -30,19 +28,6 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleDomainException(DomainException error) {
         return ResponseEntity.status(statusOf(error.code()))
                 .body(new ApiErrorResponse(error.code().name(), error.getMessage()));
-    }
-
-    /**
-     * 同一账号匹配多个空间时返回 409，并附上可点选的空间清单。
-     *
-     * @param error 需要选择空间的异常
-     * @return 错误响应
-     */
-    @ExceptionHandler(TenantSelectionRequiredException.class)
-    public ResponseEntity<AuthTenantRequiredResponse> handleTenantSelection(
-            TenantSelectionRequiredException error) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(AuthTenantRequiredResponse.of(error.getMessage(), error.choices()));
     }
 
     /**
@@ -74,21 +59,15 @@ public class ApiExceptionHandler {
         return switch (code) {
             case MODEL_NOT_FOUND, SESSION_NOT_FOUND, ENTRY_NOT_FOUND, RUN_NOT_FOUND,
                     PLUGIN_NOT_FOUND, TOOL_NOT_FOUND, APPROVAL_NOT_FOUND,
-                    SKILL_NOT_FOUND, ATTACHMENT_NOT_FOUND,
-                    TENANT_NOT_FOUND, USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                    SKILL_NOT_FOUND, ATTACHMENT_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case MODEL_ALREADY_EXISTS, CONCURRENT_MODIFICATION, MODEL_DISABLED,
                     INVALID_STATE_TRANSITION, SESSION_ARCHIVED, RUN_ALREADY_ACTIVE,
                     PLUGIN_ALREADY_EXISTS, PLUGIN_INVALID_STATE, PLUGIN_TOOL_CONFLICT,
-                    APPROVAL_INVALID_STATE, GIT_UNAVAILABLE, INVALID_BRANCH,
-                    AUTH_ALREADY_INITIALIZED, AUTH_SETUP_REQUIRED, AUTH_TENANT_REQUIRED,
-                    TENANT_ALREADY_EXISTS, TENANT_PROTECTED,
-                    USER_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+                    APPROVAL_INVALID_STATE, GIT_UNAVAILABLE, INVALID_BRANCH -> HttpStatus.CONFLICT;
             case PLUGIN_INCOMPATIBLE, PLUGIN_LOAD_FAILED -> HttpStatus.UNPROCESSABLE_ENTITY;
             case GIT_OPERATION_FAILED, ATTACHMENT_STORE_FAILED -> HttpStatus.INTERNAL_SERVER_ERROR;
             case ATTACHMENT_QUOTA_EXCEEDED -> HttpStatus.PAYLOAD_TOO_LARGE;
-            case AGENT_BUSY, AUTH_LOGIN_LOCKED -> HttpStatus.TOO_MANY_REQUESTS;
-            case AUTH_REQUIRED, AUTH_INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
-            case AUTH_FORBIDDEN, AUTH_REGISTRATION_DISABLED -> HttpStatus.FORBIDDEN;
+            case AGENT_BUSY -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.BAD_REQUEST;
         };
     }

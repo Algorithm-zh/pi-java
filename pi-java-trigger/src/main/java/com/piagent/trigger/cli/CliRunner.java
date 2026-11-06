@@ -1,7 +1,5 @@
 package com.piagent.trigger.cli;
 
-import com.piagent.application.identity.AuthContext;
-import com.piagent.domain.identity.model.TenantId;
 import com.piagent.domain.shared.DomainErrorCode;
 import com.piagent.domain.shared.DomainException;
 import java.io.InputStream;
@@ -14,9 +12,6 @@ import picocli.CommandLine;
  * CLI 入口：组装命令树、注入标准流并统一错误退出码。
  *
  * <p>该组件只在 CLI 模式被调用；Web 模式不经过它，因此不会影响 HTTP 触发层。</p>
- *
- * <p>CLI 没有登录流程，显式绑定默认租户，让仓储查询与后台任务使用同一套
- * 租户条件。</p>
  */
 @Component
 public class CliRunner {
@@ -43,7 +38,6 @@ public class CliRunner {
      */
     public int execute(String[] args, InputStream in, PrintWriter out, PrintWriter err) {
         CliTerminal.bind(in);
-        AuthContext.bindTenant(TenantId.DEFAULT);
         try {
             CommandLine commandLine = new CommandLine(PiRootCommand.class, new SpringCliFactory(context));
             commandLine.setOut(out);
@@ -59,7 +53,6 @@ public class CliRunner {
             err.flush();
             return code;
         } finally {
-            AuthContext.clear();
             CliTerminal.unbind();
         }
     }

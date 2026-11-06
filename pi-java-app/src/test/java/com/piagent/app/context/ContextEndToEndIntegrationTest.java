@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.piagent.app.PiJavaApplication;
-import com.piagent.app.support.AuthenticatedMockMvcConfig;
 import com.piagent.application.context.SkillApplicationService;
 import com.piagent.application.session.command.CreateSessionCommand;
 import com.piagent.application.session.service.SessionApplicationService;
@@ -37,7 +36,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -49,7 +47,6 @@ import org.springframework.test.web.servlet.MvcResult;
  * {@code POST /sessions/{id}/compact} 在内容不足时给出明确业务结论而非报错；
  * 未知技能返回 404 {@code SKILL_NOT_FOUND}。</p>
  */
-@Import(AuthenticatedMockMvcConfig.class)
 @SpringBootTest(classes = PiJavaApplication.class, properties = {
     "pi.fake.demo-mode=true",
     "pi.agent.skills[0]=target/context-e2e-skills"

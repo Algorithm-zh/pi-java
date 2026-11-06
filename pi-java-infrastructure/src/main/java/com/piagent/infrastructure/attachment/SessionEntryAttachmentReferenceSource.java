@@ -1,7 +1,6 @@
 package com.piagent.infrastructure.attachment;
 
 import com.piagent.application.attachment.port.AttachmentReferenceSource;
-import com.piagent.application.identity.AuthContext;
 import com.piagent.infrastructure.persistence.session.SessionEntryMapper;
 import java.util.HashSet;
 import java.util.Set;
@@ -35,7 +34,7 @@ public class SessionEntryAttachmentReferenceSource implements AttachmentReferenc
     @Override
     public Set<String> referencedIds() {
         Set<String> ids = new HashSet<>();
-        for (String payload : mapper.findAllPayloadsByTenant(AuthContext.tenantId().toString())) {
+        for (String payload : mapper.findAllPayloads()) {
             if (payload == null) {
                 continue;
             }
