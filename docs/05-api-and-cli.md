@@ -4,11 +4,10 @@
 > Skills、手动压缩、会话设置（重命名/切换模型/归档）与上下文状态；Web UI 已接入
 > 设置中心；M11 已实现第 8 节的 CLI 子集（`run`/`chat`/只读命令/`serve`）；
 > M13 已实现工作区改动查询与撤销；M14 已实现计划查询、`todo` 工具与自动验证事件；
-> M19 已实现本地账号、令牌鉴权与租户隔离（第 9 节 Web UI 含登录流程）；
-> M21 已改为全局账号 + 空间成员，个人空间、团队空间、邀请与空间切换见 1.2 节；
 > M22 已实现决策时间线与任意检查点回溯（2.11 节），运行开始时用内部 ref 固定检查点；
 > M23 已实现被放弃分支与当前分支的只读对比（2.11 节），并为 CLI 补齐
-> `/timeline`、`/compare`、`/rewind`。
+> `/timeline`、`/compare`、`/rewind`；
+> M24 移除了账号、令牌与空间体系，恢复为单用户本地服务（见 1.2 节）。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -19,8 +18,8 @@
 - ID：ULID 字符串，26 位；不暴露自增主键（策略表除外）；
 - 字段命名：camelCase；未知字段忽略；DTO 不含领域对象；
 - 分页：M4 只有 `limit`，没有 cursor；会话列表默认 50 条；
-- 鉴权：M19 起除 `/api/v1/auth/state|setup|login|register|logout` 外，所有 `/api/**`
-  请求必须携带 `Authorization: Bearer <token>` 或 `pi_session` Cookie；
+- 访问控制：M24 起单用户本地运行，所有 `/api/**` 无需凭据；默认只监听回环地址，
+  能访问端口就能执行工具；
 - 幂等：`POST /sessions/{id}/abort` 对没有活跃 run 的会话返回 404，不重复写 entry；
 - 请求 ID 与日志关联字段尚未实现，M9 打磨阶段补充。
 
@@ -37,93 +36,38 @@
 
 | HTTP | 实际 code | 场景 |
 |---|---|---|
-| 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON、密码长度不符 |
-| 401 | `AUTH_REQUIRED` / `AUTH_INVALID_CREDENTIALS` | 缺少或无效令牌；账号密码不正确 |
-| 403 | `AUTH_FORBIDDEN` / `AUTH_REGISTRATION_DISABLED` | 非管理员访问租户/账号管理；管理员关闭了自助注册 |
-| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` / `APPROVAL_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` / `TENANT_NOT_FOUND` / `USER_NOT_FOUND` | 资源不存在或不属于当前租户 |
-| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `INVALID_BRANCH` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` / `APPROVAL_INVALID_STATE` / `AUTH_ALREADY_INITIALIZED` / `TENANT_ALREADY_EXISTS` / `USER_ALREADY_EXISTS` | 状态、分支或并发冲突 |
+| 400 | `INVALID_ARGUMENT` | 参数缺失、ULID/路径非法、请求体不是合法 JSON |
+| 404 | `SESSION_NOT_FOUND` / `RUN_NOT_FOUND` / `MODEL_NOT_FOUND` / `ENTRY_NOT_FOUND` / `PLUGIN_NOT_FOUND` / `APPROVAL_NOT_FOUND` / `ATTACHMENT_NOT_FOUND` | 资源不存在 |
+| 409 | `RUN_ALREADY_ACTIVE` / `CONCURRENT_MODIFICATION` / `MODEL_ALREADY_EXISTS` / `MODEL_DISABLED` / `INVALID_STATE_TRANSITION` / `SESSION_ARCHIVED` / `INVALID_BRANCH` / `PLUGIN_ALREADY_EXISTS` / `PLUGIN_INVALID_STATE` / `PLUGIN_TOOL_CONFLICT` / `APPROVAL_INVALID_STATE` | 状态、分支或并发冲突 |
 | 422 | `PLUGIN_INCOMPATIBLE` / `PLUGIN_LOAD_FAILED` | 插件 jar/API 不兼容或加载失败 |
-| 429 | `AGENT_BUSY` / `AUTH_LOGIN_LOCKED` | 全局并发 run 已满；登录失败次数过多 |
+| 429 | `AGENT_BUSY` | 全局并发 run 已满 |
 | 500 | `GIT_OPERATION_FAILED` / 框架默认错误体 | Git 命令失败；未映射异常；不伪装成领域错误 |
 
 工具被策略拒绝、工具执行失败不产生 HTTP 错误，而是 `isError=true` 的 toolResult
 与 `tool.completed` 事件，由模型自行处理。
 
-### 1.2 鉴权、账号与空间（M19 起，M20–M21 增强）
+### 1.2 本地单用户模式（M24）
 
-首次启动后必须先初始化管理员，之后所有业务接口携带令牌访问。账号是全局的，
-空间是账号加入的一个个独立数据仓库：注册后自动获得个人空间，任何人还可以创建
-团队空间并成为其管理员，或把已有账号邀请进来。
+pi-java 是本地 coding agent：不设账号、令牌与空间，所有 `/api/**` 直接可用。
+安全边界改为网络边界与审批机制：
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/v1/auth/state` | 是否已初始化、当前是否已登录、是否开放注册、当前账号（公开） |
-| POST | `/api/v1/auth/setup` | 创建默认空间的首个管理员与个人空间并直接登录（公开，仅一次） |
-| POST | `/api/v1/auth/login` | `{username, password, tenantSlug?}` 登录；`tenantSlug` 可省略，服务端按账号自动定位空间 |
-| POST | `/api/v1/auth/register` | `{username, displayName, password}` 自助注册：创建个人空间与管理员身份并直接登录（公开，可用 `pi.auth.registration-enabled` 关闭） |
-| POST | `/api/v1/auth/switch` | `{tenantSlug}` 切换到已加入的另一个空间；签发新令牌并吊销旧令牌 |
-| POST | `/api/v1/auth/logout` | 吊销当前令牌并清除 Cookie |
-| GET | `/api/v1/auth/me` | 当前账号、角色、空间与空间类型 |
-| GET | `/api/v1/tenants` | 当前账号加入的空间，含已归档（任何登录用户） |
-| POST | `/api/v1/tenants` | `{slug, name}` 创建团队空间（任何登录用户），创建者成为该空间管理员 |
-| DELETE | `/api/v1/tenants/{id}` | 软删除团队空间：写归档时间并吊销该空间全部令牌（该空间管理员） |
-| POST | `/api/v1/tenants/{id}/restore` | 恢复已删除空间（该空间管理员） |
-| GET | `/api/v1/users` | 当前空间成员（该空间管理员） |
-| POST | `/api/v1/users` | 在当前空间创建新账号并自动为其建个人空间（该空间管理员），`role` 为 `ADMIN` 或 `MEMBER` |
-| GET | `/api/v1/users/lookup?username=` | 按登录名精确查找可邀请的已有账号，已在本空间的账号不返回（该空间管理员） |
-| POST | `/api/v1/tenants/{id}/members` | `{userId, role}` 把已有账号邀请进空间（该空间管理员） |
-
-登录与初始化响应同时返回 `token` 与账号信息（含 `tenantKind`，取值 `DEFAULT`、
-`PERSONAL`、`TEAM`），并下发 `pi_session` Cookie（HttpOnly、SameSite=Strict、
-7 天）。浏览器忽略 `token` 字段；脚本使用 `Authorization: Bearer <token>`，两种
-载体等价。认证失败统一返回 `AUTH_INVALID_CREDENTIALS`，不区分空间/账号是否存在；
-连续 5 次失败后返回 429 `AUTH_LOGIN_LOCKED`。
-
-不填 `tenantSlug` 时，服务端用密码在账号加入的全部未删除空间中对同名账号逐一校验：
-
-- 恰好一个匹配：直接登录；
-- 多个匹配：返回 409 `AUTH_TENANT_REQUIRED`，响应体带可点选的空间列表（含类型）：
-
-```json
-{
-  "code": "AUTH_TENANT_REQUIRED",
-  "message": "该账号属于多个空间，请选择要进入的空间",
-  "tenants": [
-    {"slug": "u-alice-3f9k", "name": "Alice 的个人空间", "kind": "PERSONAL"},
-    {"slug": "team-b", "name": "团队 B", "kind": "TEAM"}
-  ]
-}
-```
-
-空间列表只在密码已经匹配后才会出现，因此不会向不知道密码的人泄漏账号分布。
-显式传入 `tenantSlug` 时只查该空间；已删除空间既不参与自动定位，也不接受登录或切换。
-Web 端按登录名把进入过的空间记在浏览器本地，同一账号下次登录自动回到该空间，
-不用再点选；换账号登录不会串用其他人的记录。
-
-软删除规则：默认空间、个人空间与“当前所在空间”不能删除（409 `TENANT_PROTECTED`），
-且只有该空间的 `ADMIN` 能删除团队空间；删除只写 `pi_tenant.deleted_at` 并吊销该空间
-令牌，会话、附件与策略数据全部保留；`slug` 仍保持全局唯一，恢复后成员可立即重新登录。
-自助注册在 `pi.auth.registration-enabled=false` 时返回 403
-`AUTH_REGISTRATION_DISABLED`，服务尚未初始化（没有任何账号）时返回 409
-`AUTH_SETUP_REQUIRED`。
+- 默认只监听 `127.0.0.1`；启动时若发现 `server.address` 不是回环地址，
+  必须显式设置 `PI_ALLOW_REMOTE=true` 才会继续，否则直接拒绝启动；
+- 能访问端口就能执行工具，因此不要把端口映射到公网；远程使用请自行加网络隔离；
+- 审批由使用者本人在本机决策，审计字段 `decidedBy` 固定为 `local`；
+- 重启时未处理的审批自动过期，决策者记录为 `system`。
 
 ```bash
-curl -s -X POST http://127.0.0.1:8080/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"your-password"}'
-
-curl -s -X POST http://127.0.0.1:8080/api/v1/auth/switch \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <token>' \
-  -d '{"tenantSlug":"team-b"}'
-
-curl -s http://127.0.0.1:8080/api/v1/sessions \
-  -H 'Authorization: Bearer <new-token>'
+curl -s http://127.0.0.1:8080/api/v1/health
+curl -s http://127.0.0.1:8080/api/v1/sessions
 ```
 
-隔离规则：会话、审批、运行、工具策略与附件按当前空间过滤，同一账号切换空间后
-看到的是该空间自己的数据；跨空间的资源 id 一律表现为 404 或空列表。模型档案、
-插件、MCP 服务与技能目录仍是全局资源。
+`GET /api/v1/health` 返回 `{"status":"ok"}`，不受数据源状态影响，供容器与脚本做
+就绪探测。M19–M21 的 `/api/v1/auth/**`、`/api/v1/tenants/**`、`/api/v1/users/**`
+已随 M24 一并删除。
+
+会话、审批、运行、工具策略与附件不再按空间过滤；升级迁移会合并历史空间里
+同名同作用域的策略，并保留全部会话。
 
 ## 2. 会话 API
 
@@ -665,7 +609,7 @@ GET /api/v1/attachments/{id}
 - 未被任何 `pi_session_entry.payload_json` 引用、且超过 `pi.attachments.gc-min-age`
   （默认 `1h`）的附件会被每日 03:40 的回收任务删除；删除会话后其图片会自然变成
   孤儿，在宽限期后被回收；
-- M19 起附件接口需要登录，下载同样按空间隔离；仍建议只通过回环地址或 HTTPS
+- 附件接口无需凭据；由于没有登录边界，仍建议只通过回环地址或 HTTPS
   反向代理访问。
 
 ```http
@@ -913,10 +857,10 @@ GET /api/v1/system/info
 }
 ```
 
-该接口需要登录（Bearer 令牌或会话 Cookie）；容器与脚本的就绪探测应改用公开的
-`GET /api/v1/auth/state`，否则会收到 401。Web UI 用它获取默认工作目录，避免把
-开发者机器路径硬编码进静态资源。只暴露版本、进程工作目录与操作系统，不含密钥或
-环境变量。
+该接口无需凭据。容器与脚本的就绪探测应使用更轻量的
+`GET /api/v1/health`，它不访问数据源；`/system/info` 依赖数据库。Web UI 用它
+获取默认工作目录，避免把开发者机器路径硬编码进静态资源。只暴露版本、进程工作
+目录与操作系统，不含密钥或环境变量。
 
 ### 7.2 技能目录（M7）
 
@@ -1165,9 +1109,9 @@ pi serve --port 8080 --profile demo
 ```
 
 `--port` 映射为 `--server.port`，`--profile` 映射为 `--spring.profiles.active`，
-其余参数原样交给 Spring Boot。默认绑定 `127.0.0.1`；M19 起首次启动需在浏览器
-完成管理员初始化，之后 API 请求必须携带令牌。CLI 自身的 `run`/`chat` 不经过
-HTTP，固定使用默认租户。
+其余参数原样交给 Spring Boot。默认只绑定 `127.0.0.1`，打开页面即可使用；
+绑定非回环地址时必须设置 `PI_ALLOW_REMOTE=true`，否则启动失败。CLI 自身的
+`run`/`chat` 不经过 HTTP，直接读写本机会话数据。
 
 ### 8.6 未提供命令
 
@@ -1195,13 +1139,8 @@ v0.2 再评估是否加入。
 
 交互覆盖：
 
-0. 首次打开显示初始化卡片，创建管理员后直接进入主界面；之后每次启动先请求
-   `/api/v1/auth/state`，未登录显示登录卡（账号 + 密码即可，服务端自动回到上次
-   使用的空间；账号加入多个空间且本地没有记录时列出候选并标注“个人空间/团队空间/
-   默认空间”），登录卡还提供“创建账号”自助注册入口，新账号直接进入自己的个人空间；
-   令牌过期或接口返回 401 时自动回到登录卡；点击侧栏账号卡进入设置中心的
-   “账号与空间”，可查看全部已加入空间并一键切换、创建团队空间、邀请已有账号或
-   创建新成员、归档/恢复团队空间；
+0. 打开页面直接进入主界面，没有登录或初始化步骤；服务未就绪时显示连接提示并
+   自动重试，就绪后拉取会话列表与 `GET /system/info` 获取默认工作目录；
 1. 新建会话（标题、工作目录、模型档案、思考级别）→ 发送消息 → 流式增量 → 完成；
 2. 工具卡片展示参数、输出与错误态；写工具触发审批弹窗，展示风险级别、工具名、
    脱敏参数、SHA-256 摘要与倒计时；批准/拒绝后写审批历史条目，多个待办串行展示，
@@ -1220,10 +1159,7 @@ v0.2 再评估是否加入。
 8. 历史条目已渲染压缩摘要、分支摘要、审批决策与模型切换，不只是普通消息；
 9. 进程重启后自动取消遗留审批、闭合悬空工具调用并复位运行态，卡住的会话
    可以直接继续对话（见 2.8.1）；
-10. 设置中心包含六个标签页：
-   - **账号与空间**：当前账号，加入的空间列表（个人/团队/默认、角色、当前标记）
-     与“进入”切换；任何用户可创建团队空间；空间管理员可邀请已有账号、创建新账号、
-     归档/恢复团队空间（默认、个人与当前空间受保护）；
+10. 设置中心包含五个标签页：
    - **模型与密钥**：卡片式档案列表、密钥环境变量状态、行内新建/编辑/启停；
    - **技能**：扫描 `~/.pi-java/skills`，按需查看 `SKILL.md` 正文；
    - **插件**：按本地 jar 路径安装、启用/停用、展示最近错误；

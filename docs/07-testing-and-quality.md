@@ -353,27 +353,18 @@ application 的用例编排由内存端口单测覆盖，真实 SQL 行为由 ap
 - M18 结束共 861 个测试（2 个符号链接用例条件跳过）；索引测试全部使用 `@TempDir`，
   不依赖网络或外部服务。
 
-### 8.5 多租户与最小鉴权（M19）
+### 8.5 去账号化（M24）
 
-- 领域与应用：`AuthContextTest`（默认租户回退、线程传播、清除）、
-  `AuthApplicationServiceTest`（初始化/重复初始化/短密码/错误口令/锁定与解锁/过期、
-  撤销、未知令牌、停用账号、令牌只存哈希）与 `IdentityAdminServiceTest`
-  （管理员建租户与账号、成员 403、重复短名/用户名、账号列表只看本租户）；
-- 基础设施：`Pbkdf2PasswordHasherTest`（格式、随机盐、畸形编码拒绝）与
-  `Sha256TokenCodecTest`（令牌形状与稳定摘要）；
-- 触发层：`AuthFilterTest`（缺令牌/未知令牌 401、Bearer 与 Cookie、Bearer 优先、
-  公开路径跳过）、`AuthControllerTest`（状态、初始化、登录失败、登出与 Body 解析）、
-  `IdentityAdminControllerTest`（列表、创建、403、400）；
-- 集成：`AuthHttpIntegrationTest` 用独立内存库走“未初始化 → 初始化 → 登录失败 →
-  登录 → 登出”全流程，并验证 Cookie 属性与令牌吊销；
-  `TenantIsolationIntegrationTest` 建两个租户，断言会话、审批与 run、工具策略、
-  附件跨租户读取为 404/空列表、写入互不冲突，成员访问管理接口为 403；
-- 历史测试全部补上认证：`AuthenticatedMockMvcConfig` 为集成测试注入管理员 Cookie，
-  不改被测接口的鉴权逻辑。
+- 删除身份相关的领域、应用、基础设施与触发层测试，以及所有测试夹具里的登录与
+  空间初始化；集成测试直接调用 `/api/**`，不再注入 Cookie；
+- 会话、审批、运行、工具策略与附件的既有端到端用例全部保留，断言从“按空间隔离”
+  改为“单库直接可见”；
+- `OpenApiDocumentIntegrationTest` 校验 `/api/v1/health` 出现在契约中且无需鉴权；
+- 迁移由真实 H2 启动验证：全新库依次执行 V1–V9，最终不存在身份表与 `tenant_id`；
+- Web 走查：打开即用、无登录卡与账号入口；`/write` 审批批准与拒绝、时间线、
+  设置五个标签页均正常。
 
-M19 结束共 923 个测试（domain 210、application 204、infrastructure 280、
-trigger 129、app 88、plugin-api 3、示例插件 9），2 个符号链接用例条件跳过；
-Checkstyle 与 ArchUnit 通过。
+M24 结束共 941 个测试，2 个符号链接用例条件跳过；Checkstyle 与 ArchUnit 通过。
 
 ## 9. Windows 与跨平台
 

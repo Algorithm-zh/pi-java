@@ -1,7 +1,7 @@
 # 03 数据库设计
 
-> 状态：M0 冻结，V1–V5 已随 M1–M6 落地。业务表共 6 张；表结构变更必须通过新
-> Flyway 脚本完成。
+> 状态：M0 冻结，V1–V9 已随 M1–M24 落地。业务表共 6 张（身份表已由 V9 撤销）；
+> 表结构变更必须通过新 Flyway 脚本完成。
 >
 > 生产库 MySQL 8，测试/演示库 H2（MySQL 模式）。DDL 按厂商分目录维护，
 > 语义一致、方言不同，禁止用 H2 专有语法污染 MySQL 脚本。
@@ -38,12 +38,8 @@
               └─────────────────┘   └────────────────────┘
 
   pi_model_profile ◄──── 逻辑引用 ──── pi_session.model_profile_id
-  pi_tool_policy       独立（tenant_id + scope + workspace_key + tool_name）
+  pi_tool_policy       独立（scope + workspace_key + tool_name）
   pi_plugin            独立（插件安装记录）
-
-  pi_tenant ◄── pi_space_member ──► pi_app_user ◄── pi_auth_token
-        ▲
-        └── pi_session.tenant_id / pi_tool_policy.tenant_id
 ```
 
 | 关系 | 基数 | 物理约束 | 说明 |
@@ -54,9 +50,6 @@
 | model_profile → session | 1:N | 无 | 模型档案下线不破坏历史会话 |
 | entry.parent_id | 树 | 无 | 同会话树形关系，应用层校验 |
 | plugin / policy | 独立 | 无 | 通过 workspace_key/tool_name 逻辑关联 |
-| tenant ↔ user | N:M | `pi_space_member` 联合主键 | 一个账号可加入多个空间，角色按空间计算 |
-| user → token | 1:N | `user_id` FK，`ON DELETE CASCADE` | 删号即吊销全部令牌 |
-| tenant → session/policy | 1:N | `tenant_id` FK | 查询与写入都带租户条件 |
 
 > 父会话删除后，子会话的 `parent_session_id` 为 NULL，但 `origin/depth/root_session_id` 保留。
 > 领域层的 `SessionIdentity` 允许这种“孤儿”形态在重建时出现；创建新子会话仍必须提供父会话。
@@ -240,97 +233,48 @@ CREATE TABLE pi_approval_request (
 该表是“待办投影”，不是审计事实源：审批决策必须同时追加 `APPROVAL` entry。
 `args_digest = sha256(canonicalJson(args))`，用于检测 UI 展示参数与实际执行参数不一致。
 
-### 3.6 `V6__tenant_auth.sql`（M19）
+### 3.6 `V6`–`V8`（M19–M21，已于 M24 撤销）
+
+V6 建立租户、账号与访问令牌表，并给会话与工具策略增加 `tenant_id`；V7 增加空间
+软删除；V8 把账号改为全局、用 `pi_space_member` 记录空间成员与角色。这些脚本
+保留在迁移链中以保证存量库可升级，但对应能力已由 V9 删除，新库执行完 V9 后
+不会存在任何身份表或 `tenant_id` 列。
+
+### 3.7 `V9__remove_auth.sql`（M24）
 
 ```sql
-CREATE TABLE pi_tenant (
-    id         CHAR(26)     NOT NULL,   -- 默认租户固定 00000000000000000000000001
-    slug       VARCHAR(64)  NOT NULL,
-    name       VARCHAR(128) NOT NULL,
-    created_at TIMESTAMP(3) NOT NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT uk_tenant_slug UNIQUE (slug)
+-- 先按新唯一键合并历史空间中的同名策略，保留最早一行
+DELETE FROM pi_tool_policy
+WHERE id NOT IN (
+    SELECT id FROM (
+        SELECT MIN(id) AS id
+        FROM pi_tool_policy
+        GROUP BY scope, workspace_key, tool_name
+    ) kept
 );
 
-CREATE TABLE pi_app_user (
-    id            CHAR(26)     NOT NULL,
-    tenant_id     CHAR(26)     NOT NULL,
-    username      VARCHAR(64)  NOT NULL,   -- 小写规范化后存储
-    display_name  VARCHAR(128) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,   -- pbkdf2-sha256$iter$salt$hash
-    role          VARCHAR(16)  NOT NULL,   -- ADMIN / MEMBER
-    status        VARCHAR(16)  NOT NULL,   -- ACTIVE / DISABLED
-    created_at    TIMESTAMP(3) NOT NULL,
-    updated_at    TIMESTAMP(3) NOT NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT uk_user_tenant_username UNIQUE (tenant_id, username),
-    CONSTRAINT fk_user_tenant FOREIGN KEY (tenant_id) REFERENCES pi_tenant (id)
-);
-
-CREATE TABLE pi_auth_token (
-    id           CHAR(26)     NOT NULL,
-    tenant_id    CHAR(26)     NOT NULL,
-    user_id      CHAR(26)     NOT NULL,
-    token_hash   CHAR(64)     NOT NULL,   -- SHA-256 十六进制，明文不落库
-    issued_at    TIMESTAMP(3) NOT NULL,
-    expires_at   TIMESTAMP(3) NOT NULL,
-    last_used_at TIMESTAMP(3) NULL,
-    revoked_at   TIMESTAMP(3) NULL,
-    PRIMARY KEY (id),
-    CONSTRAINT uk_auth_token_hash UNIQUE (token_hash),
-    CONSTRAINT fk_auth_token_user FOREIGN KEY (user_id) REFERENCES pi_app_user (id)
-        ON DELETE CASCADE
-);
-
-ALTER TABLE pi_session
-    ADD COLUMN tenant_id CHAR(26) NOT NULL DEFAULT '00000000000000000000000001';
-ALTER TABLE pi_tool_policy
-    ADD COLUMN tenant_id CHAR(26) NOT NULL DEFAULT '00000000000000000000000001';
 ALTER TABLE pi_tool_policy DROP CONSTRAINT uk_tool_policy;
+ALTER TABLE pi_tool_policy DROP CONSTRAINT fk_policy_tenant;
+ALTER TABLE pi_tool_policy DROP COLUMN tenant_id;
 ALTER TABLE pi_tool_policy
-    ADD CONSTRAINT uk_tool_policy UNIQUE (tenant_id, scope, workspace_key, tool_name);
+    ADD CONSTRAINT uk_tool_policy UNIQUE (scope, workspace_key, tool_name);
+
+ALTER TABLE pi_session DROP CONSTRAINT fk_session_tenant;
+DROP INDEX idx_session_tenant_updated;
+ALTER TABLE pi_session DROP COLUMN tenant_id;
+
+DROP TABLE pi_space_member;
+DROP TABLE pi_auth_token;
+DROP TABLE pi_app_user;
+DROP TABLE pi_tenant;
 ```
 
-迁移先插入默认租户，再给存量会话与策略补 `tenant_id` 默认值，升级无需手工清洗。
-
-### 3.7 `V7__tenant_soft_delete.sql`（M20）
-
-`pi_tenant` 增加可空 `deleted_at`：非空表示空间已归档，登录、切换与空间列表都
-跳过归档空间；删除只写时间戳并吊销该空间令牌，数据不清理。
-
-### 3.8 `V8__space_membership.sql`（M21）
-
-```sql
-ALTER TABLE pi_tenant ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'TEAM';
-UPDATE pi_tenant SET kind = 'DEFAULT' WHERE id = '00000000000000000000000001';
-
-CREATE TABLE pi_space_member (
-    tenant_id  CHAR(26)     NOT NULL,
-    user_id    CHAR(26)     NOT NULL,
-    role       VARCHAR(16)  NOT NULL,   -- 空间内角色：ADMIN / MEMBER
-    created_at DATETIME(3)  NOT NULL,
-    PRIMARY KEY (tenant_id, user_id),
-    KEY idx_member_user (user_id),
-    CONSTRAINT fk_member_tenant FOREIGN KEY (tenant_id) REFERENCES pi_tenant (id),
-    CONSTRAINT fk_member_user FOREIGN KEY (user_id) REFERENCES pi_app_user (id)
-        ON DELETE CASCADE
-);
-
-INSERT INTO pi_space_member (tenant_id, user_id, role, created_at)
-SELECT tenant_id, id, role, created_at FROM pi_app_user;
-
-ALTER TABLE pi_app_user DROP FOREIGN KEY fk_user_tenant;
-ALTER TABLE pi_app_user DROP INDEX uk_user_tenant_username;
-ALTER TABLE pi_app_user DROP INDEX idx_user_tenant;
-ALTER TABLE pi_app_user DROP COLUMN tenant_id, DROP COLUMN role;
-```
-
-- 账号变为全局：`pi_app_user` 不再带 `tenant_id`/`role`，登录名全局唯一；
-- 角色按空间计算，存在 `pi_space_member.role`；
-- `pi_tenant.kind` 区分 `DEFAULT`（初始化创建）、`PERSONAL`（注册或首次登录时
-  懒创建的个人空间）与 `TEAM`（用户创建的团队空间）；
-- 升级时把每个既有账号的“原空间 + 原角色”回填成一条成员关系，存量会话、策略与
-  附件仍挂在原空间下，账号下次登录会自动补一个空的个人空间。
+- 会话、entry、审批、模型档案、插件与附件**全部保留**，只是不再按空间过滤；
+- 不同空间里同 `(scope, workspace_key, tool_name)` 的策略会被合并，`MIN(id)` 优先，
+  其余配置无法恢复，升级前需要自行备份；
+- MySQL 方言使用 `DROP INDEX` / `DROP FOREIGN KEY` / `ADD UNIQUE KEY`，H2 使用
+  `DROP CONSTRAINT`，语义一致；
+- 新库从 V1 顺序执行到 V9，最终结构与本节 3.1–3.5 描述一致。
 
 ## 4. H2 方言差异
 
@@ -427,12 +371,12 @@ MySQL 脚本位于 `.../mysql/`；Flyway 按 profile 选择 `locations`，互不
   "toolName": "write",
   "decision": "APPROVED",
   "reason": "允许修改 README",
-  "decidedBy": "local-user"
+  "decidedBy": "local"
 }
 ```
 
 `decision` 记录终态字符串（`APPROVED/DENIED/EXPIRED/CANCELLED`）；
-HTTP 用户决策写 `local-user`，过期与取消写 `system`。决策同时更新
+本机使用者决策写 `local`，过期与取消写 `system`。决策同时更新
 `pi_approval_request` 投影并追加本 entry，二者在同一个短事务内完成。
 
 ### 5.4 运行摘要
@@ -472,7 +416,7 @@ COMMIT
 - 启动恢复时，若发现 toolCall 无配对结果，补写 `isError=true` 的 toolResult；
   若发现 RUNNING 但无活跃 run，补写 `RUN_SUMMARY(stopReason=ERROR)`。
 
-## 7. 为什么只有 9 张表
+## 7. 为什么只有 6 张表
 
 | 候选表 | 处理方式 | 原因 |
 |---|---|---|
@@ -486,9 +430,7 @@ COMMIT
 | token 统计 | assistant payload + session 汇总 | 不做计费系统，避免额外写入放大 |
 | 插件工具 | 内存快照 + `pi_plugin` | 工具是代码产物，不需要每工具一行 |
 | 压缩规划/收敛状态 | 纯计算，不落库 | 只有最终摘要作为 `COMPACTION` entry 持久化 |
-| 角色/权限 | `pi_space_member.role` | 只有 ADMIN/MEMBER 两级，按空间计算，不引入权限表 |
-| 空间类型 | `pi_tenant.kind` | DEFAULT/PERSONAL/TEAM 决定能否删除与登录页标记 |
-| 登录审计 | `pi_auth_token.last_used_at` | 只记录最近使用时间，不做逐次审计 |
+| 账号/空间/令牌 | V9 删除 | 单用户本地运行，没有登录边界，不保留身份数据 |
 
 ## 8. 迁移规范
 
@@ -498,8 +440,8 @@ COMMIT
 - `clean` 在生产禁用（`spring.flyway.clean-disabled=true`）；
 - 启动时 Flyway 校验 checksum，迁移失败应用拒绝启动；
 - 测试库每次启动执行全部迁移，验证 H2 与 MySQL 的语义一致性；
-- M1 落地 V1，M2 落 V2，M3 落 V3，M5 落 V4（已实现），M6 落 V5，M19 落 V6，
-  M20 落 V7（空间软删除），M21 落 V8（全局账号与空间成员）；
+- M1 落地 V1，M2 落 V2，M3 落 V3，M5 落 V4（已实现），M6 落 V5；M19 落 V6、
+  M20 落 V7、M21 落 V8（账号与空间，已由 M24 撤销）；M24 落 V9（去账号化）；
 - M7（上下文压缩 + Skills）**没有新增表**：摘要复用 `COMPACTION` entry，Skills 走文件系统。
 
 ## 9. 索引与容量

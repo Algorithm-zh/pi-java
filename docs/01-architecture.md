@@ -87,7 +87,6 @@ M19 新增身份上下文，模块数量与依赖方向不变。
 | 上下文 context | `domain.context` | token 估算、压缩计划、Skill 描述与 prompt 格式化 | 文件扫描、YAML 解析 |
 | 扩展 extension | `domain.extension` | 插件安装记录、jar 检查结果、兼容性与运行时端口 | ClassLoader、Spring 容器 |
 | 工作区 git | `domain.git` | 快照、变化集合、还原结果、提交建议与 `WorkspaceGit` 端口 | 调用 git、读写文件 |
-| 身份 identity | `domain.identity` | 全局账号、空间成员关系、按空间角色、访问令牌与停用状态 | 密码哈希算法、HTTP 会话、权限模型扩展 |
 
 ### 上下文映射
 
@@ -100,7 +99,6 @@ agent   ────► tool           （通过 ToolRegistry/ToolInvoker 端口
 agent   ────► governance     （审批与沙箱端口）
 agent   ────► context        （压缩与 skills 目录）
 agent   ────► git            （通过 WorkspaceGit 端口）
-所有上下文 ────► identity    （仓储从 AuthContext 取当前租户）
 tool    ◄──── extension      （插件工具映射为 ToolDescriptor）
 ```
 

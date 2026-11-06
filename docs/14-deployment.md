@@ -28,10 +28,10 @@ M16 起图片附件也写入数据目录：`${PI_DATA_DIR}/attachments/<id>.bin`
 单图上限 5 MB、单次上传 6 MB、单条消息 4 张；`demo` 与 `mysql` profile 共用同一套
 附件目录，切换数据库不会迁移附件。
 
-服务默认只监听 `127.0.0.1:8080`。容器或内网访问需要显式设置
-`PI_SERVER_ADDRESS=0.0.0.0`；M19 起 API 与 Web 需要登录（本地账号、HttpOnly
-Cookie 或 Bearer 令牌），但默认口令与单实例限流仍不适合直接暴露公网，建议放在
-反向代理与内网之后。
+服务默认只监听 `127.0.0.1:8080`。M24 起没有登录与权限边界：端口可达即可执行
+工具。绑定非回环地址时必须同时设置 `PI_ALLOW_REMOTE=true`，否则启动阶段直接
+拒绝；容器镜像已内置该变量。即使允许远程绑定，也建议放在反向代理与内网之后，
+不要把端口直接暴露到公网。
 
 ## 2. Docker 镜像
 
@@ -49,11 +49,13 @@ Cookie 或 Bearer 令牌），但默认口令与单实例限流仍不适合直�
 | `/app/data/attachments` | 图片附件（ULID 命名的 `.bin` + `.json`），随数据卷一起备份 |
 | `/app/app.jar` | 可执行 jar |
 | `PI_SERVER_ADDRESS=0.0.0.0` | 镜像内固定值，容器外仍需端口映射 |
+| `PI_ALLOW_REMOTE=true` | 镜像内固定值，与非回环绑定配套；缺少时启动失败 |
 | `PI_DATA_DIR=/app/data` | 镜像内固定值 |
 | `SPRING_PROFILES_ACTIVE=demo` | 默认离线演示，可覆盖为 `mysql` |
 
-`HEALTHCHECK` 每 30 秒访问公开的 `/api/v1/auth/state`，失败 3 次标记 unhealthy；
-M19 起 `/api/v1/system/info` 需要登录，不能用于健康检查。
+`HEALTHCHECK` 每 30 秒访问 `/api/v1/health`，失败 3 次标记 unhealthy。
+`/health` 不访问数据源，数据库故障不会让容器被误杀；`/system/info` 依赖数据库，
+不适合做就绪探测。
 
 构建与运行：
 
@@ -107,7 +109,7 @@ MySQL 首次启动需要初始化数据目录；应用会等待健康检查通�
 `OpenApiDocumentIntegrationTest` 会校验文档端点、版本号与核心路径
 （会话、计划、运行事件流、模型、工具）。接口重命名时测试先失败，避免发布过期契约。
 
-文档只描述本地单机 API；M19 的账号、令牌与租户接口见
+文档只描述本地单用户 API；访问边界与 `/health` 的说明见
 [05 API 与 CLI](05-api-and-cli.md) 1.2 节。
 
 ## 5. GitHub Actions
@@ -133,5 +135,5 @@ MySQL 首次启动需要初始化数据目录；应用会等待健康检查通�
   （`PI_DATA_DIR`、监听地址、工作目录）；
 - 不提供镜像仓库发布与自动打 tag；发布 tag 需用户确认；
 - 单实例、单 JVM，不支持横向扩展；
-- 鉴权为本地账号体系，没有 SSO、多因素与密码重置；容器端口默认仍只映射回环地址；
+- 没有账号与权限体系，安全边界是网络边界与审批；容器端口默认仍只映射回环地址；
 - 容器内没有完整的开发工具链，真实编码任务建议直接在本机运行 jar。

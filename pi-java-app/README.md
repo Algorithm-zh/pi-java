@@ -29,7 +29,9 @@ java -jar pi-java-app/target/pi-java-app-0.3.0.jar
 默认 `demo` profile：H2 文件库 + Fake LLM，无需 API Key。
 MySQL 使用 `--spring.profiles.active=mysql`，连接信息通过 `PI_MYSQL_*` 环境变量注入。
 
-默认只监听 `127.0.0.1`；v0.1 无鉴权，禁止直接暴露公网。
+默认只监听 `127.0.0.1`；没有账号与登录边界，能访问端口就能执行工具。
+绑定非回环地址时必须设置 `PI_ALLOW_REMOTE=true`，否则启动失败；不要把端口直接
+暴露到公网。
 
 打包前需停止正在运行的实例，否则 Windows 会锁住 `pi-java-app-*.jar`。
 
@@ -101,4 +103,7 @@ M7 增加技能/压缩端到端测试与 `pi.agent.context` / `pi.agent.skills` 
 Web UI 已有 `compaction.started/completed` 状态提示，**无新增迁移**。
 M12 增加 `McpStartupRunner`、`pi.mcp.servers` 配置、MCP 端到端集成测试与
 动态 stdio 假服务器夹具，**同样无新增迁移**。
-详见 [M12 记录](../docs/milestones/M12.md)。
+M24 删除账号、令牌与空间体系，移除 Web 登录/账号界面与鉴权过滤器，新增
+`RemoteBindingGuard` 和 `/api/v1/health`，V9 迁移清理身份表与 `tenant_id`。
+详见 [M12 记录](../docs/milestones/M12.md) 与
+[05 API 与 CLI](../docs/05-api-and-cli.md) 1.2 节。

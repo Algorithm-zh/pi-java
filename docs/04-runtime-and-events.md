@@ -607,7 +607,8 @@ M6 加入审批、M8 加入子代理后，再补充“补写 RUN_SUMMARY / 过�
 - M4 记录 run 收尾失败、恢复失败等关键日志（`System.Logger`），正常链路不刷日志；
 - 事件流本身包含排查所需的 turn、toolCall、usage 与终止原因，这是当前主要观测面；
 - 密钥、Authorization、完整文件内容不进入事件与日志；
-- 结构化字段日志、`/health` 与指标在 M9 打磨阶段补充；v0.1 不引入 Prometheus/OpenTelemetry。
+- `GET /api/v1/health`（M24）提供无数据源依赖的就绪探测；结构化字段日志与指标尚未
+  实现，不引入 Prometheus/OpenTelemetry。
 
 ## 14. 相关文档
 

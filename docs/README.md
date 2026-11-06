@@ -7,12 +7,12 @@
 1. [00 愿景与范围](00-vision-and-scope.md)：产品边界、用户故事、成功标准
 2. [01 整体架构](01-architecture.md)：模块、依赖方向、限界上下文、部署形态
 3. [02 领域模型](02-domain-model.md)：聚合、实体、值对象、领域服务、端口、不变量
-4. [03 数据库设计](03-database-design.md)：9 张表 DDL、ER 关系、索引、Flyway
+4. [03 数据库设计](03-database-design.md)：6 张表 DDL、ER 关系、索引、Flyway
 5. [04 运行时与事件](04-runtime-and-events.md)：Agent Loop、审批、压缩、子代理、SSE
 6. [05 API 与 CLI](05-api-and-cli.md)：REST/SSE 契约、CLI 命令、Web UI
 7. [06 插件 SDK](06-plugin-sdk.md)：插件契约、生命周期、类加载隔离、示例
 8. [07 测试与质量](07-testing-and-quality.md)：测试策略、质量门禁、验收
-9. [08 路线图](08-roadmap.md)：M0–M23 与后续候选、依赖、风险、完成定义
+9. [08 路线图](08-roadmap.md)：M0–M25 与后续候选、依赖、风险、完成定义
 10. [09 快速上手](09-quick-start.md)：启动脚本、接入真实模型、技能与常见问题
 11. [10 MCP 客户端](10-mcp.md)：配置、传输、命名空间、风险映射、断线与超时
 12. [11 界面设计](11-interface-design.md)：设计原则、视觉令牌、Web/TUI 交互与可访问性
@@ -49,9 +49,9 @@
 - [M16：图片与多模态输入](milestones/M16.md)
 - [M17：附件生命周期与压缩](milestones/M17.md)
 - [M18：仓库地图与代码检索](milestones/M18.md)
-- [M19：多租户与最小鉴权](milestones/M19.md)
-- [M20：登录免选空间、自助注册与空间软删除](milestones/M20.md)
-- [M21：个人空间与团队协作](milestones/M21.md)
+- [M19：多租户与最小鉴权（已于 M24 移除）](milestones/M19.md)
+- [M20：登录免选空间、自助注册与空间软删除（已于 M24 移除）](milestones/M20.md)
+- [M21：个人空间与团队协作（已于 M24 移除）](milestones/M21.md)
 - [M22：决策时间线与任意检查点回溯](milestones/M22.md)
 - [M23：分叉对比](milestones/M23.md)
 
