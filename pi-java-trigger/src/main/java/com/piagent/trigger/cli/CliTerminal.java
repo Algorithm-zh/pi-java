@@ -9,6 +9,7 @@ import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import picocli.CommandLine;
 
 /**
@@ -24,11 +25,18 @@ public final class CliTerminal {
     private final BufferedReader in;
     private final PrintWriter out;
     private final PrintWriter err;
+    private final Function<String, String> tuiReader;
 
     CliTerminal(BufferedReader in, PrintWriter out, PrintWriter err) {
+        this(in, out, err, null);
+    }
+
+    CliTerminal(BufferedReader in, PrintWriter out, PrintWriter err,
+            Function<String, String> tuiReader) {
         this.in = in;
         this.out = out;
         this.err = err;
+        this.tuiReader = tuiReader;
     }
 
     /**
@@ -72,7 +80,20 @@ public final class CliTerminal {
      * @return 终端封装
      */
     static CliTerminal forTui(PrintWriter out) {
-        return new CliTerminal(new BufferedReader(new StringReader("")), out, out);
+        return forTui(out, null);
+    }
+
+    /**
+     * 创建 TUI 专用终端，并复用 JLine 的 {@code LineReader} 读取额外输入。
+     *
+     * <p>确认类交互必须和主输入共用同一个 reader，否则 JLine 的缓冲会吞掉用户输入。</p>
+     *
+     * @param out JLine 终端 writer
+     * @param reader 读取函数；null 表示没有交互输入
+     * @return 终端封装
+     */
+    static CliTerminal forTui(PrintWriter out, Function<String, String> reader) {
+        return new CliTerminal(new BufferedReader(new StringReader("")), out, out, reader);
     }
 
     /**
@@ -149,6 +170,9 @@ public final class CliTerminal {
      * @return 输入行；EOF 或读取失败时为 null
      */
     public String readLine(PrintWriter target, String prompt) {
+        if (tuiReader != null) {
+            return tuiReader.apply(prompt);
+        }
         target.print(prompt);
         target.flush();
         try {
@@ -156,6 +180,18 @@ public final class CliTerminal {
         } catch (IOException error) {
             return null;
         }
+    }
+
+    /**
+     * 当前输入是否可以与用户交互确认。
+     *
+     * <p>TUI 有 JLine reader；行模式只在绑定的是真实标准输入时才算交互。
+     * 测试或管道注入的内存流不能被当成人确认。</p>
+     *
+     * @return true 表示可以询问用户
+     */
+    boolean interactive() {
+        return tuiReader != null || BOUND_INPUT.get() == System.in;
     }
 
     /**

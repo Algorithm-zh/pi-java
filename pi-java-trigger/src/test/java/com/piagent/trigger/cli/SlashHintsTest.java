@@ -19,8 +19,8 @@ class SlashHintsTest {
 
     @Test
     void listsAllCommandsForBareSlashWhenWidthAllows() {
-        String hint = SlashHints.hint("/", 100);
-        assertThat(hint).contains("/help", "/model", "/session", "/skill:", "/tree")
+        String hint = SlashHints.hint("/", 160);
+        assertThat(hint).contains("/help", "/model", "/session", "/skill:", "/tree", "/timeline")
                 .endsWith("Tab");
     }
 

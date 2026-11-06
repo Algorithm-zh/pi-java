@@ -11,6 +11,9 @@ import com.piagent.application.git.GitUndoService;
 import com.piagent.application.git.SessionGitChanges;
 import com.piagent.application.plan.SessionPlanService;
 import com.piagent.application.session.service.SessionSettingsApplicationService;
+import com.piagent.application.timeline.SessionBranchComparisonService;
+import com.piagent.application.timeline.SessionRewindService;
+import com.piagent.application.timeline.SessionTimelineService;
 import com.piagent.domain.git.model.FileChange;
 import com.piagent.domain.git.model.GitChangeKind;
 import com.piagent.domain.git.model.GitConflict;
@@ -43,8 +46,8 @@ class CliChatSupportGitTest {
     private final GitCheckpointService checkpoints = mock(GitCheckpointService.class);
     private final GitUndoService undo = mock(GitUndoService.class);
     private final SessionPlanService plans = mock(SessionPlanService.class);
-    private final CliChatSupport support =
-            new CliChatSupport(sessions, settings, compaction, checkpoints, undo, plans);
+    private final CliChatSupport support = new CliChatSupport(sessions, settings, compaction,
+            new CliGitSupport(sessions, checkpoints, undo), timeline(), plans);
     private final ChatSession session = ChatSession.createRoot(SESSION_ID, "Git 命令测试",
             SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
     private final StringWriter out = new StringWriter();
@@ -104,6 +107,12 @@ class CliChatSupportGitTest {
 
         assertThat(result).isSameAs(session);
         assertThat(out.toString()).contains("撤销未执行").contains("! a.txt");
+    }
+
+    private static CliTimelineSupport timeline() {
+        return new CliTimelineSupport(mock(CliSessionService.class),
+                mock(SessionTimelineService.class), mock(SessionBranchComparisonService.class),
+                mock(SessionRewindService.class));
     }
 
     private static SessionGitChanges changes() {

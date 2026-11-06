@@ -19,6 +19,9 @@ class CliChatSupportTest {
         assertThat(CliChatSupport.isCommand("/model fake-demo")).isTrue();
         assertThat(CliChatSupport.isCommand("/diff")).isTrue();
         assertThat(CliChatSupport.isCommand("/undo")).isTrue();
+        assertThat(CliChatSupport.isCommand("/timeline")).isTrue();
+        assertThat(CliChatSupport.isCommand("/compare 2")).isTrue();
+        assertThat(CliChatSupport.isCommand("/rewind 1")).isTrue();
     }
 
     @Test

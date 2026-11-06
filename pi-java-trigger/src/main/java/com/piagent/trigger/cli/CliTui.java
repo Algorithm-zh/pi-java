@@ -96,7 +96,8 @@ public class CliTui {
                 .highlighter(new SlashHighlighter())
                 .option(LineReader.Option.DISABLE_EVENT_EXPANSION, true)
                 .build();
-        CliTerminal cli = CliTerminal.forTui(terminal.writer());
+        CliTerminal cli = CliTerminal.forTui(terminal.writer(),
+                prompt -> readConfirm(reader, prompt));
         Ansi ansi = new Ansi(Ansi.colorCapable());
         printBanner(initial, cli, ansi, terminal);
         ChatSession session = initial;
@@ -145,6 +146,14 @@ public class CliTui {
             return "";
         } catch (EndOfFileException eof) {
             cli.println("");
+            return null;
+        }
+    }
+
+    private static String readConfirm(LineReader reader, String prompt) {
+        try {
+            return reader.readLine(prompt);
+        } catch (UserInterruptException | EndOfFileException error) {
             return null;
         }
     }
