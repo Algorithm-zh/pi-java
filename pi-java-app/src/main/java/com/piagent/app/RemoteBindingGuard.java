@@ -24,8 +24,12 @@ final class RemoteBindingGuard {
      * @throws IllegalStateException 绑定非回环地址但未显式允许
      */
     static void verify(String[] args) {
-        String address = address(args);
-        if (LOOPBACK.contains(address.toLowerCase()) || allowRemote()) {
+        verify(args, System.getenv("PI_SERVER_ADDRESS"), System.getenv("PI_ALLOW_REMOTE"));
+    }
+
+    static void verify(String[] args, String envAddress, String allowRemote) {
+        String address = address(args, envAddress);
+        if (LOOPBACK.contains(address.toLowerCase()) || "true".equalsIgnoreCase(allowRemote)) {
             return;
         }
         throw new IllegalStateException(
@@ -33,18 +37,13 @@ final class RemoteBindingGuard {
                         + "端口可达即可执行工具；如确认需要远程访问，请设置 PI_ALLOW_REMOTE=true。");
     }
 
-    private static String address(String[] args) {
+    private static String address(String[] args, String envAddress) {
         String prefix = "--server.address=";
         for (String arg : args) {
             if (arg.startsWith(prefix)) {
                 return arg.substring(prefix.length()).strip();
             }
         }
-        String fromEnv = System.getenv("PI_SERVER_ADDRESS");
-        return fromEnv == null || fromEnv.isBlank() ? "127.0.0.1" : fromEnv.strip();
-    }
-
-    private static boolean allowRemote() {
-        return "true".equalsIgnoreCase(System.getenv("PI_ALLOW_REMOTE"));
+        return envAddress == null || envAddress.isBlank() ? "127.0.0.1" : envAddress.strip();
     }
 }
