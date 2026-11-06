@@ -116,7 +116,7 @@ class SessionTimelineServiceTest {
         append(new GitCheckpointPayload("run-1", null, "tree-0", "head-0", "main"));
         append(new RunSummaryPayload("run-1", "COMPLETED", TokenUsage.zero(), 1, 0, 100, null));
         EntryId oldLeaf = leaf;
-        append(new BranchSummaryPayload(oldLeaf, "从 10:00 的决策点回退：丢弃 1 轮对话。",
+        EntryId brief = append(new BranchSummaryPayload(oldLeaf, "从 10:00 的决策点回退：丢弃 1 轮对话。",
                 Map.of("kind", "rewind", "checkpointEntryId", oldLeaf.toString(),
                         "runId", "run-1", "discardedEntries", 3, "discardedRuns", 1)));
         moveLeaf();
@@ -128,6 +128,7 @@ class SessionTimelineServiceTest {
         assertThat(timeline.nodes().getLast().kind())
                 .isEqualTo(SessionTimeline.NodeKind.REWIND);
         assertThat(timeline.nodes().getLast().current()).isTrue();
+        assertThat(timeline.nodes().getLast().rewind().entryId()).isEqualTo(brief);
         assertThat(timeline.nodes().getLast().rewind().discardedEntries()).isEqualTo(3);
         assertThat(timeline.nodes().getLast().rewind().discardedRuns()).isEqualTo(1);
         assertThat(timeline.currentCheckpointEntryId()).isNull();

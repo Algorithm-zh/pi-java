@@ -82,11 +82,13 @@ public record SessionTimeline(boolean available, EntryId currentCheckpointEntryI
     /**
      * REWIND 节点的简报。
      *
+     * @param entryId 简报 entry，用于对比时指定这一次回退
      * @param brief 摘要正文
      * @param discardedEntries 被丢弃的原始 entry 数
      * @param discardedRuns 被丢弃的 run 数
      */
-    public record RewindEvidence(String brief, int discardedEntries, int discardedRuns) {
+    public record RewindEvidence(EntryId entryId, String brief, int discardedEntries,
+            int discardedRuns) {
     }
 
     /**

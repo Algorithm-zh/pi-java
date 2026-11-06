@@ -255,7 +255,7 @@ public class SessionTimelineService {
         Map<String, Object> details = payload.details();
         return new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND, null,
                 text(details.get("runId")), entry.createdAt(), false, false, null,
-                new SessionTimeline.RewindEvidence(payload.summary(),
+                new SessionTimeline.RewindEvidence(entry.id(), payload.summary(),
                         number(details.get("discardedEntries")), number(details.get("discardedRuns"))));
     }
 
