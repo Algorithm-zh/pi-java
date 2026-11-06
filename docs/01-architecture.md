@@ -52,7 +52,7 @@ plugin-api     -> JDK
 
 ## 2. Maven 模块
 
-根坐标 `com.piagent:pi-java:0.2.0`，根包 `com.piagent`。
+根坐标 `com.piagent:pi-java:0.3.0`，根包 `com.piagent`。
 
 | 模块 | 允许依赖 | 职责 | 明确禁止 |
 |---|---|---|---|
@@ -165,7 +165,7 @@ tool    ◄──── extension      （插件工具映射为 ToolDescriptor�
 
 ### 5.1 单进程
 
-v0.2 是**单 JVM、单实例**部署：
+v0.3 仍是**单 JVM、单实例**部署：
 
 - Run 注册表、SSE emitter、审批等待者、会话锁都在进程内；
 - 会话一致性依赖“单写者 + 数据库乐观锁”，不依赖分布式锁；

@@ -1,6 +1,6 @@
 # 14 部署、容器与 CI
 
-> 状态：M15 引入（2026-10-26）。本文描述 v0.2.0 的构建产物、Docker 镜像、
+> 状态：M15 引入（2026-10-26）。本文描述 v0.3.0 的构建产物、Docker 镜像、
 > Compose 用法、运行参数与 GitHub Actions 门禁。
 
 ## 1. 构建产物
@@ -9,7 +9,7 @@
 
 ```bash
 mvn -q -DskipTests package
-# pi-java-app/target/pi-java-app-0.2.0.jar
+# pi-java-app/target/pi-java-app-0.3.0.jar
 ```
 
 同一个 jar：
@@ -20,7 +20,7 @@ mvn -q -DskipTests package
 默认数据库落在 `./data`，可用 `PI_DATA_DIR` 改到其它目录：
 
 ```bash
-PI_DATA_DIR=/var/lib/pi-java java -jar pi-java-app-0.2.0.jar
+PI_DATA_DIR=/var/lib/pi-java java -jar pi-java-app-0.3.0.jar
 ```
 
 M16 起图片附件也写入数据目录：`${PI_DATA_DIR}/attachments/<id>.bin` 与
@@ -58,11 +58,11 @@ M19 起 `/api/v1/system/info` 需要登录，不能用于健康检查。
 构建与运行：
 
 ```bash
-docker build -t pi-java:0.2.0 .
+docker build -t pi-java:0.3.0 .
 docker run --rm -p 127.0.0.1:8080:8080 \
   -v "$PWD:/workspace" \
   -v pi-data:/app/data \
-  pi-java:0.2.0
+  pi-java:0.3.0
 ```
 
 注意：

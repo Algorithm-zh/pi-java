@@ -8,7 +8,7 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 它参考 pi 的极简 harness 思路（树形会话日志、扩展、Skills、上下文压缩、内置编码工具），
 并吸收 DeepSeek Harness 的工程经验（日志即事实源、审批管线、失败处理、受限子代理）。
 
-> 当前状态：**M18 仓库地图与代码检索已完成**（2026-10-28，v0.3 第三个里程碑）。已具备树形会话日志、
+> 当前状态：**v0.3.0 已发布**（2026-11-06，M16–M22）。已具备树形会话日志、
 > 模型档案与流式 LLM Gateway（Fake + OpenAI-compatible）、只读与写入工具及路径沙箱、
 > Agent Loop、SSE 事件重放、Web UI 设置中心、审批状态机、结构化上下文压缩、
 > 文件系统 Skills、同步子代理、会话设置与上下文用量仪表，以及工作区检查点、
@@ -26,10 +26,11 @@ pi-java 是一个用 **Java 21** 重写的、**DDD 分层**、**插件化**的 c
 > 提供圆角输入框、中文风险标签与安全默认的审批面板。设计细节见 [界面设计](docs/11-interface-design.md)。
 > 同一个 jar 既是 Web 服务也是 CLI：`pi run`、`pi chat`、`pi sessions/models/tools`、
 > `pi serve` 共用同一 Spring 容器、数据库、插件与审批管线。
-> v0.2 从 M12 开始：已接入 MCP（stdio/Streamable HTTP）动态工具、Git 检查点、
-> 计划/待办/自动验证，以及 GitHub Actions、Docker 镜像与 OpenAPI 文档。
-> `v0.2.0` tag 与 GitHub Release 已发布（2026-10-26）；v0.3 从 M16 的图片输入、
-> M17 的附件生命周期与 M18 的仓库地图开始。
+> v0.3 起 Web 与 HTTP API 需要登录：首次启动创建管理员，任何用户可自助注册并拥有
+> 个人空间，也能创建团队空间、邀请已有账号；会话、策略、审批与附件按空间隔离。
+> 决策时间线把每次运行的意图、计划、审批、验证与改动摆在一起，可预览并回退到任意
+> 检查点，对话与工作区一起退回，回溯简报会进入下一轮上下文。
+> `v0.3.0` tag 与 GitHub Release 已发布（2026-11-06）；下一步候选见 [路线图](docs/08-roadmap.md)。
 
 ![欢迎页与示例任务](docs/images/welcome.png)
 
@@ -68,7 +69,7 @@ $env:PI_DEEPSEEK_KEY = "sk-你的key"   # 可选；不设则只能用 Fake 离�
 
 ```bash
 mvn -q -DskipTests package
-java -jar pi-java-app/target/pi-java-app-0.2.0.jar
+java -jar pi-java-app/target/pi-java-app-0.3.0.jar
 ```
 
 打开 <http://127.0.0.1:8080>：首次启动先创建管理员（登录名 + 至少 8 位密码），
@@ -98,9 +99,9 @@ java -jar pi-java-app/target/pi-java-app-0.2.0.jar
 docker compose up --build
 
 # 或手动构建/运行
-docker build -t pi-java:0.2.0 .
+docker build -t pi-java:0.3.0 .
 docker run --rm -p 127.0.0.1:8080:8080 \
-  -v "$PWD:/workspace" -v pi-data:/app/data pi-java:0.2.0
+  -v "$PWD:/workspace" -v pi-data:/app/data pi-java:0.3.0
 ```
 
 MySQL 变体、环境变量与安全说明见 [部署、容器与 CI](docs/14-deployment.md)。
@@ -110,7 +111,7 @@ MySQL 变体、环境变量与安全说明见 [部署、容器与 CI](docs/14-de
 同一个 jar 既启动 Web，也提供命令行入口；不带参数仍是 Web 服务。
 
 ```bash
-JAR=pi-java-app/target/pi-java-app-0.2.0.jar
+JAR=pi-java-app/target/pi-java-app-0.3.0.jar
 
 java -jar $JAR run "读取 pom.xml 并总结依赖" --cwd D:/code/demo
 java -jar $JAR run "跑一遍测试并总结失败" --json --timeout 900
@@ -165,7 +166,7 @@ mvn -q -pl examples/pi-plugin-example -am package
 
 curl -X POST http://127.0.0.1:8080/api/v1/plugins \
   -H 'Content-Type: application/json' \
-  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.2.0.jar"}'
+  -d '{"jarPath":"D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.3.0.jar"}'
 curl -X POST http://127.0.0.1:8080/api/v1/plugins/com.piagent.example.hello/enable
 ```
 
@@ -245,6 +246,7 @@ Checkstyle/ArchUnit 通过。
 - [Git 检查点与撤销](docs/12-git.md)
 - [计划、待办与自动验证](docs/13-plans-and-verification.md)
 - [部署、容器与 CI](docs/14-deployment.md)
+- [v0.3.0 发布说明](docs/releases/v0.3.0.md)
 - [v0.2.0 发布说明](docs/releases/v0.2.0.md)
 - [M0 里程碑记录](docs/milestones/M0.md)
 - [M1 里程碑记录](docs/milestones/M1.md)
@@ -267,6 +269,8 @@ Checkstyle/ArchUnit 通过。
 - [M18 里程碑记录（仓库地图与代码检索）](docs/milestones/M18.md)
 - [M19 里程碑记录（多租户与最小鉴权）](docs/milestones/M19.md)
 - [M20 里程碑记录（登录免选空间、自助注册与空间软删除）](docs/milestones/M20.md)
+- [M21 里程碑记录（个人空间与团队协作）](docs/milestones/M21.md)
+- [M22 里程碑记录（决策时间线与任意检查点回溯）](docs/milestones/M22.md)
 
 架构决策：
 

@@ -614,7 +614,8 @@ GET /api/v1/attachments/{id}
 - 未被任何 `pi_session_entry.payload_json` 引用、且超过 `pi.attachments.gc-min-age`
   （默认 `1h`）的附件会被每日 03:40 的回收任务删除；删除会话后其图片会自然变成
   孤儿，在宽限期后被回收；
-- v0.2 无鉴权，附件与其它接口一样只应通过回环地址访问。
+- M19 起附件接口需要登录，下载同样按空间隔离；仍建议只通过回环地址或 HTTPS
+  反向代理访问。
 
 ```http
 GET /api/v1/attachments/stats
@@ -808,7 +809,7 @@ POST /api/v1/plugins/{id}/disable
 
 ```json
 {
-  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.2.0.jar",
+  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.3.0.jar",
   "config": {}
 }
 ```
@@ -822,7 +823,7 @@ POST /api/v1/plugins/{id}/disable
   "id": "com.piagent.example.hello",
   "version": "1.0.0",
   "apiVersion": "1.0",
-  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.2.0.jar",
+  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.3.0.jar",
   "status": "INSTALLED",
   "lastError": null,
   "installedAt": "2026-10-22T08:00:00Z",
@@ -855,7 +856,7 @@ GET /api/v1/system/info
 
 ```json
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "workspaceRoot": "D:\\code\\pi-java",
   "osName": "Windows 11"
 }

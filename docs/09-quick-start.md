@@ -8,7 +8,7 @@ JDK 路径、环境变量名和模型档案参数。
 | 项目 | 要求 | 检查方式 |
 |---|---|---|
 | JDK | 21 或更高 | 脚本会自动探测，无需手动配置 |
-| 构建产物 | `pi-java-app/target/pi-java-app-0.2.0.jar` | `mvn -q -DskipTests package` |
+| 构建产物 | `pi-java-app/target/pi-java-app-0.3.0.jar` | `mvn -q -DskipTests package` |
 | Git（可选） | 工作区是本机 Git 仓库时才有“本轮改动”与撤销 | `git --version` |
 | API Key | 可选；不设置时只能用 Fake 离线模型 | 见下文 |
 
@@ -108,7 +108,7 @@ $env:PI_DEEPSEEK_KEY = "sk-你的key"
 CLI 与 Web 共用同一个 Spring 容器、数据库、工作目录校验与审批管线。
 
 ```powershell
-$Jar = "pi-java-app\target\pi-java-app-0.2.0.jar"
+$Jar = "pi-java-app\target\pi-java-app-0.3.0.jar"
 
 # 单次执行：默认流式输出
 & $Java $Jar run "读取 pom.xml 并总结依赖" --cwd D:\code\demo

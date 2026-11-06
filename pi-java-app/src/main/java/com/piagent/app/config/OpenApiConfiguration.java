@@ -23,7 +23,7 @@ public class OpenApiConfiguration {
      * @return OpenAPI 文档
      */
     @Bean
-    public OpenAPI piJavaOpenApi(@Value("${pi.version:0.2.0}") String version) {
+    public OpenAPI piJavaOpenApi(@Value("${pi.version:0.3.0}") String version) {
         return new OpenAPI().info(new Info()
                 .title("pi-java")
                 .version(version)

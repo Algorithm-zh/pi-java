@@ -59,7 +59,7 @@ mybatis:
 
 # 运行时参数。全部有安全默认值，后续里程碑由配置绑定逐步消费。
 pi:
-  version: "0.2.0"
+  version: "0.3.0"
   auth:
     # 会话令牌有效期；浏览器 HttpOnly Cookie 与 Bearer 令牌共用该期限。
     token-ttl: 7d

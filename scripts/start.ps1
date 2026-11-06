@@ -42,7 +42,7 @@ Set-StrictMode -Version Latest
 
 # ── 路径与可调参数 ────────────────────────────────────────────────────────────
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.2.0.jar"
+$JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.3.0.jar"
 $BaseUrl = "http://127.0.0.1:$Port/api/v1"
 
 # 就绪探测必须用公开接口：M19 起除 auth/state、setup、login、logout 外的
