@@ -523,6 +523,154 @@
     cursor: default;
 }
 
+/* ---------- 分叉对比 ---------- */
+
+.timeline-compare {
+    width: 100%;
+    height: 30px;
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xs);
+    background: var(--surface-soft);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.timeline-compare:hover {
+    border-color: var(--accent);
+    color: var(--accent-strong);
+}
+
+.compare-dialog {
+    width: min(860px, 96vw);
+}
+
+.compare-shell {
+    gap: 14px;
+}
+
+.compare-summary {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.65;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.compare-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 68vh;
+}
+
+.compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.compare-side {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xs);
+    background: var(--surface-soft);
+}
+
+.compare-side h3,
+.compare-files > h3 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.compare-section-title {
+    margin: 10px 0 5px;
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.compare-side-body > .compare-section-title:first-child {
+    margin-top: 0;
+}
+
+.compare-list {
+    margin: 0;
+    padding-left: 17px;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.compare-list li.is-warn {
+    color: var(--danger);
+}
+
+.compare-decisions {
+    margin-top: 0;
+}
+
+.compare-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 2px;
+}
+
+.compare-fact {
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.compare-fact.is-warn {
+    color: var(--danger);
+}
+
+.compare-empty {
+    margin: 4px 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.compare-files {
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+}
+
+.compare-file-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.compare-file-group {
+    min-width: 0;
+}
+
+.compare-file-list {
+    max-height: 150px;
+    overflow: auto;
+    font: 11.5px/1.6 var(--mono);
+}
+
+.compare-file-list li {
+    list-style: none;
+}
+
 /* ---------- 窄屏：底部抽屉 ---------- */
 
 @media (max-width: 720px) {
@@ -551,5 +699,13 @@
 
     .timeline-panel.open {
         transform: none;
+    }
+
+    .compare-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .compare-body {
+        max-height: 70vh;
     }
 }

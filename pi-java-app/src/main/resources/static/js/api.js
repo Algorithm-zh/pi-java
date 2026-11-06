@@ -290,6 +290,19 @@ export function sessionTimeline(sessionId) {
 }
 
 /**
+ * 对比当前分支与最近一次（或指定一次）回退前的分支。
+ *
+ * @param {string} sessionId 会话 ID
+ * @param {string} [rewindEntryId] 回退简报 entry；省略时取最近一次
+ * @returns {Promise<object>} 两侧投影与文件差异
+ */
+export function sessionComparison(sessionId, rewindEntryId) {
+    const query = rewindEntryId
+        ? `?rewind=${encodeURIComponent(rewindEntryId)}` : "";
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/comparison${query}`);
+}
+
+/**
  * 预览或执行回退到任意检查点。
  *
  * @param {string} sessionId 会话 ID

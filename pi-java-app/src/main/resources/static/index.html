@@ -697,6 +697,38 @@
     </div>
 </dialog>
 
+<dialog id="compare-dialog" class="timeline-preview compare-dialog"
+        aria-modal="true" aria-labelledby="compare-title">
+    <div class="timeline-preview-shell compare-shell">
+        <header class="timeline-preview-head">
+            <div>
+                <p class="timeline-kicker">分叉对比</p>
+                <h2 id="compare-title">两条分支的差别</h2>
+                <p id="compare-summary" class="compare-summary"></p>
+            </div>
+            <button id="compare-close" class="icon-button" type="button"
+                    aria-label="关闭">×</button>
+        </header>
+        <div class="timeline-preview-body compare-body">
+            <div class="compare-grid">
+                <section class="compare-side" aria-labelledby="compare-abandoned-title">
+                    <h3 id="compare-abandoned-title">被放弃的分支</h3>
+                    <div id="compare-abandoned" class="compare-side-body"></div>
+                </section>
+                <section class="compare-side" aria-labelledby="compare-current-title">
+                    <h3 id="compare-current-title">当前分支</h3>
+                    <div id="compare-current" class="compare-side-body"></div>
+                </section>
+            </div>
+            <section class="compare-files" aria-labelledby="compare-files-title">
+                <h3 id="compare-files-title">文件差异</h3>
+                <div id="compare-files" class="compare-file-groups"></div>
+            </section>
+            <p id="compare-error" class="dialog-error hidden"></p>
+        </div>
+    </div>
+</dialog>
+
 <template id="timeline-brief-template">
     <details class="history-note rewind-note" open>
         <summary>

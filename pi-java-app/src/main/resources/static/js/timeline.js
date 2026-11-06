@@ -19,6 +19,7 @@ let reloadHandler = null;
 let requestId = 0;
 let previewId = 0;
 let historyRequestId = 0;
+let compareRequestId = 0;
 let historyView = null;
 const historyStack = [];
 
@@ -68,6 +69,11 @@ export function initTimeline() {
     dom.rewindHistoryDialog?.addEventListener("close", () => {
         historyRequestId++;
         clearHistory();
+    });
+    dom.compareClose?.addEventListener("click", () => closeCompare());
+    dom.compareDialog?.addEventListener("close", () => {
+        compareRequestId++;
+        clearCompare();
     });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !dom.timelinePreview?.open) {
@@ -130,6 +136,7 @@ export function reset() {
     requestId++;
     previewId++;
     closeHistory();
+    closeCompare();
     phase = "closed";
     timeline = null;
     loadedSessionId = null;
@@ -257,6 +264,183 @@ function clearHistory() {
     dom.rewindHistoryBody?.replaceChildren();
     setHistoryError("");
     updateHistoryChrome();
+}
+
+/**
+ * 打开某一次回退的分叉对比。只读，不会改变当前分支。
+ *
+ * @param {string} rewindEntryId 回退简报 entry
+ */
+async function openCompare(rewindEntryId) {
+    const sessionId = state.session?.id;
+    if (!sessionId || !rewindEntryId || !dom.compareDialog) {
+        return;
+    }
+    const token = ++compareRequestId;
+    dom.compareSummary.textContent = "正在读取两条分支…";
+    dom.compareAbandoned?.replaceChildren();
+    dom.compareCurrent?.replaceChildren();
+    dom.compareFiles?.replaceChildren();
+    setCompareError("");
+    if (!dom.compareDialog.open) {
+        dom.compareDialog.showModal();
+    }
+    try {
+        const value = await api.sessionComparison(sessionId, rewindEntryId);
+        if (token !== compareRequestId || state.session?.id !== sessionId) {
+            return;
+        }
+        renderCompare(value);
+    } catch (error) {
+        if (token !== compareRequestId) {
+            return;
+        }
+        dom.compareSummary.textContent = "";
+        dom.compareAbandoned?.replaceChildren();
+        dom.compareCurrent?.replaceChildren();
+        dom.compareFiles?.replaceChildren();
+        setCompareError(error?.status === 409
+            ? "这条回退已经不在当前分支上，无法对比。"
+            : (error.message || "读取分叉对比失败"));
+    }
+}
+
+function closeCompare() {
+    compareRequestId++;
+    if (dom.compareDialog?.open) {
+        dom.compareDialog.close();
+    }
+    clearCompare();
+}
+
+function clearCompare() {
+    if (dom.compareSummary) {
+        dom.compareSummary.textContent = "";
+    }
+    dom.compareAbandoned?.replaceChildren();
+    dom.compareCurrent?.replaceChildren();
+    dom.compareFiles?.replaceChildren();
+    setCompareError("");
+}
+
+function setCompareError(message) {
+    if (!dom.compareError) {
+        return;
+    }
+    dom.compareError.textContent = message || "";
+    dom.compareError.classList.toggle("hidden", !message);
+}
+
+function renderCompare(value) {
+    if (!value?.available) {
+        dom.compareSummary.textContent = "这个会话还没有回退，暂时没有可对比的分支。";
+        renderCompareSide(dom.compareAbandoned, null);
+        renderCompareSide(dom.compareCurrent, null);
+        dom.compareFiles.replaceChildren(
+            el("p", "compare-empty", "回退一次之后，这里会显示两条分支的差别。"));
+        return;
+    }
+    dom.compareSummary.textContent = value.summary || "";
+    renderCompareSide(dom.compareAbandoned, value.abandoned);
+    renderCompareSide(dom.compareCurrent, value.current);
+    renderCompareFiles(value.files || {});
+}
+
+function renderCompareSide(container, side) {
+    if (!container) {
+        return;
+    }
+    container.replaceChildren();
+    const intents = Array.isArray(side?.intents) ? side.intents : [];
+    const files = Array.isArray(side?.files) ? side.files : [];
+    const denied = Array.isArray(side?.approvals?.deniedTools)
+        ? side.approvals.deniedTools : [];
+    const failed = Array.isArray(side?.verifications?.failedCommands)
+        ? side.verifications.failedCommands : [];
+    const unfinished = Array.isArray(side?.plan?.unfinished)
+        ? side.plan.unfinished : [];
+    if (!intents.length && !Number(side?.runs) && !files.length
+            && !denied.length && !failed.length && !unfinished.length) {
+        container.append(el("p", "compare-empty", "没有后续动作"));
+        return;
+    }
+    if (intents.length) {
+        container.append(compareSection("意图"));
+        const list = el("ul", "compare-list");
+        for (const intent of intents) {
+            list.append(el("li", "", intent));
+        }
+        container.append(list);
+    }
+    const facts = el("div", "compare-facts");
+    facts.append(el("span", "compare-fact", `${Number(side?.turns) || 0} 轮对话`),
+        el("span", "compare-fact", `${Number(side?.runs) || 0} 个 run`));
+    if (Number(side?.approvals?.denied) > 0) {
+        facts.append(el("span", "compare-fact is-warn",
+            `${side.approvals.denied} 次拒绝`));
+    }
+    if (Number(side?.verifications?.failed) > 0) {
+        facts.append(el("span", "compare-fact is-warn",
+            `${side.verifications.failed} 次验证失败`));
+    }
+    container.append(facts);
+    const decisions = el("ul", "compare-list compare-decisions");
+    for (const tool of denied) {
+        decisions.append(el("li", "is-warn", `拒绝 ${tool}`));
+    }
+    for (const command of failed) {
+        decisions.append(el("li", "is-warn", `验证失败 · ${command}`));
+    }
+    for (const item of unfinished) {
+        decisions.append(el("li", "", `未完成 · ${item}`));
+    }
+    if (decisions.childElementCount) {
+        container.append(compareSection("关键决定"), decisions);
+    }
+    if (files.length) {
+        container.append(compareSection("文件"));
+        const list = el("ul", "compare-list compare-file-list");
+        for (const file of files) {
+            list.append(el("li", "", `${file.path}  +${file.additions} −${file.deletions}`));
+        }
+        container.append(list);
+    }
+}
+
+function renderCompareFiles(files) {
+    if (!dom.compareFiles) {
+        return;
+    }
+    dom.compareFiles.replaceChildren();
+    const groups = [
+        ["仅旧分支", files.onlyAbandoned],
+        ["仅当前分支", files.onlyCurrent],
+        ["两边都改过", files.both]
+    ];
+    let shown = 0;
+    for (const [label, paths] of groups) {
+        if (!Array.isArray(paths) || !paths.length) {
+            continue;
+        }
+        shown++;
+        const group = el("div", "compare-file-group");
+        group.append(compareSection(`${label} · ${paths.length}`));
+        const list = el("ul", "compare-list compare-file-list");
+        for (const path of paths) {
+            list.append(el("li", "", path));
+        }
+        group.append(list);
+        dom.compareFiles.append(group);
+    }
+    if (!shown) {
+        dom.compareFiles.append(el("p", "compare-empty", "两条分支没有文件差异。"));
+    } else if (files.truncated) {
+        dom.compareFiles.append(el("p", "compare-empty", "文件过多，列表已截断。"));
+    }
+}
+
+function compareSection(title) {
+    return el("h4", "compare-section-title", title);
 }
 
 function setHistoryError(message) {
@@ -393,6 +577,12 @@ function renderNode(node) {
             el("span", "timeline-meta",
                 `丢弃 ${node.discardedEntries || 0} 条记录 · `
                 + `${node.discardedRuns || 0} 次运行`));
+        if (node.rewindEntryId) {
+            const compare = el("button", "timeline-compare", "对比两条分支");
+            compare.type = "button";
+            compare.dataset.compare = node.rewindEntryId;
+            card.append(compare);
+        }
     }
     if (node.rewindable && node.checkpointEntryId) {
         const button = el("button", "timeline-rewind", "回到这次运行之前");
@@ -589,6 +779,11 @@ function changeKindLabel(kind) {
 
 function onListClick(event) {
     if (!(event.target instanceof Element)) {
+        return;
+    }
+    const compare = event.target.closest("button[data-compare]");
+    if (compare) {
+        openCompare(compare.dataset.compare);
         return;
     }
     const button = event.target.closest("button[data-checkpoint]");
