@@ -169,8 +169,9 @@ class SessionTimelineControllerTest {
 
     @Test
     void rendersRewindNode() throws Exception {
+        EntryId briefEntry = EntryId.parse("01TST000000000000000000042");
         SessionTimeline.RewindEvidence rewind = new SessionTimeline.RewindEvidence(
-                "从 14:32 的决策点回退", 3, 1);
+                briefEntry, "从 14:32 的决策点回退", 3, 1);
         SessionTimeline.Node node = new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND,
                 null, "run-1", Instant.parse("2026-11-05T10:05:00Z"), true, false, null, rewind);
         when(timelines.timeline(SESSION_ID))
@@ -185,6 +186,7 @@ class SessionTimelineControllerTest {
         JsonNode rewindNode = body.path("nodes").get(0);
         assertThat(rewindNode.path("type").asText()).isEqualTo("REWIND");
         assertThat(rewindNode.path("checkpointEntryId").isNull()).isTrue();
+        assertThat(rewindNode.path("rewindEntryId").asText()).isEqualTo(briefEntry.toString());
         assertThat(rewindNode.path("brief").asText()).isEqualTo("从 14:32 的决策点回退");
         assertThat(rewindNode.path("discardedEntries").asInt()).isEqualTo(3);
         assertThat(rewindNode.path("discardedRuns").asInt()).isEqualTo(1);

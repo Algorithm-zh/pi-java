@@ -29,6 +29,7 @@ public record SessionTimelineResponse(boolean available, String currentCheckpoin
      *
      * @param type RUN 或 REWIND
      * @param checkpointEntryId 检查点 entry；REWIND 节点为 null
+     * @param rewindEntryId 回溯简报 entry；RUN 节点为 null
      * @param runId run 标识；REWIND 简报没有对应 run 时为空串
      * @param at 节点时间
      * @param current 是否包含当前叶子
@@ -46,7 +47,8 @@ public record SessionTimelineResponse(boolean available, String currentCheckpoin
      * @param discardedRuns 被丢弃的 run 数；RUN 节点为 0
      * @param evidence 可展开的证据；REWIND 节点为 null
      */
-    public record NodeResponse(String type, String checkpointEntryId, String runId, String at,
+    public record NodeResponse(String type, String checkpointEntryId, String rewindEntryId,
+            String runId, String at,
             boolean current, boolean rewindable, String intent, PlanSummaryView plan,
             ApprovalSummaryView approvals, VerificationSummaryView verification,
             ChangeSummaryView changes, String stopReason, int turns, int toolCalls,
@@ -122,6 +124,7 @@ public record SessionTimelineResponse(boolean available, String currentCheckpoin
         SessionTimeline.RewindEvidence rewind = node.rewind();
         SessionTimeline.Stats stats = run == null ? null : run.stats();
         return new NodeResponse(node.kind().name(), id(node.checkpointEntryId()),
+                rewind == null ? null : id(rewind.entryId()),
                 node.runId(), node.at().toString(), node.current(), node.rewindable(),
                 run == null ? "" : run.intent(),
                 stats == null ? null : new PlanSummaryView(stats.plan().total(),
