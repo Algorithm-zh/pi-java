@@ -23,7 +23,7 @@ export async function render(container) {
     ]);
     container.replaceChildren();
     container.append(sectionHeader("运行环境",
-        "登录使用 HttpOnly Cookie；会话、工具策略与附件按空间隔离。", []));
+        "单用户本地运行；会话、工具策略与附件都保存在本机。", []));
     container.append(definitionList([
         ["应用版本", info.version],
         ["操作系统", info.osName],
@@ -82,8 +82,9 @@ function securityNotes() {
     box.append(el("strong", "", "安全边界"));
     const list = el("ul", "settings-note-list");
     for (const note of [
-        "服务默认绑定 127.0.0.1；对外暴露时请放在 HTTPS 反向代理之后，Cookie 才会带 Secure 标记。",
-        "所有 /api 接口都要求登录；会话、工具策略、附件与审批按空间隔离。",
+        "服务默认绑定 127.0.0.1；没有登录边界，能访问端口就能执行工具。",
+        "确需监听其他地址时必须设置 PI_ALLOW_REMOTE=true，并自行保证网络隔离。",
+        "审批在本机进行，决策记录为 local；重启后未处理的审批会自动过期。",
         "模型密钥只从环境变量读取；数据库只保存变量名，接口只返回是否已配置。",
         "文件工具被限制在会话工作目录内，越界路径会直接失败。",
         "写文件、编辑与命令执行默认进入审批，除非工具策略显式改为 ALLOW。",

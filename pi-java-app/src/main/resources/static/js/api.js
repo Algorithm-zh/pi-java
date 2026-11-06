@@ -16,7 +16,7 @@ export class ApiError extends Error {
 
 async function request(path, init = {}) {
     const response = await fetch(path, init);
-    await ensureOk(response, path);
+    await ensureOk(response);
     if (response.status === 204) {
         return null;
     }
@@ -24,18 +24,10 @@ async function request(path, init = {}) {
     return type.includes("application/json") ? response.json() : response.text();
 }
 
-/*
- * 统一处理鉴权失败：登录接口自身的 401 是密码错误，其余 401 表示会话过期，
- * 交给登录门禁接管，避免各调用点各写一遍。
- */
-async function ensureOk(response, path) {
-    if (response.ok) {
-        return;
+async function ensureOk(response) {
+    if (!response.ok) {
+        throw await toError(response);
     }
-    if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
-        window.dispatchEvent(new CustomEvent("pi-auth-required"));
-    }
-    throw await toError(response);
 }
 
 async function toError(response) {
@@ -60,156 +52,6 @@ export function systemInfo() {
 }
 
 /**
- * 查询初始化与登录状态；不需要令牌。
- *
- * @returns {Promise<{initialized: boolean, authenticated: boolean, user: object|null}>}
- *     状态
- */
-export function authState() {
-    return request("/api/v1/auth/state");
-}
-
-/**
- * 首次创建管理员并直接登录。
- *
- * @param {{username: string, displayName?: string, password: string}} payload 管理员信息
- * @returns {Promise<{token: string, user: object}>} 登录会话
- */
-export function setupAdmin(payload) {
-    return request("/api/v1/auth/setup", jsonInit("POST", payload));
-}
-
-/**
- * 登录。不填空间短名时由服务端按成员关系定位；账号属于多个空间会返回 409
- * 并附带可点选的空间清单。
- *
- * @param {{tenantSlug?: string, username: string, password: string}} payload 凭据
- * @returns {Promise<{token: string, user: object}>} 登录会话
- */
-export function login(payload) {
-    return request("/api/v1/auth/login", jsonInit("POST", payload));
-}
-
-/**
- * 切换到当前账号已加入的另一个空间；旧令牌立即失效。
- *
- * @param {string} tenantSlug 目标空间短名
- * @returns {Promise<{token: string, user: object}>} 新登录会话
- */
-export function switchSpace(tenantSlug) {
-    return request("/api/v1/auth/switch", jsonInit("POST", { tenantSlug }));
-}
-
-/**
- * 自助注册成员账号并直接登录。
- *
- * @param {{username: string, displayName?: string, password: string}} payload 账号信息
- * @returns {Promise<{token: string, user: object}>} 登录会话
- */
-export function register(payload) {
-    return request("/api/v1/auth/register", jsonInit("POST", payload));
-}
-
-/**
- * 退出登录并清除 Cookie。
- *
- * @returns {Promise<null>} 204 无响应体
- */
-export function logout() {
-    return request("/api/v1/auth/logout", { method: "POST" });
-}
-
-/**
- * 查询当前登录账号。
- *
- * @returns {Promise<object>} 账号与租户信息
- */
-export function currentUser() {
-    return request("/api/v1/auth/me");
-}
-
-/**
- * 查询当前账号加入的空间，包含已归档空间。
- *
- * @returns {Promise<Array<{id: string, slug: string, name: string, kind: string,
- *     role: string, deletedAt: string|null}>>} 空间列表
- */
-export function listTenants() {
-    return request("/api/v1/tenants");
-}
-
-/**
- * 创建团队空间，创建者自动成为管理员。
- *
- * @param {{slug: string, name: string}} payload 空间信息
- * @returns {Promise<object>} 新空间
- */
-export function createTenant(payload) {
-    return request("/api/v1/tenants", jsonInit("POST", payload));
-}
-
-/**
- * 归档（软删除）空间，仅管理员可用。
- *
- * @param {string} id 空间标识
- * @returns {Promise<null>} 204 无响应体
- */
-export function deleteTenant(id) {
-    return request(`/api/v1/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
-}
-
-/**
- * 恢复已归档的空间，仅管理员可用。
- *
- * @param {string} id 空间标识
- * @returns {Promise<null>} 204 无响应体
- */
-export function restoreTenant(id) {
-    return request(`/api/v1/tenants/${encodeURIComponent(id)}/restore`, { method: "POST" });
-}
-
-/**
- * 查询当前空间的成员，仅空间管理员可用。
- *
- * @returns {Promise<Array<object>>} 成员列表
- */
-export function listUsers() {
-    return request("/api/v1/users");
-}
-
-/**
- * 在当前空间创建账号，仅空间管理员可用；新账号同时获得个人空间。
- *
- * @param {object} payload 账号信息
- * @returns {Promise<object>} 新账号
- */
-export function createUser(payload) {
-    return request("/api/v1/users", jsonInit("POST", payload));
-}
-
-/**
- * 按登录名查找可邀请进当前空间的已有账号，仅空间管理员可用。
- *
- * @param {string} username 登录名
- * @returns {Promise<Array<{id: string, username: string, displayName: string}>>} 匹配账号
- */
-export function lookupUsers(username) {
-    return request(`/api/v1/users/lookup?username=${encodeURIComponent(username)}`);
-}
-
-/**
- * 把已有账号邀请进空间，仅该空间管理员可用。
- *
- * @param {string} tenantId 空间标识
- * @param {{userId: string, role: string}} payload 账号与角色
- * @returns {Promise<object>} 新成员
- */
-export function inviteMember(tenantId, payload) {
-    return request(`/api/v1/tenants/${encodeURIComponent(tenantId)}/members`,
-        jsonInit("POST", payload));
-}
-
-/**
  * 上传一张图片附件。
  *
  * @param {File} file 浏览器文件对象
@@ -224,7 +66,7 @@ export async function uploadAttachment(file) {
         headers: { Accept: "application/json" },
         body
     });
-    await ensureOk(response, "/api/v1/attachments");
+    await ensureOk(response);
     return response.json();
 }
 
@@ -596,7 +438,7 @@ export async function streamMessage(sessionId, text, attachmentIds, onEvent, sig
             body: JSON.stringify({ text, attachmentIds }),
             signal
         });
-    await ensureOk(response, `/api/v1/sessions/${sessionId}/messages/stream`);
+    await ensureOk(response);
     await readSse(response, onEvent);
 }
 
@@ -616,7 +458,7 @@ export async function attachRun(runId, onEvent, signal) {
         },
         signal
     });
-    await ensureOk(response, `/api/v1/runs/${runId}/events`);
+    await ensureOk(response);
     await readSse(response, onEvent);
 }
 

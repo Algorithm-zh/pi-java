@@ -5,7 +5,6 @@
  * 变成一个巨量脚本。
  */
 
-import * as account from "./settings-account.js";
 import * as models from "./settings-models.js";
 import * as skills from "./settings-skills.js";
 import * as plugins from "./settings-plugins.js";
@@ -18,7 +17,6 @@ const LOADERS = {
     skills: skills.render,
     plugins: plugins.render,
     policies: policies.render,
-    account: account.render,
     system: system.render
 };
 
@@ -27,7 +25,6 @@ const TAB_LABELS = {
     skills: "技能",
     plugins: "插件",
     policies: "工具策略",
-    account: "账号与空间",
     system: "系统信息"
 };
 

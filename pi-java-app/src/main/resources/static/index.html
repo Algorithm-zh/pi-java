@@ -29,121 +29,7 @@
     <link rel="stylesheet" href="/css/settings.css">
 </head>
 <body>
-<div id="auth-gate" class="auth-gate">
-    <div class="auth-card">
-        <div class="auth-brand">
-            <span class="auth-mark" aria-hidden="true">π</span>
-            <div class="auth-brand-copy">
-                <strong>pi-java</strong>
-                <span>你的本地编程搭档</span>
-            </div>
-        </div>
-        <p id="auth-checking" class="auth-checking">正在检查登录状态…</p>
-        <section id="auth-login" class="auth-panel hidden">
-            <header>
-                <h1>欢迎回来</h1>
-                <p id="auth-login-lead">输入账号和密码，自动回到上次的空间。</p>
-            </header>
-            <form id="auth-login-form">
-                <label class="auth-field">
-                    <span>账号</span>
-                    <input id="login-username" type="text" name="username"
-                           autocomplete="username" required autofocus>
-                </label>
-                <label class="auth-field">
-                    <span>密码</span>
-                    <input id="login-password" type="password" name="password"
-                           autocomplete="current-password" required>
-                </label>
-                <div id="login-tenant-picker" class="auth-picker hidden">
-                    <p class="auth-picker-lead">这个账号同时属于多个空间，选择一个进入：</p>
-                    <div id="login-tenant-choices" class="auth-choices"></div>
-                    <label class="auth-field auth-field-compact">
-                        <span>也可以直接填写空间短名</span>
-                        <input id="login-tenant" type="text" name="tenant"
-                               autocomplete="organization" placeholder="例如 team-b"
-                               maxlength="32">
-                    </label>
-                </div>
-                <p id="login-error" class="auth-error hidden"></p>
-                <button id="login-submit" class="primary-button auth-submit" type="submit">登录</button>
-            </form>
-            <p id="auth-register-entry" class="auth-switch">还没有账号？
-                <button id="show-register" class="auth-link" type="button">创建一个</button>
-            </p>
-        </section>
-        <section id="auth-register" class="auth-panel hidden">
-            <header>
-                <h1>创建账号</h1>
-                <p>新账号会先拥有自己的个人空间，之后可以加入团队空间。</p>
-            </header>
-            <form id="auth-register-form">
-                <label class="auth-field">
-                    <span>账号</span>
-                    <input id="register-username" type="text" name="username"
-                           autocomplete="username" required>
-                </label>
-                <label class="auth-field">
-                    <span>显示名 <em>可选</em></span>
-                    <input id="register-display" type="text" name="displayName"
-                           autocomplete="nickname" maxlength="64">
-                </label>
-                <label class="auth-field">
-                    <span>密码 <em>至少 8 位</em></span>
-                    <input id="register-password" type="password" name="password"
-                           autocomplete="new-password" minlength="8" required>
-                </label>
-                <label class="auth-field">
-                    <span>确认密码</span>
-                    <input id="register-confirm" type="password" name="confirm"
-                           autocomplete="new-password" minlength="8" required>
-                </label>
-                <p id="register-error" class="auth-error hidden"></p>
-                <button id="register-submit" class="primary-button auth-submit" type="submit">
-                    创建并进入
-                </button>
-            </form>
-            <p class="auth-switch">已经有账号？
-                <button id="show-login" class="auth-link" type="button">返回登录</button>
-            </p>
-        </section>
-        <section id="auth-setup" class="auth-panel hidden">
-            <header>
-                <h1>第一次使用</h1>
-                <p>创建管理员账号，它会成为整个实例的初始管理员，同时获得你的个人空间。</p>
-            </header>
-            <form id="auth-setup-form">
-                <label class="auth-field">
-                    <span>账号</span>
-                    <input id="setup-username" type="text" name="username"
-                           autocomplete="username" required>
-                </label>
-                <label class="auth-field">
-                    <span>显示名 <em>可选</em></span>
-                    <input id="setup-display" type="text" name="displayName"
-                           autocomplete="nickname" maxlength="64">
-                </label>
-                <label class="auth-field">
-                    <span>密码 <em>至少 8 位</em></span>
-                    <input id="setup-password" type="password" name="password"
-                           autocomplete="new-password" minlength="8" required>
-                </label>
-                <label class="auth-field">
-                    <span>确认密码</span>
-                    <input id="setup-confirm" type="password" name="confirm"
-                           autocomplete="new-password" minlength="8" required>
-                </label>
-                <p id="setup-error" class="auth-error hidden"></p>
-                <button id="setup-submit" class="primary-button auth-submit" type="submit">
-                    创建并进入
-                </button>
-            </form>
-        </section>
-        <p class="auth-foot">账号与数据只保存在本机数据库中。</p>
-    </div>
-</div>
-
-<div class="app hidden" id="app-shell">
+<div class="app" id="app-shell">
     <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
     <aside id="sidebar" class="sidebar">
         <div class="sidebar-head">
@@ -196,22 +82,6 @@
         <nav id="session-list" class="session-list" aria-label="会话列表"></nav>
 
         <div class="sidebar-footer">
-            <div id="account-card" class="account-card hidden">
-                <span id="account-avatar" class="account-avatar" aria-hidden="true"></span>
-                <div class="account-copy">
-                    <strong id="account-name">—</strong>
-                    <span id="account-tenant"></span>
-                </div>
-                <button id="logout-button" class="icon-button mini-icon" type="button"
-                        title="退出登录" aria-label="退出登录">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                         stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                         stroke-linejoin="round" aria-hidden="true">
-                        <path d="M9 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H9"></path>
-                        <path d="M15 8l4 4-4 4M19 12H9"></path>
-                    </svg>
-                </button>
-            </div>
             <div class="server-status">
                 <span id="server-dot" class="dot dot-waiting"></span>
                 <span id="server-label">连接中…</span>
@@ -644,7 +514,6 @@
                 <button type="button" data-tab="skills">技能</button>
                 <button type="button" data-tab="plugins">插件</button>
                 <button type="button" data-tab="policies">工具策略</button>
-                <button type="button" data-tab="account">账号与空间</button>
                 <button type="button" data-tab="system">系统信息</button>
             </nav>
             <section id="settings-panel" class="settings-panel" aria-live="polite"></section>

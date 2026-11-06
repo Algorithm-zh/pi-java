@@ -5,7 +5,6 @@
 import * as api from "./api.js";
 import * as approval from "./approval.js";
 import * as attachments from "./attachments.js";
-import * as auth from "./auth.js";
 import * as changes from "./changes.js";
 import * as contextMeter from "./context-meter.js";
 import * as dialog from "./dialog.js";
@@ -31,17 +30,7 @@ let pendingPrompt = "";
 async function init() {
     initTheme();
     initShell();
-    auth.init({
-        onReady: startApp,
-        onExpired: () => {
-            state.abortController?.abort();
-            detach();
-        }
-    });
-    const account = await auth.ensureSession();
-    if (account) {
-        await startApp(account);
-    }
+    await startApp();
 }
 
 function initShell() {
@@ -190,13 +179,6 @@ function wireEvents() {
     dom.openSettings.addEventListener("click", () => {
         closeSidebar();
         settings.open("models");
-    });
-    dom.accountCard.addEventListener("click", (event) => {
-        if (event.target.closest("#logout-button")) {
-            return;
-        }
-        closeSidebar();
-        settings.open("account");
     });
     dom.refreshSessions.addEventListener("click", () => refreshSessions().catch((error) => {
         toast(error.message, true);
