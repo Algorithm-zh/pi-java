@@ -45,8 +45,10 @@ COPY --from=build --chown=pi:pi /build/app.jar /app/app.jar
 WORKDIR /workspace
 USER pi
 
-# 容器内必须监听 0.0.0.0 才能被端口映射访问；宿主机侧仍只映射回环地址。
+# 容器内必须监听 0.0.0.0 才能被端口映射访问；宿主机侧仍只映射回环地址，
+# 因此显式允许非回环绑定。直接把容器端口暴露到公网会让任何访问者都能执行工具。
 ENV PI_SERVER_ADDRESS=0.0.0.0 \
+    PI_ALLOW_REMOTE=true \
     PI_DATA_DIR=/app/data \
     SPRING_PROFILES_ACTIVE=demo
 
@@ -54,6 +56,6 @@ EXPOSE 8080
 VOLUME ["/app/data"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8080/api/v1/auth/state > /dev/null || exit 1
+    CMD curl -fsS http://127.0.0.1:8080/api/v1/health > /dev/null || exit 1
 
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]

@@ -10,9 +10,8 @@
        找出真正可用的 JDK 21+，并显式使用它的 java.exe。
     2. 密钥——Key 只从环境变量读取，不落盘、不打印。未设置时只告警不退出，
        这样仍可用 Fake 模型做离线演示。
-    3. 模型档案——M19 起所有接口都需要登录，脚本自身没有账号，因此只在设置了
-       PI_AUTH_TOKEN 时检查/创建模型档案；否则提示登录后在设置中心创建。
-       日常使用不需要重复设置：档案保存在数据库里，首次创建后一直有效。
+    3. 模型档案——服务就绪后检查/创建模型档案；档案保存在数据库里，
+       首次创建后一直有效。
 
 .PARAMETER Port
     监听端口，默认 8080。
@@ -45,9 +44,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.3.0.jar"
 $BaseUrl = "http://127.0.0.1:$Port/api/v1"
 
-# 就绪探测必须用公开接口：M19 起除 auth/state、setup、login、logout 外的
-# /api/** 都要求登录，用 /system/info 探测会收到 401，被误判为“未就绪”。
-$ReadyPath = "$BaseUrl/auth/state"
+$ReadyPath = "$BaseUrl/health"
 
 # DeepSeek 走 OpenAI-compatible 协议。换其它服务时只改下面四行即可。
 $ApiKeyEnv = "PI_DEEPSEEK_KEY"
@@ -148,7 +145,7 @@ function Resolve-Java21 {
 }
 
 <#
-  等待服务就绪：轮询公开的 /auth/state，避免"刚启动就请求失败"。
+  等待服务就绪：轮询 /health，避免"刚启动就请求失败"。
 #>
 function Wait-ServiceReady([int]$TimeoutSeconds = 90) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -168,19 +165,8 @@ function Wait-ServiceReady([int]$TimeoutSeconds = 90) {
 
 <#
   确认模型档案存在；不存在则创建。已存在时不做任何修改，避免覆盖用户手工调整。
-
-  M19 起模型接口需要登录令牌；脚本没有账号密码，所以只在设置了 PI_AUTH_TOKEN
-  时执行这一段。令牌可来自 POST /api/v1/auth/login 的响应，仅放在环境变量里。
 #>
 function Ensure-ModelProfile {
-    if (-not $env:PI_AUTH_TOKEN) {
-        Write-Warn "未设置 PI_AUTH_TOKEN，跳过模型档案检查（M19 起接口需要登录）。"
-        Write-Warn "首次使用请在浏览器登录后，到“设置 → 模型与密钥”创建档案；创建一次即可长期保留。"
-        return
-    }
-
-    $headers = @{ Authorization = "Bearer $($env:PI_AUTH_TOKEN)" }
-
     if (-not $env:PI_DEEPSEEK_KEY -and $ApiKeyEnv -eq "PI_DEEPSEEK_KEY") {
         Write-Warn "未检测到环境变量 $ApiKeyEnv；将跳过模型档案，服务只能用 Fake 模型做离线演示。"
         # 用单引号构造示例，避免 $env: 被插值、反引号被当成转义
@@ -190,7 +176,7 @@ function Ensure-ModelProfile {
     }
 
     try {
-        $models = Invoke-RestMethod -Uri "$BaseUrl/models" -Headers $headers -TimeoutSec 5
+        $models = Invoke-RestMethod -Uri "$BaseUrl/models" -TimeoutSec 5
         $exists = @($models) | Where-Object { $_.id -eq $Profile }
         if ($exists) {
             Write-Step "模型档案已存在：$Profile（$($exists[0].endpoint.modelName)）"
@@ -216,7 +202,7 @@ function Ensure-ModelProfile {
     } | ConvertTo-Json -Depth 6
 
     try {
-        Invoke-RestMethod -Method Post -Uri "$BaseUrl/models" -Headers $headers `
+        Invoke-RestMethod -Method Post -Uri "$BaseUrl/models" `
             -ContentType "application/json; charset=utf-8" `
             -Body ([System.Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 8 | Out-Null
         Write-Step "已创建模型档案：$Profile（$ModelName）"
@@ -270,16 +256,12 @@ $process = Start-Process -FilePath $java.Path `
     -NoNewWindow -PassThru
 
 try {
-    $state = Wait-ServiceReady
-    if (-not $state) {
+    $health = Wait-ServiceReady
+    if (-not $health) {
         Write-Fail "服务在 90 秒内未就绪，请查看上方的启动日志。"
         exit 1
     }
-    if ($state.initialized) {
-        Write-Step "服务已就绪：已有账号，请用已有账号登录"
-    } else {
-        Write-Step "服务已就绪：首次使用，请在页面创建管理员账号"
-    }
+    Write-Step "服务已就绪（$($health.status)）"
 
     if (-not $SkipModel) {
         Ensure-ModelProfile
