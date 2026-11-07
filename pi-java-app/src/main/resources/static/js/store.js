@@ -85,6 +85,7 @@ export const dom = {
     compareCurrent: document.getElementById("compare-current"),
     compareFiles: document.getElementById("compare-files"),
     compareError: document.getElementById("compare-error"),
+    compareResume: document.getElementById("compare-resume"),
     workspaceHint: document.getElementById("workspace-hint"),
     approvalDialog: document.getElementById("approval-dialog"),
     approvalRisk: document.getElementById("approval-risk"),

@@ -132,15 +132,15 @@ export function sessionTimeline(sessionId) {
 }
 
 /**
- * 对比当前分支与最近一次（或指定一次）回退前的分支。
+ * 对比当前分支与另一条分支。
  *
  * @param {string} sessionId 会话 ID
- * @param {string} [rewindEntryId] 回退简报 entry；省略时取最近一次
+ * @param {string} [branchEntryId] 分支简报 entry；省略时取最近一次
  * @returns {Promise<object>} 两侧投影与文件差异
  */
-export function sessionComparison(sessionId, rewindEntryId) {
-    const query = rewindEntryId
-        ? `?rewind=${encodeURIComponent(rewindEntryId)}` : "";
+export function sessionComparison(sessionId, branchEntryId) {
+    const query = branchEntryId
+        ? `?branch=${encodeURIComponent(branchEntryId)}` : "";
     return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/comparison${query}`);
 }
 
@@ -153,6 +153,18 @@ export function sessionComparison(sessionId, rewindEntryId) {
  */
 export function rewindSession(sessionId, payload) {
     return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/rewind`,
+        jsonInit("POST", payload));
+}
+
+/**
+ * 预览或执行一次分支切换。
+ *
+ * @param {string} sessionId 会话 ID
+ * @param {{branchEntryId: string, dryRun: boolean, note?: string}} payload 切换请求
+ * @returns {Promise<object>} 预览或执行结果
+ */
+export function resumeBranch(sessionId, payload) {
+    return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/resume`,
         jsonInit("POST", payload));
 }
 

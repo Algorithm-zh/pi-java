@@ -215,7 +215,7 @@ export function renderTurn(items, results) {
         : "";
     const summary = [...items].reverse().find((entry) => entry.type === "RUN_SUMMARY");
     const consumed = new Set();
-    const rewindNotes = [];
+    const branchNotes = [];
     let process = null;
 
     function ensureProcess() {
@@ -266,9 +266,9 @@ export function renderTurn(items, results) {
                 pending: false
             }));
         } else if (entry.type === "BRANCH_SUMMARY"
-                && entry.body?.extra?.details?.kind === "rewind") {
-            // 回溯简报是继续对话的锚点，默认直接出现在轮次末尾，不埋进折叠的执行过程。
-            rewindNotes.push(renderNote(entry));
+                && ["rewind", "resume"].includes(entry.body?.extra?.details?.kind)) {
+            // 分支简报是继续对话的锚点，默认直接出现在轮次末尾，不埋进折叠的执行过程。
+            branchNotes.push(renderNote(entry));
         } else if (["APPROVAL", "COMPACTION", "BRANCH_SUMMARY", "MODEL_CHANGE",
             "PLAN", "VERIFICATION"].includes(entry.type)) {
             ensureProcess().body.append(renderNote(entry));
@@ -309,7 +309,7 @@ export function renderTurn(items, results) {
         renderMarkdownInto(answer.textHost, finalText);
         wrap.append(answer.row);
     }
-    for (const note of rewindNotes) {
+    for (const note of branchNotes) {
         wrap.append(note);
     }
     return wrap;
@@ -484,8 +484,9 @@ export function renderNote(entry) {
             `上下文已压缩，压缩前 ${formatNumber(entry.body?.extra?.tokensBefore)} tokens`);
     }
     if (entry.type === "BRANCH_SUMMARY") {
-        if (entry.body?.extra?.details?.kind === "rewind") {
-            return rewindNote(entry);
+        const kind = entry.body?.extra?.details?.kind;
+        if (kind === "rewind" || kind === "resume") {
+            return branchNote(entry, kind);
         }
         const from = entry.body?.extra?.fromEntryId ? String(entry.body.extra.fromEntryId).slice(0, 8) : "—";
         return collapsibleNote(entry, "branch-note", `分支摘要，起点 ${from}`);
@@ -535,40 +536,68 @@ function collapsibleNote(entry, className, label) {
     return details;
 }
 
-function rewindNote(entry) {
+function branchNote(entry, kind) {
+    const isResume = kind === "resume";
     const template = document.getElementById("timeline-brief-template");
     if (!template) {
-        return collapsibleNote(entry, "branch-note", "回溯简报");
+        return collapsibleNote(entry, "branch-note", isResume ? "切换简报" : "回溯简报");
     }
     const node = template.content.firstElementChild.cloneNode(true);
     const extra = entry.body?.extra || {};
     const details = extra.details || {};
-    node.querySelector(".rewind-note-summary").textContent = extra.summary || "回溯简报";
+    node.classList.toggle("is-resume", isResume);
+    node.querySelector(".history-note-title").textContent =
+        isResume ? "切换简报" : "回溯简报";
+    node.querySelector(".history-note-state").textContent =
+        isResume ? "已换到这条路" : "从这里继续";
+    node.querySelector(".rewind-note-summary").textContent =
+        extra.summary || (isResume ? "切换简报" : "回溯简报");
     const facts = [];
-    if (Number(details.discardedEntries) > 0) {
-        facts.push(`丢弃 ${details.discardedEntries} 条记录`);
-    }
-    if (Number(details.discardedRuns) > 0) {
-        facts.push(`${details.discardedRuns} 次运行`);
-    }
-    if (Number(details.restoredFiles) > 0) {
-        facts.push(`还原 ${details.restoredFiles} 个文件`);
-    }
-    if (Number(details.deniedApprovals) > 0) {
-        facts.push(`${details.deniedApprovals} 次审批被拒`);
-    }
-    if (Number(details.failedVerifications) > 0) {
-        facts.push(`${details.failedVerifications} 次验证失败`);
-    }
-    if (Number(details.unfinishedPlanItems) > 0) {
-        facts.push(`${details.unfinishedPlanItems} 项待办未完成`);
+    if (isResume) {
+        if (Number(details.leftEntries) > 0) {
+            facts.push(`离开 ${details.leftEntries} 条记录`);
+        }
+        if (Number(details.leftRuns) > 0) {
+            facts.push(`${details.leftRuns} 次运行`);
+        }
+        if (Number(details.restoredFiles) > 0) {
+            facts.push(`改动 ${details.restoredFiles} 个文件`);
+        }
+        if (Number(details.deniedApprovals) > 0) {
+            facts.push(`${details.deniedApprovals} 次审批被拒`);
+        }
+        if (Number(details.failedVerifications) > 0) {
+            facts.push(`${details.failedVerifications} 次验证失败`);
+        }
+    } else {
+        if (Number(details.discardedEntries) > 0) {
+            facts.push(`丢弃 ${details.discardedEntries} 条记录`);
+        }
+        if (Number(details.discardedRuns) > 0) {
+            facts.push(`${details.discardedRuns} 次运行`);
+        }
+        if (Number(details.restoredFiles) > 0) {
+            facts.push(`还原 ${details.restoredFiles} 个文件`);
+        }
+        if (Number(details.deniedApprovals) > 0) {
+            facts.push(`${details.deniedApprovals} 次审批被拒`);
+        }
+        if (Number(details.failedVerifications) > 0) {
+            facts.push(`${details.failedVerifications} 次验证失败`);
+        }
+        if (Number(details.unfinishedPlanItems) > 0) {
+            facts.push(`${details.unfinishedPlanItems} 项待办未完成`);
+        }
     }
     node.querySelector(".rewind-note-facts").textContent = facts.join(" · ");
     const historyButton = node.querySelector(".rewind-note-history");
     if (historyButton && extra.fromEntryId) {
+        historyButton.textContent = isResume ? "查看离开的分支" : "查看被放弃的记录";
         historyButton.dataset.rewindFrom = String(extra.fromEntryId);
         historyButton.dataset.rewindAfter = entry.parentId ? String(entry.parentId) : "";
-        historyButton.dataset.rewindCount = String(details.discardedEntries || 0);
+        historyButton.dataset.rewindKind = kind;
+        historyButton.dataset.rewindCount =
+            String(isResume ? (details.leftEntries || 0) : (details.discardedEntries || 0));
         historyButton.classList.remove("hidden");
     } else if (historyButton) {
         historyButton.remove();

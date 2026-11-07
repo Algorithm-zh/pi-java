@@ -423,6 +423,14 @@
     color: var(--amber);
 }
 
+.rewind-note.is-resume {
+    border-left-color: var(--success);
+}
+
+.rewind-note.is-resume .history-note-title {
+    color: var(--success);
+}
+
 .rewind-note-summary {
     margin: 8px 0 4px;
     color: var(--ink);
@@ -523,7 +531,47 @@
     cursor: default;
 }
 
+.timeline-tick.is-resume {
+    background: linear-gradient(var(--success), var(--success)) center / 9px 3px no-repeat;
+}
+
 /* ---------- 分叉对比 ---------- */
+
+.timeline-branch-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.timeline-branch-actions .timeline-compare {
+    flex: 1 1 140px;
+    width: auto;
+    margin-top: 0;
+}
+
+.timeline-resume {
+    flex: 1 1 140px;
+    min-height: 30px;
+    border: 1px solid var(--success);
+    border-radius: var(--radius-xs);
+    background: var(--success-soft);
+    color: var(--success);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.timeline-resume:hover {
+    border-color: var(--success);
+    filter: brightness(.97);
+}
+
+.timeline-preview-unavailable {
+    margin: 12px 0;
+    color: var(--danger);
+    line-height: 1.6;
+}
 
 .timeline-compare {
     width: 100%;
@@ -669,6 +717,14 @@
 
 .compare-file-list li {
     list-style: none;
+}
+
+.compare-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
 }
 
 /* ---------- 窄屏：底部抽屉 ---------- */

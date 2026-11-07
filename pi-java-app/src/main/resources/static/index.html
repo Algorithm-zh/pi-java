@@ -535,7 +535,7 @@
         <div id="timeline-preview-body" class="timeline-preview-body"></div>
         <p id="timeline-preview-error" class="dialog-error hidden"></p>
         <label class="field timeline-note-field">
-            <span>备注（可选，会写进回溯简报）</span>
+            <span>备注（可选，会写进分支简报）</span>
             <textarea id="timeline-note" rows="2" maxlength="200"></textarea>
         </label>
         <footer>
@@ -581,7 +581,7 @@
         <div class="timeline-preview-body compare-body">
             <div class="compare-grid">
                 <section class="compare-side" aria-labelledby="compare-abandoned-title">
-                    <h3 id="compare-abandoned-title">被放弃的分支</h3>
+                    <h3 id="compare-abandoned-title">另一条分支</h3>
                     <div id="compare-abandoned" class="compare-side-body"></div>
                 </section>
                 <section class="compare-side" aria-labelledby="compare-current-title">
@@ -595,6 +595,11 @@
             </section>
             <p id="compare-error" class="dialog-error hidden"></p>
         </div>
+        <footer class="compare-actions">
+            <button id="compare-resume" class="primary-button hidden" type="button">
+                切到另一条分支
+            </button>
+        </footer>
     </div>
 </dialog>
 

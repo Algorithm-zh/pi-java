@@ -14,12 +14,15 @@ let phase = "closed";
 let timeline = null;
 let loadedSessionId = null;
 let selectedCheckpoint = null;
+let selectedBranch = null;
+let previewMode = "rewind";
 let previewResult = null;
 let reloadHandler = null;
 let requestId = 0;
 let previewId = 0;
 let historyRequestId = 0;
 let compareRequestId = 0;
+let compareBranchId = null;
 let historyView = null;
 const historyStack = [];
 
@@ -49,7 +52,7 @@ export function initTimeline() {
     dom.timelineCancel?.addEventListener("click", () => closePreview());
     dom.timelinePreviewForm?.addEventListener("submit", (event) => {
         event.preventDefault();
-        confirmRewind();
+        confirmPreview();
     });
     dom.timelinePreview?.addEventListener("cancel", (event) => {
         // 回退请求在飞行中时不允许关闭，超时兜底保证 Escape 最终可用。
@@ -74,6 +77,13 @@ export function initTimeline() {
     dom.compareDialog?.addEventListener("close", () => {
         compareRequestId++;
         clearCompare();
+    });
+    dom.compareResume?.addEventListener("click", () => {
+        const branchEntryId = compareBranchId;
+        closeCompare();
+        if (branchEntryId) {
+            previewBranch(branchEntryId);
+        }
     });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !dom.timelinePreview?.open) {
@@ -173,6 +183,7 @@ function onHistoryClick(event) {
     loadHistory({
         from: button.dataset.rewindFrom,
         after: button.dataset.rewindAfter || "",
+        kind: button.dataset.rewindKind || "rewind",
         count: Number(button.dataset.rewindCount || 0)
     });
 }
@@ -194,7 +205,7 @@ async function loadHistory(view) {
     updateHistoryChrome();
     setHistoryError("");
     dom.rewindHistoryBody.replaceChildren(el("p", "timeline-preview-loading",
-        "正在读取被放弃的记录…"));
+        view.kind === "resume" ? "正在读取离开的记录…" : "正在读取被放弃的记录…"));
     if (!dom.rewindHistoryDialog.open) {
         dom.rewindHistoryDialog.showModal();
     }
@@ -206,7 +217,9 @@ async function loadHistory(view) {
         const segment = sliceAfter(branch, view.after);
         if (!segment.length) {
             dom.rewindHistoryBody.replaceChildren(el("p", "timeline-preview-loading",
-                "这次回退没有放弃任何对话记录。"));
+                view.kind === "resume"
+                    ? "这次切换没有离开任何对话记录。"
+                    : "这次回退没有放弃任何对话记录。"));
             return;
         }
         renderEntries(dom.rewindHistoryBody, segment);
@@ -242,11 +255,18 @@ function updateHistoryChrome() {
     }
     if (dom.rewindHistoryLead) {
         const count = Number(historyView?.count || 0);
-        dom.rewindHistoryLead.textContent = !historyView
-            ? "只读查看，不会加入当前上下文。"
-            : count > 0
+        const isResume = historyView?.kind === "resume";
+        if (!historyView) {
+            dom.rewindHistoryLead.textContent = "只读查看，不会加入当前上下文。";
+        } else if (isResume) {
+            dom.rewindHistoryLead.textContent = count > 0
+                ? `这次切换离开了 ${count} 条记录。只读查看，不会加入当前上下文。`
+                : "以下是切换时离开的对话。只读查看，不会加入当前上下文。";
+        } else {
+            dom.rewindHistoryLead.textContent = count > 0
                 ? `这次回退放弃了 ${count} 条记录。只读查看，不会加入当前上下文。`
                 : "以下是回退时放弃的对话。只读查看，不会加入当前上下文。";
+        }
     }
 }
 
@@ -267,26 +287,28 @@ function clearHistory() {
 }
 
 /**
- * 打开某一次回退的分叉对比。只读，不会改变当前分支。
+ * 打开某一次分支切换的对比。只读，不会改变当前分支。
  *
- * @param {string} rewindEntryId 回退简报 entry
+ * @param {string} branchEntryId 分支简报 entry
  */
-async function openCompare(rewindEntryId) {
+async function openCompare(branchEntryId) {
     const sessionId = state.session?.id;
-    if (!sessionId || !rewindEntryId || !dom.compareDialog) {
+    if (!sessionId || !branchEntryId || !dom.compareDialog) {
         return;
     }
     const token = ++compareRequestId;
+    compareBranchId = branchEntryId;
     dom.compareSummary.textContent = "正在读取两条分支…";
     dom.compareAbandoned?.replaceChildren();
     dom.compareCurrent?.replaceChildren();
     dom.compareFiles?.replaceChildren();
+    dom.compareResume?.classList.add("hidden");
     setCompareError("");
     if (!dom.compareDialog.open) {
         dom.compareDialog.showModal();
     }
     try {
-        const value = await api.sessionComparison(sessionId, rewindEntryId);
+        const value = await api.sessionComparison(sessionId, branchEntryId);
         if (token !== compareRequestId || state.session?.id !== sessionId) {
             return;
         }
@@ -300,7 +322,7 @@ async function openCompare(rewindEntryId) {
         dom.compareCurrent?.replaceChildren();
         dom.compareFiles?.replaceChildren();
         setCompareError(error?.status === 409
-            ? "这条回退已经不在当前分支上，无法对比。"
+            ? "这条分支简报已经不在当前分支上，无法对比。"
             : (error.message || "读取分叉对比失败"));
     }
 }
@@ -320,6 +342,8 @@ function clearCompare() {
     dom.compareAbandoned?.replaceChildren();
     dom.compareCurrent?.replaceChildren();
     dom.compareFiles?.replaceChildren();
+    dom.compareResume?.classList.add("hidden");
+    compareBranchId = null;
     setCompareError("");
 }
 
@@ -332,12 +356,15 @@ function setCompareError(message) {
 }
 
 function renderCompare(value) {
+    compareBranchId = value?.branchEntryId || null;
+    dom.compareResume?.classList.toggle("hidden", !compareBranchId);
     if (!value?.available) {
-        dom.compareSummary.textContent = "这个会话还没有回退，暂时没有可对比的分支。";
+        dom.compareSummary.textContent =
+            "这个会话还没有分支切换记录，暂时没有可对比的分支。";
         renderCompareSide(dom.compareAbandoned, null);
         renderCompareSide(dom.compareCurrent, null);
         dom.compareFiles.replaceChildren(
-            el("p", "compare-empty", "回退一次之后，这里会显示两条分支的差别。"));
+            el("p", "compare-empty", "切换一次分支之后，这里会显示两条分支的差别。"));
         return;
     }
     dom.compareSummary.textContent = value.summary || "";
@@ -413,7 +440,7 @@ function renderCompareFiles(files) {
     }
     dom.compareFiles.replaceChildren();
     const groups = [
-        ["仅旧分支", files.onlyAbandoned],
+        ["仅另一条分支", files.onlyAbandoned],
         ["仅当前分支", files.onlyCurrent],
         ["两边都改过", files.both]
     ];
@@ -573,15 +600,22 @@ function renderNode(node) {
             card.append(evidence);
         }
     } else {
+        const isResume = node.type === "RESUME";
         card.append(el("p", "timeline-brief", node.brief || "（无简报）"),
             el("span", "timeline-meta",
-                `丢弃 ${node.discardedEntries || 0} 条记录 · `
-                + `${node.discardedRuns || 0} 次运行`));
-        if (node.rewindEntryId) {
+                `离开 ${node.leftEntries || 0} 条记录 · `
+                + `${node.leftRuns || 0} 次运行`));
+        if (node.branchEntryId) {
+            const actions = el("div", "timeline-branch-actions");
             const compare = el("button", "timeline-compare", "对比两条分支");
             compare.type = "button";
-            compare.dataset.compare = node.rewindEntryId;
-            card.append(compare);
+            compare.dataset.compare = node.branchEntryId;
+            const resume = el("button", "timeline-resume",
+                isResume ? "切到另一条分支" : "切回这条分支");
+            resume.type = "button";
+            resume.dataset.resume = node.branchEntryId;
+            actions.append(compare, resume);
+            card.append(actions);
         }
     }
     if (node.rewindable && node.checkpointEntryId) {
@@ -600,8 +634,9 @@ function renderSpine(nodes) {
     dom.timelineSpine.replaceChildren();
     dom.timelineSpine.classList.toggle("hidden", !nodes.length);
     for (const node of nodes) {
-        if (node.type === "REWIND") {
-            const mark = el("span", "timeline-tick is-rewind");
+        if (node.type === "REWIND" || node.type === "RESUME") {
+            const mark = el("span", "timeline-tick is-rewind"
+                + (node.type === "RESUME" ? " is-resume" : ""));
             mark.title = nodeTitle(node);
             dom.timelineSpine.append(mark);
             continue;
@@ -641,6 +676,9 @@ function onSpineClick(event) {
 function nodeTitle(node) {
     if (node.type === "REWIND") {
         return `在 ${formatTime(node.at)} 回溯`;
+    }
+    if (node.type === "RESUME") {
+        return `在 ${formatTime(node.at)} 切回`;
     }
     return node.intent || "（没有文字意图）";
 }
@@ -786,6 +824,11 @@ function onListClick(event) {
         openCompare(compare.dataset.compare);
         return;
     }
+    const resume = event.target.closest("button[data-resume]");
+    if (resume) {
+        previewBranch(resume.dataset.resume);
+        return;
+    }
     const button = event.target.closest("button[data-checkpoint]");
     if (button) {
         preview(button.dataset.checkpoint);
@@ -797,6 +840,51 @@ function nodeOf(checkpointEntryId) {
         node.checkpointEntryId === checkpointEntryId) || null;
 }
 
+function nodeOfBranch(branchEntryId) {
+    return (timeline?.nodes || []).find((node) =>
+        node.branchEntryId === branchEntryId) || null;
+}
+
+async function previewBranch(branchEntryId) {
+    const sessionId = state.session?.id;
+    if (!sessionId || !branchEntryId
+            || (phase !== "ready" && phase !== "previewing")) {
+        return;
+    }
+    const token = ++previewId;
+    previewMode = "resume";
+    selectedBranch = branchEntryId;
+    selectedCheckpoint = null;
+    previewResult = null;
+    phase = "previewing";
+    openPreview();
+    dom.timelinePreviewTitle.textContent = "切到另一条分支";
+    dom.timelinePreviewKicker.textContent = "切换预览";
+    dom.timelinePreviewBody.replaceChildren(el("p", "timeline-preview-loading",
+        "正在计算要改动的文件…"));
+    setPreviewError("");
+    dom.timelineNote.value = "";
+    dom.timelineConfirm.disabled = true;
+    try {
+        const result = await api.resumeBranch(sessionId, {
+            branchEntryId,
+            dryRun: true
+        });
+        if (token !== previewId || state.session?.id !== sessionId) {
+            return;
+        }
+        previewResult = result;
+        renderPreview(result);
+    } catch (error) {
+        if (token !== previewId) {
+            return;
+        }
+        phase = "ready";
+        closePreview(true);
+        toast(error.message || "无法预览切换", true);
+    }
+}
+
 async function preview(checkpointEntryId) {
     const sessionId = state.session?.id;
     if (!sessionId || !checkpointEntryId
@@ -804,6 +892,8 @@ async function preview(checkpointEntryId) {
         return;
     }
     const token = ++previewId;
+    previewMode = "rewind";
+    selectedBranch = null;
     selectedCheckpoint = checkpointEntryId;
     previewResult = null;
     phase = "previewing";
@@ -848,6 +938,48 @@ function renderPreview(result) {
         return;
     }
     body.replaceChildren();
+    if (previewMode === "resume") {
+        renderResumePreview(result, body);
+    } else {
+        renderRewindPreview(result, body);
+    }
+    const available = result.available !== false;
+    dom.timelineConfirm.disabled = !available || !result.restorable;
+    dom.timelineConfirm.textContent = !available
+        ? (previewMode === "resume" ? "无法切换" : "无法回退")
+        : result.restorable
+            ? (previewMode === "resume" ? "确认切换" : "确认回退")
+            : (previewMode === "resume" ? "无法切换" : "无法回退");
+    setPreviewError("");
+}
+
+function renderResumePreview(result, body) {
+    const node = nodeOfBranch(selectedBranch);
+    if (dom.timelinePreviewTitle) {
+        dom.timelinePreviewTitle.textContent = node?.at
+            ? `切到 ${formatTime(node.at)} 的另一条分支`
+            : "切到另一条分支";
+    }
+    if (dom.timelinePreviewKicker) {
+        dom.timelinePreviewKicker.textContent = !result.available
+            ? "无法切换"
+            : result.restorable ? "切换预览" : "存在冲突";
+    }
+    appendPreviewBrief(body, result);
+    body.append(previewFacts([
+        `离开 ${result.leftEntries || 0} 条记录`,
+        `离开 ${result.leftRuns || 0} 次运行`,
+        `改动 ${(result.files || []).length} 个文件`,
+        `目标 ${result.targetEntries || 0} 条记录`,
+        `目标 ${result.targetRuns || 0} 次运行`
+    ]));
+    if (!result.available && result.unavailableReason) {
+        body.append(el("p", "timeline-preview-unavailable", result.unavailableReason));
+    }
+    appendPreviewFiles(body, result, "这些文件在目标之后又被修改，切换被整体放弃：");
+}
+
+function renderRewindPreview(result, body) {
     const node = nodeOf(selectedCheckpoint);
     if (dom.timelinePreviewTitle) {
         dom.timelinePreviewTitle.textContent = node?.intent
@@ -857,14 +989,30 @@ function renderPreview(result) {
     if (dom.timelinePreviewKicker) {
         dom.timelinePreviewKicker.textContent = result.restorable ? "回退预览" : "存在冲突";
     }
+    appendPreviewBrief(body, result);
+    body.append(previewFacts([
+        `丢弃 ${result.discardedEntries || 0} 条记录`,
+        `丢弃 ${result.discardedRuns || 0} 次运行`,
+        `还原 ${(result.files || []).length} 个文件`
+    ]));
+    appendPreviewFiles(body, result, "这些文件在目标之后又被修改，回退被整体放弃：");
+}
+
+function previewFacts(items) {
+    const facts = el("div", "timeline-preview-facts");
+    for (const item of items) {
+        facts.append(el("span", "", item));
+    }
+    return facts;
+}
+
+function appendPreviewBrief(body, result) {
     if (result.brief) {
         body.append(el("p", "timeline-preview-brief", result.brief));
     }
-    const facts = el("div", "timeline-preview-facts");
-    facts.append(el("span", "", `丢弃 ${result.discardedEntries || 0} 条记录`),
-        el("span", "", `丢弃 ${result.discardedRuns || 0} 次运行`),
-        el("span", "", `还原 ${(result.files || []).length} 个文件`));
-    body.append(facts);
+}
+
+function appendPreviewFiles(body, result, conflictTitle) {
     const files = Array.isArray(result.files) ? result.files : [];
     if (files.length) {
         const list = el("ul", "timeline-preview-files");
@@ -876,7 +1024,7 @@ function renderPreview(result) {
     const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
     if (conflicts.length) {
         const box = el("div", "timeline-preview-conflicts");
-        box.append(el("p", "", "这些文件在目标之后又被修改，回退被整体放弃："));
+        box.append(el("p", "", conflictTitle));
         const list = el("ul", "");
         for (const conflict of conflicts) {
             list.append(line("is-conflict", "!", `${conflict.path} · ${conflict.reason}`));
@@ -884,9 +1032,6 @@ function renderPreview(result) {
         box.append(list);
         body.append(box);
     }
-    dom.timelineConfirm.disabled = !result.restorable;
-    dom.timelineConfirm.textContent = result.restorable ? "确认回退" : "无法回退";
-    setPreviewError("");
 }
 
 /**
@@ -899,53 +1044,58 @@ function renderPreview(result) {
 function withTimeout(promise, ms) {
     let timer = 0;
     const timeout = new Promise((resolve, reject) => {
-        timer = setTimeout(() => reject(new Error("回退超时，请检查网络后重试")), ms);
+        timer = setTimeout(() => reject(new Error("操作超时，请检查网络后重试")), ms);
     });
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-async function confirmRewind() {
+async function confirmPreview() {
     const sessionId = state.session?.id;
-    if (!sessionId || !selectedCheckpoint || phase !== "previewing"
+    const isResume = previewMode === "resume";
+    const target = isResume ? selectedBranch : selectedCheckpoint;
+    if (!sessionId || !target || phase !== "previewing"
             || !previewResult?.restorable) {
         return;
     }
     // token 在 closePreview() 时递增，关闭对话框即可让飞行中的响应作废。
     const token = ++previewId;
-    const checkpointEntryId = selectedCheckpoint;
     const note = String(dom.timelineNote?.value || "").trim();
     phase = "rewinding";
     dom.timelineConfirm.disabled = true;
     dom.timelineCancel.disabled = true;
-    dom.timelinePreviewKicker.textContent = "正在回退";
+    dom.timelinePreviewKicker.textContent = isResume ? "正在切换" : "正在回退";
     dom.timelinePreviewBody.replaceChildren(el("p", "timeline-preview-loading",
-        "正在还原文件并把对话退回检查点…"));
+        isResume ? "正在还原文件并切换分支…" : "正在还原文件并把对话退回检查点…"));
     setPreviewError("");
     try {
-        const result = await withTimeout(api.rewindSession(sessionId, {
-            checkpointEntryId,
-            dryRun: false,
-            note
-        }), REWIND_TIMEOUT_MS);
+        const payload = isResume
+            ? { branchEntryId: target, dryRun: false, note }
+            : { checkpointEntryId: target, dryRun: false, note };
+        const result = isResume
+            ? await withTimeout(api.resumeBranch(sessionId, payload), REWIND_TIMEOUT_MS)
+            : await withTimeout(api.rewindSession(sessionId, payload), REWIND_TIMEOUT_MS);
         if (token !== previewId || state.session?.id !== sessionId) {
             return;
         }
-        if (!result.rewound) {
+        const done = isResume ? result.switched : result.rewound;
+        if (!done) {
             previewResult = result;
             phase = "previewing";
             renderPreview(result);
             toast(result.conflicts?.length
                 ? "有文件在目标之后被修改，未做任何改动"
-                : "回退未执行", true);
+                : (isResume ? "切换未执行" : "回退未执行"), true);
             return;
         }
         closePreview(true);
         phase = "ready";
-        toast(`已回退，还原 ${(result.restored || []).length} 个文件`);
+        toast(isResume
+            ? `已切到另一条分支，改动 ${(result.restored || []).length} 个文件`
+            : `已回退，还原 ${(result.restored || []).length} 个文件`);
         try {
             await reloadHandler?.();
         } catch (error) {
-            toast("回退完成，但刷新会话失败", true);
+            toast(isResume ? "切换完成，但刷新会话失败" : "回退完成，但刷新会话失败", true);
         }
         dom.input?.focus();
     } catch (error) {
@@ -955,9 +1105,10 @@ async function confirmRewind() {
         // 超时或失败：退回预览态，允许重试或取消。
         phase = "previewing";
         dom.timelineCancel.disabled = false;
-        dom.timelinePreviewKicker.textContent =
-            previewResult?.restorable ? "回退预览" : "存在冲突";
-        setPreviewError(error.message || "回退失败");
+        dom.timelinePreviewKicker.textContent = previewResult?.restorable
+            ? (isResume ? "切换预览" : "回退预览")
+            : "存在冲突";
+        setPreviewError(error.message || (isResume ? "切换失败" : "回退失败"));
         dom.timelineConfirm.disabled = !previewResult?.restorable;
     } finally {
         if (token === previewId) {
@@ -983,14 +1134,18 @@ function closePreview(force = false) {
         dom.timelineNote.value = "";
     }
     if (dom.timelineConfirm) {
-        dom.timelineConfirm.textContent = "确认回退";
+        dom.timelineConfirm.textContent =
+            previewMode === "resume" ? "确认切换" : "确认回退";
         dom.timelineConfirm.disabled = true;
     }
     if (dom.timelineCancel) {
         dom.timelineCancel.disabled = false;
     }
-    dom.timelinePreviewKicker.textContent = "回退预览";
+    dom.timelinePreviewKicker.textContent =
+        previewMode === "resume" ? "切换预览" : "回退预览";
     selectedCheckpoint = null;
+    selectedBranch = null;
+    previewMode = "rewind";
     previewResult = null;
     if (phase !== "closed") {
         phase = "ready";
