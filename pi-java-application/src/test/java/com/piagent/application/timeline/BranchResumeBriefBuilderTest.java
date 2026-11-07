@@ -36,7 +36,8 @@ class BranchResumeBriefBuilderTest {
                         90, "fail")));
 
         BranchResumeBrief brief = builder.build(SessionEntryFactory.entryId(50), left, target,
-                List.of("a.java", "b.java"), "tree-live", "tree-t", "先跑测试");
+                List.of("a.java", "b.java"),
+                new BranchResumeBriefBuilder.TreePair("tree-live", "tree-t"), "先跑测试");
 
         assertThat(brief.summary())
                 .contains("离开 1 轮对话、1 个 run")
@@ -70,7 +71,7 @@ class BranchResumeBriefBuilderTest {
 
         BranchResumeBrief brief = builder.build(SessionEntryFactory.entryId(51), List.of(),
                 target, List.of("a".repeat(40), "b".repeat(40), "c".repeat(40), "d"),
-                "from", "to", "y".repeat(200));
+                new BranchResumeBriefBuilder.TreePair("from", "to"), "y".repeat(200));
 
         assertThat(brief.summary()).hasSize(400).endsWith("…");
     }
@@ -78,7 +79,8 @@ class BranchResumeBriefBuilderTest {
     @Test
     void rejectsTooLongNote() {
         assertThatThrownBy(() -> builder.build(SessionEntryFactory.entryId(52), List.of(),
-                List.of(), List.of(), "from", "to", "x".repeat(201)))
+                List.of(), List.of(), new BranchResumeBriefBuilder.TreePair("from", "to"),
+                "x".repeat(201)))
                 .isInstanceOfSatisfying(DomainException.class,
                         error -> assertThat(error.code())
                                 .isEqualTo(DomainErrorCode.INVALID_ARGUMENT));

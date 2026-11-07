@@ -31,8 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SessionBranchResumeService {
 
     private static final int MAX_ERROR_LENGTH = 400;
-    private static final System.Logger LOG =
-            System.getLogger(SessionBranchResumeService.class.getName());
+    private static final System.Logger LOG = System.getLogger(SessionBranchResumeService.class.getName());
 
     private final SessionRepository sessions;
     private final SessionEntryStore entries;
@@ -71,6 +70,43 @@ public class SessionBranchResumeService {
     public BranchResumeResult resume(SessionId sessionId, EntryId branchEntryId,
             boolean dryRun, String note) {
         Objects.requireNonNull(branchEntryId, "branchEntryId 不能为空");
+        ChatSession session = requireIdle(sessionId);
+        briefs.validateNote(note);
+        List<SessionEntry> current = entries.loadBranch(sessionId, session.leafEntryId());
+        BranchSummaryPayload payload = requireBrief(current, branchEntryId);
+        ResumeContext context = context(session, branchEntryId, current, payload);
+        if (context.targetTree() == null || context.currentTree() == null) {
+            return unavailable(dryRun, context, context.targetTree() == null
+                    ? "目标分支没有可用的工作区快照，无法安全切换；请先在目标分支建立一次检查点"
+                    : "当前分支没有可用的工作区快照，无法安全切换；请先完成一轮对话");
+        }
+        GitRestorePlan plan;
+        try {
+            plan = git.planRestore(session.config().cwd(), context.targetTree(),
+                    context.currentTree());
+        } catch (RuntimeException error) {
+            return unavailable(dryRun, context, "读取还原计划失败：" + message(error));
+        }
+        BranchResumeBrief preview = briefs.build(branchEntryId, context.left(),
+                context.target(), plan.files(),
+                new BranchResumeBriefBuilder.TreePair(context.currentTree(),
+                        context.targetTree()), note);
+        if (dryRun) {
+            return new BranchResumeResult(true, false, true, plan.restorable(), "",
+                    context.targetLeaf(), plan.files(), List.of(), plan.conflicts(), null,
+                    context.left().size(), context.leftRuns(), context.target().size(),
+                    context.targetRuns(), preview.summary());
+        }
+        if (!plan.restorable()) {
+            return new BranchResumeResult(false, false, true, false, "", context.targetLeaf(),
+                    plan.files(), List.of(), plan.conflicts(), null, context.left().size(),
+                    context.leftRuns(), context.target().size(), context.targetRuns(),
+                    preview.summary());
+        }
+        return execute(context, plan, note);
+    }
+
+    private ChatSession requireIdle(SessionId sessionId) {
         ChatSession session = require(sessionId);
         if (session.status() == SessionStatus.ARCHIVED) {
             throw new DomainException(DomainErrorCode.SESSION_ARCHIVED, "已归档会话不能切换分支");
@@ -79,8 +115,10 @@ public class SessionBranchResumeService {
             throw new DomainException(DomainErrorCode.INVALID_STATE_TRANSITION,
                     "只有空闲会话可以切换分支，当前状态: " + session.status());
         }
-        briefs.validateNote(note);
-        List<SessionEntry> current = entries.loadBranch(sessionId, session.leafEntryId());
+        return session;
+    }
+
+    private BranchSummaryPayload requireBrief(List<SessionEntry> current, EntryId branchEntryId) {
         int briefIndex = indexOf(current, branchEntryId);
         if (briefIndex < 0) {
             throw new DomainException(DomainErrorCode.INVALID_BRANCH,
@@ -92,8 +130,13 @@ public class SessionBranchResumeService {
             throw new DomainException(DomainErrorCode.INVALID_BRANCH,
                     "目标不是分支简报: " + branchEntryId);
         }
+        return payload;
+    }
+
+    private ResumeContext context(ChatSession session, EntryId branchEntryId,
+            List<SessionEntry> current, BranchSummaryPayload payload) {
         EntryId targetLeaf = payload.fromEntryId();
-        List<SessionEntry> target = loadTarget(sessionId, targetLeaf);
+        List<SessionEntry> target = loadTarget(session.identity().id(), targetLeaf);
         if (target.isEmpty() || indexOf(current, targetLeaf) >= 0) {
             throw new DomainException(DomainErrorCode.INVALID_BRANCH,
                     "目标叶子不在另一条分支上: " + targetLeaf);
@@ -101,60 +144,42 @@ public class SessionBranchResumeService {
         int fork = commonPrefix(current, target);
         List<SessionEntry> left = List.copyOf(current.subList(fork, current.size()));
         List<SessionEntry> targetSegment = List.copyOf(target.subList(fork, target.size()));
-        int leftRuns = countRuns(left);
-        int targetRuns = countRuns(targetSegment);
-
         String targetTree = text(payload.details().get("fromTreeSha"));
         if (targetTree == null) {
             targetTree = BranchTrees.treeOf(target);
         }
-        String currentTree = BranchTrees.treeOf(current);
-        if (targetTree == null || currentTree == null) {
-            String reason = targetTree == null
-                    ? "目标分支没有可用的工作区快照，无法安全切换；请先在目标分支建立一次检查点"
-                    : "当前分支没有可用的工作区快照，无法安全切换；请先完成一轮对话";
-            return new BranchResumeResult(dryRun, false, false, false, reason, targetLeaf,
-                    List.of(), List.of(), List.of(), null, left.size(), leftRuns,
-                    targetSegment.size(), targetRuns, "");
-        }
-        GitRestorePlan plan;
-        try {
-            plan = git.planRestore(session.config().cwd(), targetTree, currentTree);
-        } catch (RuntimeException error) {
-            return new BranchResumeResult(dryRun, false, false, false,
-                    "读取还原计划失败：" + message(error), targetLeaf, List.of(), List.of(),
-                    List.of(), null, left.size(), leftRuns, targetSegment.size(), targetRuns, "");
-        }
-        BranchResumeBrief preview = briefs.build(branchEntryId, left, targetSegment,
-                plan.files(), currentTree, targetTree, note);
-        if (dryRun) {
-            return new BranchResumeResult(true, false, true, plan.restorable(), "", targetLeaf,
-                    plan.files(), List.of(), plan.conflicts(), null, left.size(), leftRuns,
-                    targetSegment.size(), targetRuns, preview.summary());
-        }
-        if (!plan.restorable()) {
-            return new BranchResumeResult(false, false, true, false, "", targetLeaf,
-                    plan.files(), List.of(), plan.conflicts(), null, left.size(), leftRuns,
-                    targetSegment.size(), targetRuns, preview.summary());
-        }
+        return new ResumeContext(session, branchEntryId, targetLeaf, left, targetSegment,
+                countRuns(left), countRuns(targetSegment), targetTree, BranchTrees.treeOf(current));
+    }
 
-        String fromTree = snapshotTree(session, currentTree);
-        BranchResumeBrief live = briefs.build(branchEntryId, left, targetSegment,
-                plan.files(), fromTree, targetTree, note);
+    private BranchResumeResult unavailable(boolean dryRun, ResumeContext context, String reason) {
+        return new BranchResumeResult(dryRun, false, false, false, reason, context.targetLeaf(),
+                List.of(), List.of(), List.of(), null, context.left().size(),
+                context.leftRuns(), context.target().size(), context.targetRuns(), "");
+    }
+
+    private BranchResumeResult execute(ResumeContext context, GitRestorePlan plan, String note) {
+        ChatSession session = context.session();
+        String fromTree = snapshotTree(session, context.currentTree());
+        BranchResumeBrief live = briefs.build(context.branchEntryId(), context.left(),
+                context.target(), plan.files(), new BranchResumeBriefBuilder.TreePair(fromTree,
+                        context.targetTree()), note);
         EntryId oldLeaf = session.leafEntryId();
-        sessions.update(session.moveLeaf(targetLeaf));
-        SessionEntry brief = summaries.append(sessionId,
+        sessions.update(session.moveLeaf(context.targetLeaf()));
+        SessionEntry brief = summaries.append(session.identity().id(),
                 new BranchSummaryPayload(oldLeaf, live.summary(), live.details()));
-        GitRestoreResult restored = restore(session, targetTree, currentTree);
+        GitRestoreResult restored = restore(session, context.targetTree(),
+                context.currentTree());
         if (!restored.complete()) {
             throw new DomainException(DomainErrorCode.GIT_OPERATION_FAILED,
                     "确认后工作区又发生了变化，已放弃本次切换，请重试");
         }
         pin(session, oldLeaf, fromTree);
-        pin(session, targetLeaf, targetTree);
-        return new BranchResumeResult(false, true, true, true, "", targetLeaf, plan.files(),
-                restored.restored(), List.of(), brief.id(), left.size(), leftRuns,
-                targetSegment.size(), targetRuns, live.summary());
+        pin(session, context.targetLeaf(), context.targetTree());
+        return new BranchResumeResult(false, true, true, true, "", context.targetLeaf(),
+                plan.files(), restored.restored(), List.of(), brief.id(), context.left().size(),
+                context.leftRuns(), context.target().size(), context.targetRuns(),
+                live.summary());
     }
 
     private List<SessionEntry> loadTarget(SessionId sessionId, EntryId targetLeaf) {
@@ -253,5 +278,23 @@ public class SessionBranchResumeService {
         String text = error.getMessage() == null
                 ? error.getClass().getSimpleName() : error.getMessage();
         return text.length() <= MAX_ERROR_LENGTH ? text : text.substring(0, MAX_ERROR_LENGTH);
+    }
+
+    /**
+     * 校验通过后一次切换所需的全部上下文。
+     *
+     * @param session 当前空闲会话
+     * @param branchEntryId 发起切换的简报
+     * @param targetLeaf 目标分支叶子
+     * @param left 离开分支尾段
+     * @param target 目标分支尾段
+     * @param leftRuns 离开侧 run 数
+     * @param targetRuns 目标侧 run 数
+     * @param targetTree 目标树；缺失时为 null
+     * @param currentTree 当前树；缺失时为 null
+     */
+    private record ResumeContext(ChatSession session, EntryId branchEntryId, EntryId targetLeaf,
+            List<SessionEntry> left, List<SessionEntry> target, int leftRuns, int targetRuns,
+            String targetTree, String currentTree) {
     }
 }

@@ -215,22 +215,18 @@ public class SessionTimelineService {
     private String userTextAt(List<SessionEntry> branch, int index) {
         if (branch.get(index).payload() instanceof MessagePayload message
                 && message.message() instanceof UserMessage user) {
-            return textOf(user);
+            StringBuilder text = new StringBuilder();
+            for (var block : user.content()) {
+                if (block instanceof TextBlock content) {
+                    text.append(content.text());
+                }
+            }
+            if (text.toString().isBlank() && !user.content().isEmpty()) {
+                return "（图片消息）";
+            }
+            return text.toString().strip();
         }
         return "";
-    }
-
-    private String textOf(UserMessage user) {
-        StringBuilder text = new StringBuilder();
-        for (var block : user.content()) {
-            if (block instanceof TextBlock content) {
-                text.append(content.text());
-            }
-        }
-        if (text.toString().isBlank() && !user.content().isEmpty()) {
-            return "（图片消息）";
-        }
-        return text.toString().strip();
     }
 
     private int firstUserMessage(List<SessionEntry> branch, int start, int end) {
@@ -255,7 +251,8 @@ public class SessionTimelineService {
         Map<String, Object> details = payload.details();
         SessionTimeline.NodeKind kind = "resume".equals(details.get("kind"))
                 ? SessionTimeline.NodeKind.RESUME : SessionTimeline.NodeKind.REWIND;
-        return new SessionTimeline.Node(kind, null, text(details.get("runId")),
+        Object runId = details.get("runId");
+        return new SessionTimeline.Node(kind, null, runId == null ? "" : String.valueOf(runId),
                 entry.createdAt(), false, false, null,
                 new SessionTimeline.BranchEvidence(entry.id(), payload.summary(),
                         count(details, "leftEntries", "discardedEntries"),
@@ -274,10 +271,6 @@ public class SessionTimelineService {
 
     private boolean matches(String value, String runId) {
         return runId.isEmpty() || runId.equals(value);
-    }
-
-    private String text(Object value) {
-        return value == null ? "" : String.valueOf(value);
     }
 
     private int number(Object value) {

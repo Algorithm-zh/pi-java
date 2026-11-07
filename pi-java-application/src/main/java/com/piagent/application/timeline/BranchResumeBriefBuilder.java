@@ -47,22 +47,20 @@ public class BranchResumeBriefBuilder {
      * @param left 离开分支的尾段
      * @param target 目标分支的尾段
      * @param changedFiles 计划改动的工作区路径
-     * @param fromTreeSha 离开侧实时树
-     * @param toTreeSha 目标树
+     * @param trees 离开侧实时树与目标树
      * @param note 用户备注，可为 null
      * @return 摘要与 details
      */
     public BranchResumeBrief build(EntryId branchEntryId, List<SessionEntry> left,
-            List<SessionEntry> target, List<String> changedFiles, String fromTreeSha,
-            String toTreeSha, String note) {
+            List<SessionEntry> target, List<String> changedFiles, TreePair trees, String note) {
         String cleanNote = requireNote(note);
         Scan leftScan = scan(left);
         Scan targetScan = scan(target);
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("kind", "resume");
         details.put("branchEntryId", branchEntryId.toString());
-        putIfPresent(details, "fromTreeSha", fromTreeSha);
-        putIfPresent(details, "toTreeSha", toTreeSha);
+        putIfPresent(details, "fromTreeSha", trees.fromTreeSha());
+        putIfPresent(details, "toTreeSha", trees.toTreeSha());
         details.put("leftEntries", left.size());
         details.put("leftRuns", leftScan.runs());
         details.put("targetEntries", target.size());
@@ -173,5 +171,14 @@ public class BranchResumeBriefBuilder {
 
     private record Scan(int userMessages, int runs, int denied, int failed, String lastIntent,
             List<String> deniedTools, List<String> failedCommands) {
+    }
+
+    /**
+     * 切换前后的工作区树。
+     *
+     * @param fromTreeSha 离开侧实时树；读取失败时为 null
+     * @param toTreeSha 目标树；旧数据缺失时为 null
+     */
+    public record TreePair(String fromTreeSha, String toTreeSha) {
     }
 }
