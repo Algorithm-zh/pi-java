@@ -21,7 +21,8 @@ public record SessionTimeline(boolean available, EntryId currentCheckpointEntryI
     /** 节点类型。 */
     public enum NodeKind {
         RUN,
-        REWIND
+        REWIND,
+        RESUME
     }
 
     /**
@@ -33,11 +34,11 @@ public record SessionTimeline(boolean available, EntryId currentCheckpointEntryI
      * @param at 节点时间
      * @param current 是否包含当前叶子
      * @param rewindable 是否允许回退
-     * @param run RUN 节点的证据；REWIND 节点为 null
-     * @param rewind 回溯简报；RUN 节点为 null
+     * @param run RUN 节点的证据；分支节点为 null
+     * @param branch 分支简报；RUN 节点为 null
      */
     public record Node(NodeKind kind, EntryId checkpointEntryId, String runId, Instant at,
-            boolean current, boolean rewindable, RunEvidence run, RewindEvidence rewind) {
+            boolean current, boolean rewindable, RunEvidence run, BranchEvidence branch) {
     }
 
     /**
@@ -80,15 +81,14 @@ public record SessionTimeline(boolean available, EntryId currentCheckpointEntryI
     }
 
     /**
-     * REWIND 节点的简报。
+     * 分支节点的简报。
      *
-     * @param entryId 简报 entry，用于对比时指定这一次回退
+     * @param entryId 简报 entry，用于对比或切换时指定这一次
      * @param brief 摘要正文
-     * @param discardedEntries 被丢弃的原始 entry 数
-     * @param discardedRuns 被丢弃的 run 数
+     * @param leftEntries 离开侧 entry 数
+     * @param leftRuns 离开侧 run 数
      */
-    public record RewindEvidence(EntryId entryId, String brief, int discardedEntries,
-            int discardedRuns) {
+    public record BranchEvidence(EntryId entryId, String brief, int leftEntries, int leftRuns) {
     }
 
     /**

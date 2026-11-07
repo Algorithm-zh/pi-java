@@ -13,7 +13,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * 对比最近一次回退前后的两条分支。
+ * 对比另一条分支与当前分支。
  *
  * <p>只读：不要求会话空闲，不追加 entry，不访问磁盘。分叉点由两条分支的
  * entry id 实际前缀求得，不依赖简报 {@code details}。</p>
@@ -40,23 +40,23 @@ public class SessionBranchComparisonService {
     }
 
     /**
-     * 生成当前分支与最近一次（或指定一次）回退前的对比。
+     * 生成当前分支与最近一次（或指定一次）分支切换前的对比。
      *
      * @param sessionId 会话
-     * @param rewindEntryId 指定的回退简报；为 null 时取最近一次
-     * @return 对比；没有回退时 available=false
+     * @param branchEntryId 指定的分支简报；为 null 时取最近一次
+     * @return 对比；没有分支简报时 available=false
      */
-    public SessionBranchComparison compare(SessionId sessionId, EntryId rewindEntryId) {
+    public SessionBranchComparison compare(SessionId sessionId, EntryId branchEntryId) {
         ChatSession session = require(sessionId);
         List<SessionEntry> current = entries.loadBranch(sessionId, session.leafEntryId());
         List<SessionEntry> briefs = current.stream()
                 .filter(entry -> entry.payload() instanceof BranchSummaryPayload summary
-                        && isRewind(summary))
+                        && isBranch(summary))
                 .toList();
         if (briefs.isEmpty()) {
             return SessionBranchComparison.unavailable();
         }
-        SessionEntry brief = select(briefs, rewindEntryId);
+        SessionEntry brief = select(briefs, branchEntryId);
         BranchSummaryPayload payload = (BranchSummaryPayload) brief.payload();
         List<SessionEntry> abandoned = entries.loadBranch(sessionId, payload.fromEntryId());
         int fork = commonPrefix(abandoned, current);
@@ -71,15 +71,15 @@ public class SessionBranchComparisonService {
                 projector.summary(abandonedSide, currentSide, files));
     }
 
-    private SessionEntry select(List<SessionEntry> briefs, EntryId rewindEntryId) {
-        if (rewindEntryId == null) {
+    private SessionEntry select(List<SessionEntry> briefs, EntryId branchEntryId) {
+        if (branchEntryId == null) {
             return briefs.getLast();
         }
         return briefs.stream()
-                .filter(entry -> entry.id().equals(rewindEntryId))
+                .filter(entry -> entry.id().equals(branchEntryId))
                 .findFirst()
                 .orElseThrow(() -> new DomainException(DomainErrorCode.INVALID_BRANCH,
-                        "指定的回退简报不在当前分支上: " + rewindEntryId));
+                        "指定的分支简报不在当前分支上: " + branchEntryId));
     }
 
     private int commonPrefix(List<SessionEntry> abandoned, List<SessionEntry> current) {
@@ -91,8 +91,9 @@ public class SessionBranchComparisonService {
         return index;
     }
 
-    private boolean isRewind(BranchSummaryPayload payload) {
-        return "rewind".equals(payload.details().get("kind"));
+    private boolean isBranch(BranchSummaryPayload payload) {
+        Object kind = payload.details().get("kind");
+        return "rewind".equals(kind) || "resume".equals(kind);
     }
 
     private ChatSession require(SessionId sessionId) {

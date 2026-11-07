@@ -129,9 +129,9 @@ class BranchComparisonProjectorTest {
 
         String summary = projector.summary(oldSide, newSide, files);
 
-        assertThat(summary).contains("旧分支：1 轮对话、1 个 run、1 次拒绝")
+        assertThat(summary).contains("另一条分支：1 轮对话、1 个 run、1 次拒绝")
                 .contains("当前分支：1 轮对话、1 个 run")
-                .contains("旧分支独有的文件：a.java")
+                .contains("另一条分支独有的文件：a.java")
                 .contains("当前分支独有的文件：b.java");
         assertThat(summary.length()).isLessThanOrEqualTo(500);
     }
@@ -143,7 +143,7 @@ class BranchComparisonProjectorTest {
         String summary = projector.summary(empty, empty,
                 SessionBranchComparison.FileDifference.empty());
 
-        assertThat(summary).isEqualTo("旧分支没有后续动作。\n当前分支没有后续动作。");
+        assertThat(summary).isEqualTo("另一条分支没有后续动作。\n当前分支没有后续动作。");
     }
 
     private static SessionEntry entry(int seq, EntryPayload payload) {

@@ -7,16 +7,16 @@ import java.util.List;
 /**
  * 分叉对比响应。
  *
- * @param available 是否存在可对比的回退
- * @param rewindEntryId 本次使用的回退简报
+ * @param available 是否存在可对比的分支简报
+ * @param branchEntryId 本次使用的分支简报
  * @param forkEntryId 最后一个共同 entry；从根分叉时为 null
- * @param at 回退时间
- * @param abandoned 被放弃分支
+ * @param at 分支切换时间
+ * @param abandoned 另一条分支
  * @param current 当前分支
  * @param files 文件差异
  * @param summary 确定性摘要
  */
-public record SessionComparisonResponse(boolean available, String rewindEntryId,
+public record SessionComparisonResponse(boolean available, String branchEntryId,
         String forkEntryId, String at, BranchSideView abandoned, BranchSideView current,
         FileDifferenceView files, String summary) {
 
@@ -97,7 +97,7 @@ public record SessionComparisonResponse(boolean available, String rewindEntryId,
     /**
      * 文件差异。
      *
-     * @param onlyAbandoned 仅旧分支
+     * @param onlyAbandoned 仅另一条分支
      * @param onlyCurrent 仅当前分支
      * @param both 两边都有
      * @param truncated 是否截断
@@ -114,7 +114,7 @@ public record SessionComparisonResponse(boolean available, String rewindEntryId,
      */
     public static SessionComparisonResponse from(SessionBranchComparison comparison) {
         return new SessionComparisonResponse(comparison.available(),
-                id(comparison.rewindEntryId()), id(comparison.forkEntryId()),
+                id(comparison.branchEntryId()), id(comparison.forkEntryId()),
                 comparison.at() == null ? null : comparison.at().toString(),
                 side(comparison.abandoned()), side(comparison.current()),
                 files(comparison.files()), comparison.summary());

@@ -54,7 +54,7 @@ class SessionComparisonControllerTest {
 
         JsonNode body = bodyOf(result);
         assertThat(body.path("available").asBoolean()).isTrue();
-        assertThat(body.path("rewindEntryId").asText()).isEqualTo(BRIEF.toString());
+        assertThat(body.path("branchEntryId").asText()).isEqualTo(BRIEF.toString());
         assertThat(body.path("forkEntryId").asText()).isEqualTo(FORK.toString());
         assertThat(body.path("at").asText()).isEqualTo("2026-11-06T13:20:00Z");
         assertThat(body.path("abandoned").path("intents").get(0).asText()).isEqualTo("修复登录");
@@ -72,7 +72,18 @@ class SessionComparisonControllerTest {
         assertThat(body.path("files").path("onlyCurrent").get(0).asText())
                 .isEqualTo("B.java");
         assertThat(body.path("files").path("truncated").asBoolean()).isFalse();
-        assertThat(body.path("summary").asText()).contains("旧分支");
+        assertThat(body.path("summary").asText()).contains("另一条分支");
+    }
+
+    @Test
+    void parsesBranchParameter() throws Exception {
+        when(comparisons.compare(SESSION_ID, BRIEF)).thenReturn(comparison());
+
+        mvc.perform(get("/api/v1/sessions/{id}/comparison", SESSION_ID)
+                        .param("branch", BRIEF.toString()))
+                .andExpect(status().isOk());
+
+        verify(comparisons).compare(SESSION_ID, BRIEF);
     }
 
     @Test
@@ -105,7 +116,7 @@ class SessionComparisonControllerTest {
     void mapsInvalidBranchToConflict() throws Exception {
         when(comparisons.compare(SESSION_ID, BRIEF))
                 .thenThrow(new DomainException(DomainErrorCode.INVALID_BRANCH,
-                        "指定的回退简报不在当前分支上"));
+                        "指定的分支简报不在当前分支上"));
 
         MvcResult result = mvc.perform(get("/api/v1/sessions/{id}/comparison", SESSION_ID)
                         .param("rewind", BRIEF.toString()))
@@ -137,7 +148,7 @@ class SessionComparisonControllerTest {
                 Instant.parse("2026-11-06T13:20:00Z"), abandoned, current,
                 new SessionBranchComparison.FileDifference(List.of("A.java"), List.of("B.java"),
                         List.of(), false),
-                "旧分支：1 轮对话；当前分支：1 轮对话。");
+                "另一条分支：1 轮对话；当前分支：1 轮对话。");
     }
 
     private JsonNode bodyOf(MvcResult result) throws Exception {

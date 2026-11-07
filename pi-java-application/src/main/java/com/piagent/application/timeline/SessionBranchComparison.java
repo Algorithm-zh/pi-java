@@ -5,21 +5,21 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 被放弃分支与当前分支的只读对比。
+ * 另一条分支与当前分支的只读对比。
  *
  * <p>两侧都只保留截断后的文本与计数；所有结论由服务端生成，调用方不再自行
- * 推断分支关系。没有回退时 {@code available = false}，其余字段为空值。</p>
+ * 推断分支关系。没有分支简报时 {@code available = false}，其余字段为空值。</p>
  *
- * @param available 当前分支是否存在回退简报
- * @param rewindEntryId 本次对比使用的回退简报 entry
+ * @param available 当前分支是否存在分支简报
+ * @param branchEntryId 本次对比使用的分支简报 entry
  * @param forkEntryId 两条分支最后一个共同 entry；从会话根分叉时为 null
- * @param at 回退发生时间
- * @param abandoned 被放弃分支在分叉点之后的投影
+ * @param at 分支切换发生时间
+ * @param abandoned 另一条分支在分叉点之后的投影
  * @param current 当前分支在分叉点之后的投影
  * @param files 路径级文件差异
  * @param summary 确定性中文摘要，最多 500 字
  */
-public record SessionBranchComparison(boolean available, EntryId rewindEntryId,
+public record SessionBranchComparison(boolean available, EntryId branchEntryId,
         EntryId forkEntryId, Instant at, BranchSide abandoned, BranchSide current,
         FileDifference files, String summary) {
 
@@ -228,7 +228,7 @@ public record SessionBranchComparison(boolean available, EntryId rewindEntryId,
         /**
          * 规范化列表。
          *
-         * @param onlyAbandoned 仅旧分支
+         * @param onlyAbandoned 仅另一条分支
          * @param onlyCurrent 仅当前分支
          * @param both 两边都有
          * @param truncated 是否截断

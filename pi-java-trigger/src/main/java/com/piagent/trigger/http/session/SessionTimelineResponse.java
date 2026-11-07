@@ -12,8 +12,8 @@ import java.util.List;
  * 当前分支的决策时间线响应。
  *
  * @param available 当前分支是否存在 Git 检查点
- * @param currentCheckpointEntryId 当前叶子所在 RUN 节点的检查点；叶子是回溯简报
- *     （REWIND 节点）时为 null
+ * @param currentCheckpointEntryId 当前叶子所在 RUN 节点的检查点；叶子是分支简报
+ *     （REWIND 或 RESUME 节点）时为 null
  * @param nodes 按分支位置排列的节点
  */
 public record SessionTimelineResponse(boolean available, String currentCheckpointEntryId,
@@ -22,37 +22,37 @@ public record SessionTimelineResponse(boolean available, String currentCheckpoin
     /**
      * 一个决策点。
      *
-     * <p>REWIND 节点只带回溯简报：{@code checkpointEntryId}、{@code plan}、
+     * <p>REWIND / RESUME 节点只带分支简报：{@code checkpointEntryId}、{@code plan}、
      * {@code approvals}、{@code verification}、{@code changes} 与 {@code evidence}
      * 均为 null，{@code intent} 与 {@code stopReason} 为空串，统计与轮数计数为 0。
-     * 反之 {@code brief} 只在 REWIND 节点有值，RUN 节点为空串。</p>
+     * 反之 {@code brief} 只在分支节点有值，RUN 节点为空串。</p>
      *
-     * @param type RUN 或 REWIND
-     * @param checkpointEntryId 检查点 entry；REWIND 节点为 null
-     * @param rewindEntryId 回溯简报 entry；RUN 节点为 null
-     * @param runId run 标识；REWIND 简报没有对应 run 时为空串
+     * @param type RUN、REWIND 或 RESUME
+     * @param checkpointEntryId 检查点 entry；分支节点为 null
+     * @param branchEntryId 分支简报 entry；RUN 节点为 null
+     * @param runId run 标识；分支简报没有对应 run 时为空串
      * @param at 节点时间
      * @param current 是否包含当前叶子
      * @param rewindable 是否允许回退
-     * @param intent 触发这次 run 的用户文本；REWIND 节点为空串
-     * @param plan 计划统计；REWIND 节点为 null
-     * @param approvals 审批统计；REWIND 节点为 null
-     * @param verification 验证统计；REWIND 节点为 null
-     * @param changes 改动统计；REWIND 节点为 null
-     * @param stopReason 停止原因；REWIND 节点为空串
-     * @param turns 轮数；REWIND 节点为 0
-     * @param toolCalls 工具调用数；REWIND 节点为 0
-     * @param brief 回溯简报；RUN 节点为空串
-     * @param discardedEntries 被丢弃的 entry 数；RUN 节点为 0
-     * @param discardedRuns 被丢弃的 run 数；RUN 节点为 0
-     * @param evidence 可展开的证据；REWIND 节点为 null
+     * @param intent 触发这次 run 的用户文本；分支节点为空串
+     * @param plan 计划统计；分支节点为 null
+     * @param approvals 审批统计；分支节点为 null
+     * @param verification 验证统计；分支节点为 null
+     * @param changes 改动统计；分支节点为 null
+     * @param stopReason 停止原因；分支节点为空串
+     * @param turns 轮数；分支节点为 0
+     * @param toolCalls 工具调用数；分支节点为 0
+     * @param brief 分支简报；RUN 节点为空串
+     * @param leftEntries 离开侧 entry 数；RUN 节点为 0
+     * @param leftRuns 离开侧 run 数；RUN 节点为 0
+     * @param evidence 可展开的证据；分支节点为 null
      */
-    public record NodeResponse(String type, String checkpointEntryId, String rewindEntryId,
+    public record NodeResponse(String type, String checkpointEntryId, String branchEntryId,
             String runId, String at,
             boolean current, boolean rewindable, String intent, PlanSummaryView plan,
             ApprovalSummaryView approvals, VerificationSummaryView verification,
             ChangeSummaryView changes, String stopReason, int turns, int toolCalls,
-            String brief, int discardedEntries, int discardedRuns, EvidenceView evidence) {
+            String brief, int leftEntries, int leftRuns, EvidenceView evidence) {
     }
 
     /** 计划统计。 */
@@ -121,10 +121,10 @@ public record SessionTimelineResponse(boolean available, String currentCheckpoin
 
     private static NodeResponse node(SessionTimeline.Node node) {
         SessionTimeline.RunEvidence run = node.run();
-        SessionTimeline.RewindEvidence rewind = node.rewind();
+        SessionTimeline.BranchEvidence branch = node.branch();
         SessionTimeline.Stats stats = run == null ? null : run.stats();
         return new NodeResponse(node.kind().name(), id(node.checkpointEntryId()),
-                rewind == null ? null : id(rewind.entryId()),
+                branch == null ? null : id(branch.entryId()),
                 node.runId(), node.at().toString(), node.current(), node.rewindable(),
                 run == null ? "" : run.intent(),
                 stats == null ? null : new PlanSummaryView(stats.plan().total(),
@@ -139,9 +139,9 @@ public record SessionTimelineResponse(boolean available, String currentCheckpoin
                 run == null ? "" : run.stopReason(),
                 run == null ? 0 : run.turns(),
                 run == null ? 0 : run.toolCalls(),
-                rewind == null ? "" : rewind.brief(),
-                rewind == null ? 0 : rewind.discardedEntries(),
-                rewind == null ? 0 : rewind.discardedRuns(),
+                branch == null ? "" : branch.brief(),
+                branch == null ? 0 : branch.leftEntries(),
+                branch == null ? 0 : branch.leftRuns(),
                 evidence(run));
     }
 

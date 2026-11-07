@@ -69,7 +69,7 @@ class SessionBranchComparisonServiceTest {
         SessionBranchComparison comparison = service.compare(sessionId, null);
 
         assertThat(comparison.available()).isFalse();
-        assertThat(comparison.rewindEntryId()).isNull();
+        assertThat(comparison.branchEntryId()).isNull();
         assertThat(comparison.abandoned().intents()).isEmpty();
         assertThat(comparison.current().intents()).isEmpty();
         assertThat(service.compare(sessionId, SessionEntryFactory.entryId(9999)).available())
@@ -96,7 +96,7 @@ class SessionBranchComparisonServiceTest {
         SessionBranchComparison comparison = service.compare(sessionId, brief);
 
         assertThat(comparison.available()).isTrue();
-        assertThat(comparison.rewindEntryId()).isEqualTo(brief);
+        assertThat(comparison.branchEntryId()).isEqualTo(brief);
         assertThat(comparison.forkEntryId()).isNull();
         assertThat(comparison.at()).isEqualTo(
                 entries.findById(sessionId, brief).orElseThrow().createdAt());
@@ -115,7 +115,43 @@ class SessionBranchComparisonServiceTest {
         assertThat(comparison.files().onlyAbandoned()).containsExactly("A.java");
         assertThat(comparison.files().onlyCurrent()).containsExactly("B.java");
         assertThat(comparison.files().both()).isEmpty();
-        assertThat(comparison.summary()).contains("旧分支").contains("当前分支");
+        assertThat(comparison.summary()).contains("另一条分支").contains("当前分支");
+    }
+
+    @Test
+    void comparesAlwaysWithResumeBrief() {
+        append(user("旧分支思路"));
+        append(new GitCheckpointPayload("run-1", null, "tree-0", "head-0", "main"));
+        append(change("run-1", "A.java", 10, 2));
+        append(new RunSummaryPayload("run-1", "COMPLETED", TokenUsage.zero(), 1, 1, 500, null));
+        EntryId oldLeaf = leaf;
+        EntryId rewindBrief = rewindTo(oldLeaf, null, "run-1");
+
+        append(user("新分支想法"));
+        append(new GitCheckpointPayload("run-2", rewindBrief, "tree-1", "head-0", "main"));
+        append(change("run-2", "B.java", 3, 1));
+        append(new RunSummaryPayload("run-2", "COMPLETED", TokenUsage.zero(), 1, 0, 300, null));
+        EntryId leftLeaf = leaf;
+
+        leaf = oldLeaf;
+        EntryId resumeBrief = append(new BranchSummaryPayload(leftLeaf, "切回另一条分支",
+                Map.of("kind", "resume", "branchEntryId", rewindBrief.toString())));
+        moveLeaf();
+
+        SessionBranchComparison comparison = service.compare(sessionId, resumeBrief);
+
+        assertThat(comparison.available()).isTrue();
+        assertThat(comparison.branchEntryId()).isEqualTo(resumeBrief);
+        assertThat(comparison.abandoned().intents()).containsExactly("新分支想法");
+        assertThat(comparison.abandoned().files())
+                .extracting(SessionBranchComparison.FileSummary::path)
+                .containsExactly("B.java");
+        assertThat(comparison.current().files())
+                .extracting(SessionBranchComparison.FileSummary::path)
+                .containsExactly("A.java");
+        assertThat(comparison.files().onlyAbandoned()).containsExactly("B.java");
+        assertThat(comparison.files().onlyCurrent()).containsExactly("A.java");
+        assertThat(comparison.summary()).contains("另一条分支").contains("当前分支");
     }
 
     @Test
@@ -140,7 +176,7 @@ class SessionBranchComparisonServiceTest {
 
         SessionBranchComparison latest = service.compare(sessionId, null);
 
-        assertThat(latest.rewindEntryId()).isEqualTo(secondBrief);
+        assertThat(latest.branchEntryId()).isEqualTo(secondBrief);
         assertThat(latest.abandoned().intents()).containsExactly("第二条路");
         assertThat(latest.current().intents()).containsExactly("第三条路");
         assertThatThrownBy(() -> service.compare(sessionId, firstBrief))

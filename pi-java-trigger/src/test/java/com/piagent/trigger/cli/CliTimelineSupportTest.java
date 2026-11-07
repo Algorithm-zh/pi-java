@@ -86,26 +86,48 @@ class CliTimelineSupportTest {
         support.compare(session, "", terminal());
 
         assertThat(out.toString())
-                .contains("对比 · 被放弃的分支 vs 当前分支")
-                .contains("旧分支：2 个 run，改过 2 个文件")
-                .contains("旧分支 · 2 个 run")
+                .contains("对比 · 另一条分支 vs 当前分支")
+                .contains("另一条分支：2 个 run，改过 2 个文件")
+                .contains("另一条分支 · 2 个 run")
                 .contains("被拒绝: write")
                 .contains("失败验证: mvn test")
                 .contains("未完成: 补测试")
-                .contains("仅旧分支: A.java")
-                .contains("仅新分支: B.java")
+                .contains("仅另一条分支: A.java")
+                .contains("仅当前分支: B.java")
                 .contains("两边都改过: C.java");
         verify(comparisons).compare(SESSION_ID, BRIEF);
     }
 
     @Test
-    void rejectsNonRewindNodeForCompare() {
+    void comparesLatestResumeByDefault() {
+        when(timelines.timeline(SESSION_ID)).thenReturn(timeline(
+                runNode(CHECKPOINT_B, true, true, "继续补测试", 1, 3, 0, 0, 1),
+                resumeNode()));
+        when(comparisons.compare(SESSION_ID, BRIEF)).thenReturn(comparison());
+
+        support.compare(session, "", terminal());
+
+        assertThat(out.toString()).contains("对比 · 另一条分支 vs 当前分支");
+        verify(comparisons).compare(SESSION_ID, BRIEF);
+    }
+
+    @Test
+    void printsResumeNodeLabel() {
+        when(timelines.timeline(SESSION_ID)).thenReturn(timeline(resumeNode()));
+
+        support.printTimeline(session, terminal());
+
+        assertThat(out.toString()).contains("切回 · 切回另一条分支");
+    }
+
+    @Test
+    void rejectsNonBranchNodeForCompare() {
         when(timelines.timeline(SESSION_ID)).thenReturn(timeline(
                 runNode(CHECKPOINT_A, true, true, "补测试", 1, 3, 0, 0, 1)));
 
         support.compare(session, "1", terminal());
 
-        assertThat(out.toString()).contains("不是回退点");
+        assertThat(out.toString()).contains("不是分支节点");
         verifyNoInteractions(comparisons);
     }
 
@@ -227,7 +249,12 @@ class CliTimelineSupportTest {
 
     private static SessionTimeline.Node rewindNode() {
         return new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND, null, "run", NOW, false,
-                false, null, new SessionTimeline.RewindEvidence(BRIEF, "回退到运行前", 3, 1));
+                false, null, new SessionTimeline.BranchEvidence(BRIEF, "回退到运行前", 3, 1));
+    }
+
+    private static SessionTimeline.Node resumeNode() {
+        return new SessionTimeline.Node(SessionTimeline.NodeKind.RESUME, null, "run", NOW, true,
+                false, null, new SessionTimeline.BranchEvidence(BRIEF, "切回另一条分支", 4, 2));
     }
 
     private static SessionBranchComparison comparison() {
@@ -235,7 +262,7 @@ class CliTimelineSupportTest {
                 side("补测试", "A.java", 2), side("继续补测试", "B.java", 1),
                 new SessionBranchComparison.FileDifference(List.of("A.java"), List.of("B.java"),
                         List.of("C.java"), false),
-                "旧分支：2 个 run，改过 2 个文件。");
+                "另一条分支：2 个 run，改过 2 个文件。");
     }
 
     private static SessionBranchComparison.BranchSide side(String intent, String path, int runs) {

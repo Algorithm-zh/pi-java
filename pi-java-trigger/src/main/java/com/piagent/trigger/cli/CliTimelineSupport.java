@@ -52,22 +52,22 @@ public class CliTimelineSupport {
     }
 
     /**
-     * 对比被放弃的分支与当前分支。
+     * 对比另一条分支与当前分支。
      *
      * @param session 当前会话
-     * @param argument 时间线序号；空表示最近一次回退
+     * @param argument 时间线序号；空表示最近一次分支切换
      * @param terminal 输出终端
      */
     public void compare(ChatSession session, String argument, CliTerminal terminal) {
         SessionTimeline timeline = timelines.timeline(session.identity().id());
-        SessionTimeline.Node target = rewindNode(timeline, argument, terminal);
+        SessionTimeline.Node target = branchNode(timeline, argument, terminal);
         if (target == null) {
             return;
         }
         SessionBranchComparison comparison = comparisons.compare(session.identity().id(),
-                target.rewind().entryId());
+                target.branch().entryId());
         if (!comparison.available()) {
-            terminal.println("当前会话还没有回退记录，无法对比");
+            terminal.println("当前会话还没有分支切换记录，无法对比");
             return;
         }
         CliTimelineText.compare(comparison, terminal);
@@ -118,24 +118,24 @@ public class CliTimelineSupport {
         return sessions.require(session.identity().id().toString());
     }
 
-    private static SessionTimeline.Node rewindNode(SessionTimeline timeline, String argument,
+    private static SessionTimeline.Node branchNode(SessionTimeline timeline, String argument,
             CliTerminal terminal) {
         List<SessionTimeline.Node> nodes = timeline.nodes();
         if (argument.isBlank()) {
             for (int index = nodes.size() - 1; index >= 0; index--) {
-                if (nodes.get(index).kind() == SessionTimeline.NodeKind.REWIND) {
+                if (nodes.get(index).kind() != SessionTimeline.NodeKind.RUN) {
                     return nodes.get(index);
                 }
             }
-            terminal.println("当前会话还没有回退记录，无法对比");
+            terminal.println("当前会话还没有分支切换记录，无法对比");
             return null;
         }
         SessionTimeline.Node node = nodeAt(timeline, argument, terminal);
         if (node == null) {
             return null;
         }
-        if (node.kind() != SessionTimeline.NodeKind.REWIND) {
-            terminal.println("第 " + argument.strip() + " 个节点不是回退点，请用 /timeline 查看");
+        if (node.kind() == SessionTimeline.NodeKind.RUN) {
+            terminal.println("第 " + argument.strip() + " 个节点不是分支节点，请用 /timeline 查看");
             return null;
         }
         return node;

@@ -128,9 +128,32 @@ class SessionTimelineServiceTest {
         assertThat(timeline.nodes().getLast().kind())
                 .isEqualTo(SessionTimeline.NodeKind.REWIND);
         assertThat(timeline.nodes().getLast().current()).isTrue();
-        assertThat(timeline.nodes().getLast().rewind().entryId()).isEqualTo(brief);
-        assertThat(timeline.nodes().getLast().rewind().discardedEntries()).isEqualTo(3);
-        assertThat(timeline.nodes().getLast().rewind().discardedRuns()).isEqualTo(1);
+        assertThat(timeline.nodes().getLast().branch().entryId()).isEqualTo(brief);
+        assertThat(timeline.nodes().getLast().branch().leftEntries()).isEqualTo(3);
+        assertThat(timeline.nodes().getLast().branch().leftRuns()).isEqualTo(1);
+        assertThat(timeline.currentCheckpointEntryId()).isNull();
+    }
+
+    @Test
+    void projectsResumeNodeWithBranchEvidence() {
+        append(new MessagePayload(new UserMessage(
+                List.of(new com.piagent.domain.session.model.message.TextBlock("旧分支")), NOW)));
+        append(new GitCheckpointPayload("run-1", null, "tree-0", "head", "main"));
+        EntryId oldLeaf = leaf;
+        append(new BranchSummaryPayload(oldLeaf, "回退简报", Map.of("kind", "rewind",
+                "leftEntries", 2, "leftRuns", 1)));
+        append(new BranchSummaryPayload(oldLeaf, "切回另一条分支", Map.of("kind", "resume",
+                "branchEntryId", oldLeaf.toString(), "leftEntries", 4, "leftRuns", 2)));
+        moveLeaf();
+
+        SessionTimeline timeline = service.timeline(sessionId);
+
+        SessionTimeline.Node last = timeline.nodes().getLast();
+        assertThat(last.kind()).isEqualTo(SessionTimeline.NodeKind.RESUME);
+        assertThat(last.current()).isTrue();
+        assertThat(last.branch().brief()).isEqualTo("切回另一条分支");
+        assertThat(last.branch().leftEntries()).isEqualTo(4);
+        assertThat(last.branch().leftRuns()).isEqualTo(2);
         assertThat(timeline.currentCheckpointEntryId()).isNull();
     }
 

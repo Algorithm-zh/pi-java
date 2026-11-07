@@ -170,10 +170,10 @@ class SessionTimelineControllerTest {
     @Test
     void rendersRewindNode() throws Exception {
         EntryId briefEntry = EntryId.parse("01TST000000000000000000042");
-        SessionTimeline.RewindEvidence rewind = new SessionTimeline.RewindEvidence(
+        SessionTimeline.BranchEvidence branch = new SessionTimeline.BranchEvidence(
                 briefEntry, "从 14:32 的决策点回退", 3, 1);
         SessionTimeline.Node node = new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND,
-                null, "run-1", Instant.parse("2026-11-05T10:05:00Z"), true, false, null, rewind);
+                null, "run-1", Instant.parse("2026-11-05T10:05:00Z"), true, false, null, branch);
         when(timelines.timeline(SESSION_ID))
                 .thenReturn(new SessionTimeline(true, null, List.of(node)));
 
@@ -186,12 +186,34 @@ class SessionTimelineControllerTest {
         JsonNode rewindNode = body.path("nodes").get(0);
         assertThat(rewindNode.path("type").asText()).isEqualTo("REWIND");
         assertThat(rewindNode.path("checkpointEntryId").isNull()).isTrue();
-        assertThat(rewindNode.path("rewindEntryId").asText()).isEqualTo(briefEntry.toString());
+        assertThat(rewindNode.path("branchEntryId").asText()).isEqualTo(briefEntry.toString());
         assertThat(rewindNode.path("brief").asText()).isEqualTo("从 14:32 的决策点回退");
-        assertThat(rewindNode.path("discardedEntries").asInt()).isEqualTo(3);
-        assertThat(rewindNode.path("discardedRuns").asInt()).isEqualTo(1);
+        assertThat(rewindNode.path("leftEntries").asInt()).isEqualTo(3);
+        assertThat(rewindNode.path("leftRuns").asInt()).isEqualTo(1);
         assertThat(rewindNode.path("intent").asText()).isEmpty();
         assertThat(rewindNode.path("evidence").isNull()).isTrue();
+    }
+
+    @Test
+    void rendersResumeNode() throws Exception {
+        EntryId briefEntry = EntryId.parse("01TST000000000000000000043");
+        SessionTimeline.BranchEvidence branch = new SessionTimeline.BranchEvidence(
+                briefEntry, "切回另一条分支", 4, 2);
+        SessionTimeline.Node node = new SessionTimeline.Node(SessionTimeline.NodeKind.RESUME,
+                null, "run-2", Instant.parse("2026-11-05T10:06:00Z"), true, false, null, branch);
+        when(timelines.timeline(SESSION_ID))
+                .thenReturn(new SessionTimeline(true, null, List.of(node)));
+
+        MvcResult result = mvc.perform(get("/api/v1/sessions/{id}/timeline", SESSION_ID))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode resumeNode = bodyOf(result).path("nodes").get(0);
+        assertThat(resumeNode.path("type").asText()).isEqualTo("RESUME");
+        assertThat(resumeNode.path("branchEntryId").asText()).isEqualTo(briefEntry.toString());
+        assertThat(resumeNode.path("brief").asText()).isEqualTo("切回另一条分支");
+        assertThat(resumeNode.path("leftEntries").asInt()).isEqualTo(4);
+        assertThat(resumeNode.path("leftRuns").asInt()).isEqualTo(2);
     }
 
     @Test

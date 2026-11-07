@@ -70,7 +70,7 @@ public class SessionTimelineService {
                 currentCheckpoint = node.checkpointEntryId();
             }
             nodes.add(new SessionTimeline.Node(node.kind(), node.checkpointEntryId(), node.runId(),
-                    node.at(), current, node.rewindable(), node.run(), node.rewind()));
+                    node.at(), current, node.rewindable(), node.run(), node.branch()));
         }
         return new SessionTimeline(hasCheckpoint, currentCheckpoint, List.copyOf(nodes));
     }
@@ -83,8 +83,8 @@ public class SessionTimelineService {
                 int end = nextCheckpoint(branch, index + 1);
                 nodes.add(new IndexedNode(index, runNode(branch, new RunSlice(index, end,
                         checkpoint.runId(), branch.get(index), branch.get(index), idle))));
-            } else if (payload instanceof BranchSummaryPayload summary && isRewind(summary)) {
-                nodes.add(new IndexedNode(index, rewindNode(branch.get(index), summary)));
+            } else if (payload instanceof BranchSummaryPayload summary && isBranch(summary)) {
+                nodes.add(new IndexedNode(index, branchNode(branch.get(index), summary)));
             }
         }
         return nodes;
@@ -111,8 +111,8 @@ public class SessionTimelineService {
         }
         for (int index = 0; index < branch.size(); index++) {
             if (branch.get(index).payload() instanceof BranchSummaryPayload summary
-                    && isRewind(summary)) {
-                nodes.add(new IndexedNode(index, rewindNode(branch.get(index), summary)));
+                    && isBranch(summary)) {
+                nodes.add(new IndexedNode(index, branchNode(branch.get(index), summary)));
             }
         }
         nodes.sort(Comparator.comparingInt(IndexedNode::index));
@@ -251,16 +251,25 @@ public class SessionTimelineService {
         return branch.size();
     }
 
-    private SessionTimeline.Node rewindNode(SessionEntry entry, BranchSummaryPayload payload) {
+    private SessionTimeline.Node branchNode(SessionEntry entry, BranchSummaryPayload payload) {
         Map<String, Object> details = payload.details();
-        return new SessionTimeline.Node(SessionTimeline.NodeKind.REWIND, null,
-                text(details.get("runId")), entry.createdAt(), false, false, null,
-                new SessionTimeline.RewindEvidence(entry.id(), payload.summary(),
-                        number(details.get("discardedEntries")), number(details.get("discardedRuns"))));
+        SessionTimeline.NodeKind kind = "resume".equals(details.get("kind"))
+                ? SessionTimeline.NodeKind.RESUME : SessionTimeline.NodeKind.REWIND;
+        return new SessionTimeline.Node(kind, null, text(details.get("runId")),
+                entry.createdAt(), false, false, null,
+                new SessionTimeline.BranchEvidence(entry.id(), payload.summary(),
+                        count(details, "leftEntries", "discardedEntries"),
+                        count(details, "leftRuns", "discardedRuns")));
     }
 
-    private boolean isRewind(BranchSummaryPayload payload) {
-        return "rewind".equals(payload.details().get("kind"));
+    private int count(Map<String, Object> details, String key, String legacy) {
+        Object value = details.get(key);
+        return number(value == null ? details.get(legacy) : value);
+    }
+
+    private boolean isBranch(BranchSummaryPayload payload) {
+        Object kind = payload.details().get("kind");
+        return "rewind".equals(kind) || "resume".equals(kind);
     }
 
     private boolean matches(String value, String runId) {

@@ -127,7 +127,7 @@ class BranchComparisonIntegrationTest {
                 rewind.briefEntryId());
 
         assertThat(comparison.available()).isTrue();
-        assertThat(comparison.rewindEntryId()).isEqualTo(rewind.briefEntryId());
+        assertThat(comparison.branchEntryId()).isEqualTo(rewind.briefEntryId());
         assertThat(comparison.forkEntryId()).isNotNull();
         assertThat(comparison.abandoned().intents())
                 .containsExactly("/write shared.txt 旧共享");
@@ -140,7 +140,7 @@ class BranchComparisonIntegrationTest {
         assertThat(comparison.files().onlyAbandoned()).isEmpty();
         assertThat(comparison.files().onlyCurrent()).containsExactly("new.txt");
         assertThat(comparison.files().both()).containsExactly("shared.txt");
-        assertThat(comparison.summary()).contains("旧分支").contains("当前分支");
+        assertThat(comparison.summary()).contains("另一条分支").contains("当前分支");
         assertThat(comparison.abandoned().files())
                 .extracting(SessionBranchComparison.FileSummary::path)
                 .containsExactly("shared.txt");

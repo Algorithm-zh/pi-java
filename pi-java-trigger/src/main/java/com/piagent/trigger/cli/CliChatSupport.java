@@ -189,7 +189,7 @@ public class CliChatSupport {
                   /plan          查看待办与最近一次验证
                   /undo          撤销上一轮（还原文件并回退对话）
                   /timeline      查看决策时间线
-                  /compare [N]   对比被放弃的分支与当前分支
+                  /compare [N]   对比另一条分支与当前分支
                   /rewind <N>    回退到第 N 个检查点（需确认）
                   /skill:名称    以技能方式发送消息""";
     }

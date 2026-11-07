@@ -89,9 +89,9 @@ public class BranchComparisonProjector {
     public String summary(SessionBranchComparison.BranchSide abandoned,
             SessionBranchComparison.BranchSide current,
             SessionBranchComparison.FileDifference files) {
-        StringBuilder text = new StringBuilder(describe("旧分支", abandoned));
+        StringBuilder text = new StringBuilder(describe("另一条分支", abandoned));
         text.append('\n').append(describe("当前分支", current));
-        appendPaths(text, "旧分支独有的文件：", files.onlyAbandoned());
+        appendPaths(text, "另一条分支独有的文件：", files.onlyAbandoned());
         appendPaths(text, "当前分支独有的文件：", files.onlyCurrent());
         return truncate(text.toString(), MAX_SUMMARY);
     }

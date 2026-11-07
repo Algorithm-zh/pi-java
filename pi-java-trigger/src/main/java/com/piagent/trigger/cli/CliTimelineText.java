@@ -39,9 +39,9 @@ final class CliTimelineText {
     }
 
     static void compare(SessionBranchComparison comparison, CliTerminal terminal) {
-        terminal.println("对比 · 被放弃的分支 vs 当前分支");
+        terminal.println("对比 · 另一条分支 vs 当前分支");
         terminal.println(comparison.summary());
-        printSide("旧分支", comparison.abandoned(), terminal);
+        printSide("另一条分支", comparison.abandoned(), terminal);
         printSide("当前分支", comparison.current(), terminal);
         printFiles(comparison.files(), terminal);
     }
@@ -63,10 +63,14 @@ final class CliTimelineText {
 
     private static String nodeLine(int number, SessionTimeline.Node node) {
         String mark = node.current() ? "*" : " ";
-        String head = mark + " " + number + ". " + TIME.format(node.at()) + " · "
-                + (node.kind() == SessionTimeline.NodeKind.RUN ? "run" : "回退");
-        if (node.kind() == SessionTimeline.NodeKind.REWIND) {
-            return head + " · " + CliText.oneLine(node.rewind().brief(), MAX_INTENT);
+        String label = switch (node.kind()) {
+            case RUN -> "run";
+            case REWIND -> "回退";
+            case RESUME -> "切回";
+        };
+        String head = mark + " " + number + ". " + TIME.format(node.at()) + " · " + label;
+        if (node.kind() != SessionTimeline.NodeKind.RUN) {
+            return head + " · " + CliText.oneLine(node.branch().brief(), MAX_INTENT);
         }
         SessionTimeline.RunEvidence run = node.run();
         if (run == null) {
@@ -124,8 +128,8 @@ final class CliTimelineText {
             return;
         }
         terminal.println("文件差异");
-        printPaths("仅旧分支", files.onlyAbandoned(), terminal);
-        printPaths("仅新分支", files.onlyCurrent(), terminal);
+        printPaths("仅另一条分支", files.onlyAbandoned(), terminal);
+        printPaths("仅当前分支", files.onlyCurrent(), terminal);
         printPaths("两边都改过", files.both(), terminal);
         if (files.truncated()) {
             terminal.println("  …（列表已截断，完整内容见 Web 对比面板）");
