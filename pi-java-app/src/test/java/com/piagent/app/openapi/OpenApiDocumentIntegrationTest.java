@@ -52,6 +52,7 @@ class OpenApiDocumentIntegrationTest {
         assertThat(paths.has("/api/v1/sessions/{id}/plan")).isTrue();
         assertThat(paths.has("/api/v1/sessions/{id}/timeline")).isTrue();
         assertThat(paths.has("/api/v1/sessions/{id}/rewind")).isTrue();
+        assertThat(paths.has("/api/v1/sessions/{id}/resume")).isTrue();
         assertThat(paths.has("/api/v1/sessions/{id}/comparison")).isTrue();
         assertThat(paths.has("/api/v1/sessions/{id}/messages/stream")).isTrue();
         assertThat(paths.has("/api/v1/runs/{runId}/events")).isTrue();
