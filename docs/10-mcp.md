@@ -103,7 +103,7 @@ pi:
 
 `connect()` 固定执行两步：
 
-1. `initialize`：声明 `protocolVersion=2025-06-18`、`clientInfo={pi-java, 0.3.0}`；
+1. `initialize`：声明 `protocolVersion=2025-06-18`、`clientInfo={pi-java, 0.4.0}`；
    响应缺少 `protocolVersion` 视为协议错误；成功后发送 `notifications/initialized`；
 2. `tools/list`：支持 `nextCursor` 分页，最多 50 页；跳过没有名字或
    `inputSchema` 不是 JSON 对象的工具（LLM 工具协议要求对象 schema）。

@@ -12,9 +12,9 @@ pi-java 用 **Java 21 + DDD 分层 + 插件化** 实现，提供一个 jar、两
 浏览器里的 Web 工作台和终端里的 `pi` CLI。数据、工具、审批、插件全部跑在本机，
 离线 Fake 模型不需要任何 API Key 就能完整体验。
 
-> **当前版本 v0.3.0**（2026-11-06 发布）。开发分支已合入 M24 去账号化与 M25 分支切回：
-> 删除账号、令牌与空间体系，恢复为单用户本地服务；两条走过的分支可以来回继续。
-> 976 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
+> **当前版本 v0.4.0**（2026-11-07 发布）。这一版带来 M23 分叉对比、M24 去账号化
+> 与 M25 分支切回：删除了账号、令牌与空间体系，恢复为单用户本地服务；
+> 两条走过的分支可以随时对比并来回继续。976 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
 
 ![pi-java 欢迎页](docs/images/welcome.png)
 
@@ -224,7 +224,7 @@ Checkstyle、ArchUnit、OpenAPI 校验通过；Web 与 CLI 都有真实浏览器
 ## 文档
 
 - **开始使用**：[快速上手](docs/09-quick-start.md) · [API 与 CLI](docs/05-api-and-cli.md) ·
-  [部署、容器与 CI](docs/14-deployment.md) · [发布说明 v0.3.0](docs/releases/v0.3.0.md)
+  [部署、容器与 CI](docs/14-deployment.md) · [发布说明 v0.4.0](docs/releases/v0.4.0.md)
 - **理解设计**：[整体架构](docs/01-architecture.md) · [领域模型](docs/02-domain-model.md) ·
   [数据库设计](docs/03-database-design.md) · [运行时与事件](docs/04-runtime-and-events.md) ·
   [界面设计](docs/11-interface-design.md)

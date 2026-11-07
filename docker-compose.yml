@@ -4,7 +4,7 @@ services:
   pi-java:
     build:
       context: .
-    image: pi-java:0.3.0
+    image: pi-java:0.4.0
     ports:
       - "127.0.0.1:8080:8080"
     environment:

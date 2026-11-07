@@ -19,7 +19,7 @@ public final class McpProtocol {
     public static final String CLIENT_NAME = "pi-java";
 
     /** 客户端版本。 */
-    public static final String CLIENT_VERSION = "0.3.0";
+    public static final String CLIENT_VERSION = "0.4.0";
 
     private McpProtocol() {
     }

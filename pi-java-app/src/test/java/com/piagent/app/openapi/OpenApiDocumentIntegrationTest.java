@@ -41,7 +41,7 @@ class OpenApiDocumentIntegrationTest {
         JsonNode document = mapper.readTree(result.getResponse().getContentAsString());
 
         assertThat(document.at("/info/title").asText()).isEqualTo("pi-java");
-        assertThat(document.at("/info/version").asText()).isEqualTo("0.3.0");
+        assertThat(document.at("/info/version").asText()).isEqualTo("0.4.0");
         assertThat(document.at("/info/license/name").asText()).isEqualTo("MIT License");
 
         JsonNode paths = document.get("paths");

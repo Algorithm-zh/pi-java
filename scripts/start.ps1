@@ -41,7 +41,7 @@ Set-StrictMode -Version Latest
 
 # ── 路径与可调参数 ────────────────────────────────────────────────────────────
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.3.0.jar"
+$JarPath = Join-Path $RepoRoot "pi-java-app\target\pi-java-app-0.4.0.jar"
 $BaseUrl = "http://127.0.0.1:$Port/api/v1"
 
 $ReadyPath = "$BaseUrl/health"

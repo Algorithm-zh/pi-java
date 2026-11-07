@@ -15,7 +15,7 @@
 
 ```bash
 mvn -q -DskipTests package
-java -jar pi-java-app/target/pi-java-app-0.3.0.jar
+java -jar pi-java-app/target/pi-java-app-0.4.0.jar
 ```
 
 同一个 jar 也提供 CLI：`java -jar ... run "任务"`、`chat`、`sessions`、`models`、

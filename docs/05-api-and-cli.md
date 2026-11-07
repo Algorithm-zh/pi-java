@@ -860,7 +860,7 @@ POST /api/v1/plugins/{id}/disable
 
 ```json
 {
-  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.3.0.jar",
+  "jarPath": "D:/code/pi-java/examples/pi-plugin-example/target/pi-plugin-example-0.4.0.jar",
   "config": {}
 }
 ```
@@ -874,7 +874,7 @@ POST /api/v1/plugins/{id}/disable
   "id": "com.piagent.example.hello",
   "version": "1.0.0",
   "apiVersion": "1.0",
-  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.3.0.jar",
+  "jarPath": "D:\\code\\pi-java\\examples\\pi-plugin-example\\target\\pi-plugin-example-0.4.0.jar",
   "status": "INSTALLED",
   "lastError": null,
   "installedAt": "2026-10-22T08:00:00Z",
@@ -907,7 +907,7 @@ GET /api/v1/system/info
 
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "workspaceRoot": "D:\\code\\pi-java",
   "osName": "Windows 11"
 }

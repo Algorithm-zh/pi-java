@@ -52,7 +52,7 @@ plugin-api     -> JDK
 
 ## 2. Maven 模块
 
-根坐标 `com.piagent:pi-java:0.3.0`，根包 `com.piagent`。
+根坐标 `com.piagent:pi-java:0.4.0`，根包 `com.piagent`。
 
 | 模块 | 允许依赖 | 职责 | 明确禁止 |
 |---|---|---|---|

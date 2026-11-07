@@ -86,7 +86,7 @@ jobs:
           health = json.load(call("/api/v1/health"))
           assert health["status"] == "ok", health
           info = json.load(call("/api/v1/system/info"))
-          assert info["version"] == "0.3.0", info
+          assert info["version"] == "0.4.0", info
           doc = json.load(u.urlopen(base + "/v3/api-docs"))
           assert "/api/v1/sessions/{id}/plan" in doc["paths"]
           page = u.urlopen(base + "/").read().decode()
