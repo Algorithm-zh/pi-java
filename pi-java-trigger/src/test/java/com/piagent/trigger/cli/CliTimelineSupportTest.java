@@ -7,8 +7,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.piagent.application.timeline.BranchResumeResult;
 import com.piagent.application.timeline.SessionBranchComparison;
 import com.piagent.application.timeline.SessionBranchComparisonService;
+import com.piagent.application.timeline.SessionBranchResumeService;
 import com.piagent.application.timeline.SessionRewindResult;
 import com.piagent.application.timeline.SessionRewindService;
 import com.piagent.application.timeline.SessionTimeline;
@@ -46,8 +48,9 @@ class CliTimelineSupportTest {
     private final SessionBranchComparisonService comparisons =
             mock(SessionBranchComparisonService.class);
     private final SessionRewindService rewinds = mock(SessionRewindService.class);
+    private final SessionBranchResumeService resumes = mock(SessionBranchResumeService.class);
     private final CliTimelineSupport support =
-            new CliTimelineSupport(sessions, timelines, comparisons, rewinds);
+            new CliTimelineSupport(sessions, timelines, comparisons, rewinds, resumes);
     private final ChatSession session = ChatSession.createRoot(SESSION_ID, "时间线测试",
             SessionConfig.forWorkspace(WORKSPACE, "fake-demo"));
     private final StringWriter out = new StringWriter();
@@ -220,6 +223,64 @@ class CliTimelineSupportTest {
         verifyNoInteractions(rewinds);
     }
 
+    @Test
+    void resumePreviewsAndExecutesAfterConfirmation() {
+        when(timelines.timeline(SESSION_ID)).thenReturn(timeline(resumeNode()));
+        when(resumes.resume(SESSION_ID, BRIEF, true, null)).thenReturn(resumePreview());
+        when(resumes.resume(SESSION_ID, BRIEF, false, null)).thenReturn(resumeExecuted());
+        when(sessions.require(SESSION_ID.toString())).thenReturn(session);
+
+        ChatSession result = support.resume(session, "1", confirmTerminal("y"));
+
+        assertThat(result).isSameAs(session);
+        assertThat(out.toString())
+                .contains("将切换 · 离开 2 条记录 / 1 个 run · 目标分支 4 条记录 / 2 个 run · 改动 1 个文件")
+                .contains("切回目标分支")
+                .contains("已切换 · 改动 1 个文件")
+                .contains("  - b.txt");
+        verify(resumes).resume(SESSION_ID, BRIEF, false, null);
+    }
+
+    @Test
+    void resumeRejectsNonInteractiveTerminal() {
+        when(timelines.timeline(SESSION_ID)).thenReturn(timeline(resumeNode()));
+        when(resumes.resume(SESSION_ID, BRIEF, true, null)).thenReturn(resumePreview());
+
+        ChatSession result = support.resume(session, "", terminal());
+
+        assertThat(result).isSameAs(session);
+        assertThat(out.toString()).contains("当前不是交互终端，已取消切换");
+        verify(resumes, never()).resume(SESSION_ID, BRIEF, false, null);
+    }
+
+    @Test
+    void resumeSkipsConfirmationWhenTargetUnavailable() {
+        when(timelines.timeline(SESSION_ID)).thenReturn(timeline(resumeNode()));
+        BranchResumeResult unavailable = new BranchResumeResult(true, false, false, true,
+                "目标分支缺少工作区快照", null, List.of(), List.of(), List.of(), null, 2, 1, 4, 2,
+                "");
+        when(resumes.resume(SESSION_ID, BRIEF, true, null)).thenReturn(unavailable);
+
+        CliTerminal terminal = CliTerminal.forTui(new PrintWriter(out, true), prompt -> {
+            throw new AssertionError("目标不可用时不应询问确认");
+        });
+        support.resume(session, "1", terminal);
+
+        assertThat(out.toString()).contains("目标分支缺少工作区快照");
+        verify(resumes, never()).resume(SESSION_ID, BRIEF, false, null);
+    }
+
+    @Test
+    void compareAcceptsResumeNode() {
+        when(timelines.timeline(SESSION_ID)).thenReturn(timeline(resumeNode()));
+        when(comparisons.compare(SESSION_ID, BRIEF)).thenReturn(comparison());
+
+        support.compare(session, "1", terminal());
+
+        assertThat(out.toString()).contains("对比 · 另一条分支 vs 当前分支");
+        verify(comparisons).compare(SESSION_ID, BRIEF);
+    }
+
     private CliTerminal terminal() {
         return new CliTerminal(new BufferedReader(new StringReader("")),
                 new PrintWriter(out, true), new PrintWriter(new StringWriter(), true));
@@ -283,5 +344,15 @@ class CliTimelineSupportTest {
     private static SessionRewindResult executed() {
         return new SessionRewindResult(false, true, true, List.of("a.txt"), List.of("a.txt"),
                 List.of(), BRIEF, 3, 1, "已回退");
+    }
+
+    private static BranchResumeResult resumePreview() {
+        return new BranchResumeResult(true, false, true, true, "", CHECKPOINT_B,
+                List.of("b.txt"), List.of(), List.of(), null, 2, 1, 4, 2, "切回目标分支");
+    }
+
+    private static BranchResumeResult resumeExecuted() {
+        return new BranchResumeResult(false, true, true, true, "", CHECKPOINT_B,
+                List.of("b.txt"), List.of("b.txt"), List.of(), BRIEF, 2, 1, 4, 2, "已切换");
     }
 }

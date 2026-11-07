@@ -13,7 +13,7 @@ final class SlashCompleter implements Completer {
 
     static final List<String> COMMANDS = List.of(
             "/abort", "/compact", "/compare", "/diff", "/exit", "/help", "/model", "/plan",
-            "/quit", "/rewind", "/session", "/skill:", "/timeline", "/tree", "/undo");
+            "/quit", "/resume", "/rewind", "/session", "/skill:", "/timeline", "/tree", "/undo");
 
     @Override
     public void complete(LineReader reader, ParsedLine line, List<Candidate> candidates) {

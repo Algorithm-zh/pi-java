@@ -12,6 +12,7 @@ import com.piagent.application.git.SessionGitChanges;
 import com.piagent.application.plan.SessionPlanService;
 import com.piagent.application.session.service.SessionSettingsApplicationService;
 import com.piagent.application.timeline.SessionBranchComparisonService;
+import com.piagent.application.timeline.SessionBranchResumeService;
 import com.piagent.application.timeline.SessionRewindService;
 import com.piagent.application.timeline.SessionTimelineService;
 import com.piagent.domain.git.model.FileChange;
@@ -112,7 +113,7 @@ class CliChatSupportGitTest {
     private static CliTimelineSupport timeline() {
         return new CliTimelineSupport(mock(CliSessionService.class),
                 mock(SessionTimelineService.class), mock(SessionBranchComparisonService.class),
-                mock(SessionRewindService.class));
+                mock(SessionRewindService.class), mock(SessionBranchResumeService.class));
     }
 
     private static SessionGitChanges changes() {

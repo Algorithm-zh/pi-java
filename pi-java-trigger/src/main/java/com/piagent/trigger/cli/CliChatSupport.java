@@ -25,7 +25,7 @@ public class CliChatSupport {
 
     private static final Set<String> COMMANDS = Set.of(
             "/help", "/exit", "/quit", "/abort", "/compact", "/model", "/tree", "/session",
-            "/diff", "/undo", "/plan", "/timeline", "/compare", "/rewind");
+            "/diff", "/undo", "/plan", "/timeline", "/compare", "/rewind", "/resume");
 
     private final CliSessionService sessions;
     private final SessionSettingsApplicationService settings;
@@ -95,6 +95,9 @@ public class CliChatSupport {
             case "/compare" -> timeline.compare(session, argument, terminal);
             case "/rewind" -> {
                 return timeline.rewind(session, argument, terminal);
+            }
+            case "/resume" -> {
+                return timeline.resume(session, argument, terminal);
             }
             default -> terminal.println("未知命令: " + command + "，输入 /help 查看帮助");
         }
@@ -191,6 +194,7 @@ public class CliChatSupport {
                   /timeline      查看决策时间线
                   /compare [N]   对比另一条分支与当前分支
                   /rewind <N>    回退到第 N 个检查点（需确认）
+                  /resume [N]    切到另一条分支（需确认）
                   /skill:名称    以技能方式发送消息""";
     }
 }

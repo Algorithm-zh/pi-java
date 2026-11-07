@@ -1,5 +1,6 @@
 package com.piagent.trigger.cli;
 
+import com.piagent.application.timeline.BranchResumeResult;
 import com.piagent.application.timeline.SessionBranchComparison;
 import com.piagent.application.timeline.SessionRewindResult;
 import com.piagent.application.timeline.SessionTimeline;
@@ -35,7 +36,8 @@ final class CliTimelineText {
         for (int index = 0; index < nodes.size(); index++) {
             terminal.println(nodeLine(index + 1, nodes.get(index)));
         }
-        terminal.println("  /compare [序号] 对比两条分支 · /rewind <序号> 回退到检查点");
+        terminal.println("  /compare [序号] 对比两条分支 · /rewind <序号> 回退到检查点"
+                + " · /resume [序号] 切到另一条分支");
     }
 
     static void compare(SessionBranchComparison comparison, CliTerminal terminal) {
@@ -58,6 +60,27 @@ final class CliTimelineText {
         }
         if (!preview.restorable()) {
             terminal.println("存在冲突，不能回退；请先处理上面的文件");
+        }
+    }
+
+    static void resumePreview(BranchResumeResult preview, CliTerminal terminal) {
+        terminal.println("将切换 · 离开 " + preview.leftEntries() + " 条记录 / "
+                + preview.leftRuns() + " 个 run · 目标分支 " + preview.targetEntries()
+                + " 条记录 / " + preview.targetRuns() + " 个 run · 改动 "
+                + preview.files().size() + " 个文件");
+        if (!preview.available()) {
+            terminal.println(preview.unavailableReason());
+            return;
+        }
+        if (!preview.brief().isBlank()) {
+            terminal.println(CliText.oneLine(preview.brief(), MAX_BRIEF));
+        }
+        preview.files().forEach(path -> terminal.println("  - " + path));
+        for (GitConflict conflict : preview.conflicts()) {
+            terminal.println("  ! " + conflict.path() + " · " + conflict.reason());
+        }
+        if (!preview.restorable()) {
+            terminal.println("存在冲突，不能切换；请先处理上面的文件");
         }
     }
 
