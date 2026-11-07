@@ -54,6 +54,7 @@
 - [M21：个人空间与团队协作（已于 M24 移除）](milestones/M21.md)
 - [M22：决策时间线与任意检查点回溯](milestones/M22.md)
 - [M23：分叉对比](milestones/M23.md)
+- [M25：分支切回](milestones/M25.md)
 
 ## 发布说明
 

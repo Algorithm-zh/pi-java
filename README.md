@@ -1,7 +1,7 @@
 # pi-java
 
 **一个会留下决策记录的 Java coding agent。** 每一步的意图、审批、验证和改动都能回看；
-走错了可以退回任意检查点，被放弃的那条路也能拿出来对比。
+走错了可以退回任意检查点，被放弃的那条路既能拿出来对比，也能直接切回去继续。
 
 [![CI](https://github.com/Algorithm-zh/pi-java/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Algorithm-zh/pi-java/actions/workflows/ci.yml)
 [![Java 21](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net/)
@@ -12,9 +12,9 @@ pi-java 用 **Java 21 + DDD 分层 + 插件化** 实现，提供一个 jar、两
 浏览器里的 Web 工作台和终端里的 `pi` CLI。数据、工具、审批、插件全部跑在本机，
 离线 Fake 模型不需要任何 API Key 就能完整体验。
 
-> **当前版本 v0.3.0**（2026-11-06 发布）。`main` 已合入 M24 去账号化：
-> 删除账号、令牌与空间体系，恢复为单用户本地服务，打开页面即可使用。
-> 948 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
+> **当前版本 v0.3.0**（2026-11-06 发布）。开发分支已合入 M24 去账号化与 M25 分支切回：
+> 删除账号、令牌与空间体系，恢复为单用户本地服务；两条走过的分支可以来回继续。
+> 976 个测试通过，Checkstyle / ArchUnit / OpenAPI 校验全绿。
 
 ![pi-java 欢迎页](docs/images/welcome.png)
 
@@ -26,7 +26,8 @@ pi-java 用 **Java 21 + DDD 分层 + 插件化** 实现，提供一个 jar、两
 |---|---|
 | **决策可见** | 每次运行的意图、计划、审批、验证和逐轮 diff 都在时间线上，不用翻日志猜。 |
 | **可以反悔** | 预览并回到任意一次运行之前，对话和工作区一起退回，回溯简报自动进入下一轮上下文。 |
-| **放弃的也有价值** | 回退节点可以对比两条分支：旧分支试过什么、哪里失败、两边改了哪些文件，一目了然。 |
+| **放弃的也有价值** | 对比两条分支：旧分支试过什么、哪里失败、两边改了哪些文件，一目了然。 |
+| **走过的路都能回去** | 切回任意一条已知分支，对话与工作区一起还原；两条路可以来回继续，不用从头再来。 |
 | **本地优先** | 一个 jar 启动 Web 与 CLI，H2 文件库、插件、审批都在本机；不依赖 Redis。 |
 | **Java 团队的顺手工具** | 领域层只依赖 JDK，Spring/MyBatis/插件加载都在外层，边界和测试都按 Java 工程的习惯组织。 |
 
@@ -39,7 +40,9 @@ pi-java 用 **Java 21 + DDD 分层 + 插件化** 实现，提供一个 jar、两
   冲突时整体放弃，不会写一半。
 - **分叉对比**：回退之后继续走的新路与旧路并排展示；桌面双列、手机上下堆叠，
   CLI 用 `/compare` 输出同样的事实。
-- **回溯简报**：回退结果会写回会话，模型下一轮知道自己为什么回到这里。
+- **分支切回**：在时间线或对比里选中另一条分支，预览后连对话和工作区一起切过去，
+  下一次运行接着旧分支继续；走过两条路后可以随时再切回来。
+- **回溯简报**：回退或切回的结果会写回会话，模型下一轮知道自己为什么回到这里。
 
 ![决策时间线](docs/images/timeline.png)
 
@@ -130,6 +133,7 @@ java -jar pi-java-app/target/pi-java-app-0.3.0.jar
 | `/timeline` | 查看当前分支的决策点 |
 | `/compare` | 对比最近一次回退前后的两条分支 |
 | `/rewind 2` | 预览并回退到第 2 个检查点之前 |
+| `/resume 3` | 预览并切回第 3 个分支节点对应的另一条分支 |
 
 侧栏可以搜索历史会话；顶栏仪表显示上下文用量；设置中心管理模型档案、技能、插件和
 工具策略。默认只监听 `127.0.0.1`。
@@ -210,7 +214,7 @@ java -jar $JAR serve --port 8081
 mvn -q verify
 ```
 
-当前 `main`（M24 后）：**948 个测试**通过（2 个符号链接用例按条件跳过），
+当前开发分支（M25 后）：**976 个测试**通过（2 个符号链接用例按条件跳过），
 Checkstyle、ArchUnit、OpenAPI 校验通过；Web 与 CLI 都有真实浏览器 / 终端走查。
 
 > **验证前先停止正在运行的服务。** `verify` 包含 `package`，会重写
@@ -228,7 +232,7 @@ Checkstyle、ArchUnit、OpenAPI 校验通过；Web 与 CLI 都有真实浏览器
   [示例插件](examples/pi-plugin-example/README.md)
 - **决策与检查点**：[Git 检查点与撤销](docs/12-git.md) ·
   [计划、待办与自动验证](docs/13-plans-and-verification.md) ·
-  [M23 分叉对比](docs/milestones/M23.md)
+  [M23 分叉对比](docs/milestones/M23.md) · [M25 分支切回](docs/milestones/M25.md)
 - **项目记录**：[路线图](docs/08-roadmap.md) · [完整文档索引](docs/README.md) ·
   [全部里程碑](docs/README.md#里程碑记录) · [架构决策](docs/adr/)
 - **测试与质量**：[测试与质量](docs/07-testing-and-quality.md)

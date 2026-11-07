@@ -1,20 +1,21 @@
 # 08 路线图
 
-> 状态：M0–M24 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
+> 状态：M0–M25 已完成（M11 CLI 于 2026-10-24，M12 MCP 与 M13 Git 检查点
 > 于 2026-10-24/25，M14 计划与自动验证于 2026-10-26，M15 工程化与 v0.2.0
 > 于 2026-10-26，M16 图片与多模态输入、M17 附件生命周期与压缩于 2026-10-27，
 > M18 仓库地图与代码检索于 2026-10-28，
 > M22 决策时间线与任意检查点回溯于 2026-11-05，
 > M23 分叉对比于 2026-11-06，
-> M24 去账号化于 2026-11-06 移除 M19–M21 的账号、令牌与空间体系）。
+> M24 去账号化于 2026-11-06 移除 M19–M21 的账号、令牌与空间体系，
+> M25 分支切回于 2026-11-07）。
 > 详见
 > [M11 记录](milestones/M11.md)、[M12 记录](milestones/M12.md)、
 > [M13 记录](milestones/M13.md)、[M14 记录](milestones/M14.md)、
 > [M15 记录](milestones/M15.md)、[M16 记录](milestones/M16.md)、
 > [M17 记录](milestones/M17.md)、[M18 记录](milestones/M18.md)、
 > [M19 记录](milestones/M19.md)、[M20 记录](milestones/M20.md)、
-> [M21 记录](milestones/M21.md)、[M22 记录](milestones/M22.md) 与
-> [M23 记录](milestones/M23.md)；
+> [M21 记录](milestones/M21.md)、[M22 记录](milestones/M22.md)、
+> [M23 记录](milestones/M23.md) 与 [M25 记录](milestones/M25.md)；
 > `v0.3.0` tag 与 GitHub Release 已于 2026-11-06 发布。
 > v0.3 已发布，v0.4 从 M23 开始，后续候选见第 6 节。
 
@@ -55,7 +56,7 @@
 | **M22** | 决策时间线与回溯 | 运行级决策时间线、任意检查点预览与回退、回溯简报、检查点固定 | 时间线/回退集成测试、桌面与移动端走查 | `feat(timeline): decision timeline and rewind` |
 | **M23** | 分叉对比 | 被放弃分支投影、双分支对比 API、Web 对比对话框、CLI `/timeline` `/compare` `/rewind` | 1012 测试、桌面与 375px 走查、CLI 回车取消与确认回退 | `docs(m23): record branch comparison milestone` |
 | **M24** | 去账号化 | 删除账号/空间/令牌与鉴权过滤；V9 合并策略并删表；回环绑定保护与 `/health`；Web/CLI 去登录 | 948 测试、全新 H2 迁移 V1–V9、浏览器与 CLI 实测 | `feat!: remove accounts and run as a local single-user agent` |
-| **M25** | 分支切回（未实施） | 从被放弃分支继续对话并还原工作区 | 待设计 | 待定 |
+| **M25** | 分支切回 | 树证据与分支树保活、切回用例与简报、`/resume` API、时间线 `RESUME` 节点、双向对比、Web 与 CLI 切回入口 | 976 测试、往返切换集成测试、桌面与窄屏走查、CLI 预览与确认 | `feat(branch): switch to another branch and restore its workspace` |
 
 ## 3. 各里程碑详情
 
@@ -890,9 +891,10 @@ v0.4 继续围绕“人决定走哪条路”打磨决策回看与协作体验，
    [M23 记录](milestones/M23.md)。
 2. **M24 去账号化**（已完成 2026-11-06）：删除账号/空间/令牌与鉴权过滤，V9 清理
    身份数据，回环绑定保护与 `/health`，Web 与 CLI 去除登录；见本节 M24 详情。
-3. **M25 分支切回**（未实施）：从被放弃分支继续对话并还原工作区，接口与交互
-   需先完成设计；后续候选还有逐行分支 diff、跨会话对比、Anthropic 原生 provider、
-   并行子代理、LSP/跨文件引用。
+3. **M25 分支切回**（已完成 2026-11-07）：回溯与切回节点都能切到另一条已知分支，
+   叶子与工作区一起还原，切回简报写回上下文并支持双向往返；见
+   [M25 记录](milestones/M25.md)。后续候选还有逐行分支 diff、跨会话对比、
+   Anthropic 原生 provider、并行子代理、LSP/跨文件引用。
 
 ## 7. 风险与应对
 

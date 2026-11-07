@@ -2,7 +2,8 @@
 
 > 状态：M22 已实现（2026-11-05）。Git 是**可选增强**：工作区不是仓库、机器没装
 > git 或显式关闭时，Agent Loop 照常运行，只是没有改动面板与撤销能力。M22 起每次
-> 运行前的检查点会被内部 ref 固定，并支持回到任意一次运行之前。
+> 运行前的检查点会被内部 ref 固定，并支持回到任意一次运行之前；M25 起分支叶子也会
+> 被固定，可以在同一会话的两条已知分支之间来回切换。
 
 ## 1. 目标与边界
 
@@ -189,10 +190,14 @@ POST /api/v1/sessions/{id}/rewind
 
 时间线按运行分组，节点顺序与 `seq` 一致。每个节点包含：
 
-- `type`：`RUN` 或 `REWIND`；
+- `type`：`RUN`、`REWIND` 或 `RESUME`；
 - `checkpointEntryId`：该次运行开始前的检查点 entry；
+- `branchEntryId`：分支节点（回溯或切回简报）对应的 entry，供 Web 与 CLI 打开
+  详情或对比；
 - 摘要：用户意图、计划进度、审批结论、验证结果、改动文件数；
-- `evidence`：本次运行的待办、审批、验证与逐轮改动，供 Web 展开证据。
+- `evidence`：本次运行的待办、审批、验证与逐轮改动，供 Web 展开证据。分支节点的
+  `leftEntries` / `leftRuns` 表示那条被离开的分支尾段规模（旧数据仍读
+  `discardedEntries` / `discardedRuns`）。
 
 回溯请求体：
 
@@ -240,9 +245,42 @@ POST /api/v1/sessions/{id}/rewind
 - 响应里的 `restored` 是实际写入的文件，`files` 是计划还原的文件；简报的
   `details.restoredPaths` 最多保留 50 个路径，摘要里展示前 3 个；`discarded`
   统计被移出当前分支的 entry 与运行次数；
+- 简报的 `details.fromTreeSha` / `toTreeSha` 记录还原前后的工作区树，切回时优先
+  使用它；旧简报没有这两个字段时回退到树证据；
 - 不移动 HEAD、不修改分支、不自动提交。
 
-### 6.4 检查点固定
+### 6.4 分支切回（M25）
+
+```http
+POST /api/v1/sessions/{id}/resume
+```
+
+请求体：
+
+```json
+{"branchEntryId": "01JE...", "dryRun": true, "note": "先跑测试"}
+```
+
+`branchEntryId` 是时间线 `REWIND` / `RESUME` 节点的 `branchEntryId`，必须位于当前
+分支上；`note` 可选，最多 200 字。语义：
+
+- 切回目标分支的叶子：分支简报的 `fromEntryId` 是离开时的旧叶子，切回后对话从
+  那里继续；目标工作区优先取简报的 `fromTreeSha`，缺失时按树证据回溯该分支最后
+  一份 `GIT_CHANGES.treeSha`、检查点 `baseTreeSha` 或简报 `toTreeSha`；
+- 当前工作区树取当前分支最后一份树证据；两棵树都可用时才计算还原计划，任一缺失
+  返回 `available=false` 与原因，不写任何数据；
+- 确认前先预览：`files` 是计划还原的文件，有冲突时 `restorable=false`，确认按钮
+  不可用；预览不写文件；
+- 执行顺序与回溯一致：写实时树快照 → 事务内移动叶子到目标叶子 → 追加
+  `BRANCH_SUMMARY`（`details.kind = "resume"`）→ 还原工作区 → 固定两侧树；
+  确认后工作区再变化则抛 500 `GIT_OPERATION_FAILED`，不产生半完成切换；
+- 旧叶子与目标叶子都会用 `refs/pi/checkpoints/<sessionId>/branch-<leaf>` 固定，
+  即使它们不是运行检查点也能再次切回或对比；
+- 成功响应返回 `switched=true`、`targetLeafId`、`briefEntryId`、两侧 entry/run 数
+  与简报；切回简报会进入下一轮上下文，用户可以在两条已走过的路之间来回切换；
+- 不移动 HEAD、不修改分支、不自动提交。
+
+### 6.5 检查点固定
 
 `pin-checkpoints=true` 时，运行开始后用 `git commit-tree` 生成内部提交，
 `git update-ref` 写入 `refs/pi/checkpoints/<sessionId>/<runId>`：
@@ -250,6 +288,8 @@ POST /api/v1/sessions/{id}/rewind
 - 提交只用于让树对象可达，`commit-tree` 的父为空，不进入任何分支；
 - 写入时显式提供 `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL` 等身份变量，避免依赖
   用户 git 配置；同一树对象重复固定只会生成新的内部提交，ref 始终指向最新一次；
+- 回溯与切回额外用 `refs/pi/checkpoints/<sessionId>/branch-<leaf>` 固定两侧分支
+  叶子对应的树，保证没有运行检查点的叶子也能再次切回或对比；
 - 删除会话时同时删除该会话下的所有 `refs/pi/checkpoints/<sessionId>/`；
 - 固定是尽力而为：失败只记 WARNING，不阻断运行，也不影响后续回溯（只是检查点
   可能在 `git gc --prune=now` 后失效）。

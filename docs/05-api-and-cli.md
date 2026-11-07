@@ -7,7 +7,8 @@
 > M22 已实现决策时间线与任意检查点回溯（2.11 节），运行开始时用内部 ref 固定检查点；
 > M23 已实现被放弃分支与当前分支的只读对比（2.11 节），并为 CLI 补齐
 > `/timeline`、`/compare`、`/rewind`；
-> M24 移除了账号、令牌与空间体系，恢复为单用户本地服务（见 1.2 节）。
+> M24 移除了账号、令牌与空间体系，恢复为单用户本地服务（见 1.2 节）；
+> M25 已实现分支切回（2.11.2 节），时间线新增 `RESUME` 节点，CLI 新增 `/resume`。
 > HTTP 前缀固定 `/api/v1`；CLI 命令名固定为 `pi`。
 > Web 与 CLI 共享应用层用例，任何业务规则不得写在 Controller 或命令类中。
 
@@ -410,6 +411,7 @@ POST /api/v1/sessions/{id}/rewind
     {
       "type": "RUN",
       "checkpointEntryId": "01JU...",
+      "branchEntryId": null,
       "runId": "01JV...",
       "at": "2026-11-05T10:00:00Z",
       "current": false,
@@ -423,8 +425,8 @@ POST /api/v1/sessions/{id}/rewind
       "turns": 3,
       "toolCalls": 5,
       "brief": "",
-      "discardedEntries": 0,
-      "discardedRuns": 0,
+      "leftEntries": 0,
+      "leftRuns": 0,
       "evidence": {
         "plan": [{"content": "读 notes.md", "status": "done"}],
         "approvals": [{"toolName": "write", "decision": "APPROVED", "reason": ""}],
@@ -437,6 +439,7 @@ POST /api/v1/sessions/{id}/rewind
     {
       "type": "REWIND",
       "checkpointEntryId": null,
+      "branchEntryId": "01JW...",
       "runId": "01JY...",
       "at": "2026-11-05T10:05:00Z",
       "current": true,
@@ -450,8 +453,8 @@ POST /api/v1/sessions/{id}/rewind
       "turns": 0,
       "toolCalls": 0,
       "brief": "从 10:05 的决策点回退：丢弃 1 轮对话、0 次被拒绝的审批、0 次失败的验证。已还原 2 个文件（notes.md、src/App.java）。",
-      "discardedEntries": 9,
-      "discardedRuns": 1,
+      "leftEntries": 9,
+      "leftRuns": 1,
       "evidence": null
     }
   ]
@@ -459,9 +462,11 @@ POST /api/v1/sessions/{id}/rewind
 ```
 
 - `nodes` 只包含当前分支，按分支位置排列；`current=true` 至多一个；
-- `REWIND` 节点没有可回溯检查点，`checkpointEntryId=null`、`rewindable=false`，
-  计划、审批、验证、改动与证据都是 `null`；
-- `evidence` 是展开证据用的结构化数据，`REWIND` 节点为 `null`；
+- `type` 为 `RUN`、`REWIND` 或 `RESUME`；`REWIND` / `RESUME` 节点没有可回溯检查点，
+  `checkpointEntryId=null`、`rewindable=false`，计划、审批、验证、改动与证据都是 `null`；
+- 分支节点的 `branchEntryId` 指向对应的分支简报，`brief` 是简报正文；`leftEntries`
+  与 `leftRuns` 是该次回退或切换离开的 entry / run 数，RUN 节点为 0；
+- `evidence` 是展开证据用的结构化数据，分支节点为 `null`；
 - 无 Git 或不是仓库时 `available=false`，`nodes` 仍包含 run 节点，
   `rewindable=false`；不访问磁盘，重启后仍可查询。
 
@@ -481,13 +486,15 @@ POST /api/v1/sessions/{id}/rewind
 - 成功时 `restored` 为实际写的文件，`briefEntryId` 指向新增的回溯简报；
 - 被回退放弃的 entry 保留在日志中，只是不在当前分支；简报 entry 的
   `body.extra` 包含 `fromEntryId`（回退前的旧叶子）与 `details.restoredPaths`
-  （最多 50 个还原路径）。Web 用 `parentId` 与 `fromEntryId` 界定回退点之后的
+  （最多 50 个还原路径），`details.fromTreeSha` / `toTreeSha` 记录回退前后的工作区树，
+  供之后切回该分支时还原工作区。Web 用 `parentId` 与 `fromEntryId` 界定回退点之后的
   片段，提供“查看被放弃的记录”只读弹窗；多次回退可在片段里逐层往前追溯。
 
 #### 2.11.1 分叉对比（M23）
 
 ```http
 GET /api/v1/sessions/{id}/comparison
+GET /api/v1/sessions/{id}/comparison?branch={briefEntryId}
 GET /api/v1/sessions/{id}/comparison?rewind={briefEntryId}
 ```
 
@@ -496,7 +503,7 @@ GET /api/v1/sessions/{id}/comparison?rewind={briefEntryId}
 ```json
 {
   "available": true,
-  "rewindEntryId": "01J...",
+  "branchEntryId": "01J...",
   "forkEntryId": "01J...",
   "at": "2026-11-06T13:20:00Z",
   "abandoned": {
@@ -520,18 +527,67 @@ GET /api/v1/sessions/{id}/comparison?rewind={briefEntryId}
     "both": ["notes.md"],
     "truncated": false
   },
-  "summary": "旧分支：2 个 run、4 轮对话…… 当前分支：1 个 run……"
+  "summary": "另一条分支：2 个 run、4 轮对话…… 当前分支：1 个 run……"
 }
 ```
 
 - 分叉点由两侧分支的 entry id 最长公共前缀求得；分叉点之前的共同历史不计入任一侧；
-- 被放弃侧取 `loadBranch(sessionId, fromEntryId)`；当前侧取当前叶子，**包含**回退
+- 被放弃侧取 `loadBranch(sessionId, fromEntryId)`；当前侧取当前叶子，**包含**分支
   简报本身，但简报不参与统计；
-- 省略 `rewind` 时取当前分支上最近一次回退；指定更早的简报时，当前侧覆盖到当前叶子，
-  更晚的回退简报同样不参与统计；指定的简报不在当前分支上返回 409 `INVALID_BRANCH`；
-- 没有回退时返回 200 与 `available=false`，两侧为空、`summary` 为空字符串；
+- `branch` 接受回退或切回简报；`rewind` 是兼容别名，两者同时出现时以 `branch` 为准；
+- 省略参数时取当前分支上最近一次回退或切回；指定更早的简报时，当前侧覆盖到当前叶子，
+  更晚的简报同样不参与统计；指定的简报不在当前分支上返回 409 `INVALID_BRANCH`；
+- 没有分支简报时返回 200 与 `available=false`，两侧为空、`summary` 为空字符串；
 - 只读：不要求空闲、不追加 entry、不访问磁盘、不调用模型；列表与摘要全部在服务端
   截断（意图 20 条/每条 400 字、原因与命令 10 条、文件 100 条、摘要 500 字）。
+
+#### 2.11.2 切到另一条分支（M25）
+
+```http
+POST /api/v1/sessions/{id}/resume
+```
+
+请求：
+
+```json
+{"branchEntryId": "01J...", "dryRun": true, "note": "先跑测试"}
+```
+
+`branchEntryId` 必须是当前分支上的 `REWIND` 或 `RESUME` 简报 entry；`dryRun` 缺省为
+true，只返回预览，不移动叶子、不写工作区；`note` 可选，最多 200 字。响应：
+
+```json
+{
+  "dryRun": false,
+  "switched": true,
+  "available": true,
+  "restorable": true,
+  "unavailableReason": "",
+  "targetLeafId": "01J...",
+  "files": ["notes.md", "src/App.java"],
+  "restored": ["notes.md", "src/App.java"],
+  "conflicts": [],
+  "briefEntryId": "01J...",
+  "leftEntries": 10,
+  "leftRuns": 1,
+  "targetEntries": 9,
+  "targetRuns": 1,
+  "brief": "切回另一条分支：……"
+}
+```
+
+- 只有空闲会话可切换；归档 409 `SESSION_ARCHIVED`，运行中 409
+  `INVALID_STATE_TRANSITION`，目标简报不在当前分支或目标叶子仍在当前分支 409
+  `INVALID_BRANCH`；
+- 两侧树都可用时 `available=true`；任一侧缺少快照时 HTTP 200、
+  `available=false`、`unavailableReason` 说明原因，前后端都不提供强制切换；
+- 先做冲突预检：目标树与当前树之间只要有一处工作区改动冲突，整体放弃，HTTP 200、
+  `restorable=false`，不移动叶子、不写文件；
+- 成功时 `switched=true`、`briefEntryId` 指向新增的 `RESUME` 简报；
+  执行顺序是「快照当前树 → 移动叶子 → 追加简报 → 还原工作区”，数据库失败回滚事务，
+  工作区失败同样回滚，不会留下半完成状态；
+- 新简报的 `fromEntryId` 是刚离开的叶子、`fromTreeSha` 是离开时的工作区树，
+  因此同一份简报可以原路切回；被离开的分支 entry 全部保留，只是不在当前分支。
 
 ### 2.12 计划与自动验证（M14）
 
@@ -1067,14 +1123,17 @@ pi run "把结论写入 notes.md" --cwd D:/code/demo --approve
 - `/session` → 打印会话 id、模型、思考级别与状态；
 - `/diff` → 最近一次运行的分支、文件、行数、提交建议与 diff（最多 120 行）；
 - `/undo` → 撤销上一轮：还原文件并回退对话；冲突时逐条打印原因；
-- `/timeline` → 打印当前分支的决策点：序号、时间、run/回退、意图或简报与统计，
+- `/timeline` → 打印当前分支的决策点：序号、时间、run/回溯/切回、意图或简报与统计，
   `*` 标记当前节点；
-- `/compare [序号]` → 对比被放弃的分支与当前分支；省略序号时取最近一次回退，
-  指定序号时必须是 `/timeline` 里的回退节点；输出两侧统计、意图、拒绝与失败验证，
-  以及“仅旧分支 / 仅新分支 / 两边都改过”的文件差异；
+- `/compare [序号]` → 对比另一条分支与当前分支；省略序号时取最近一次回溯，
+  指定序号时必须是 `/timeline` 里的回溯或切回节点；输出两侧统计、意图、拒绝与失败
+  验证，以及“仅另一条分支 / 仅当前分支 / 两边都改过”的文件差异；
 - `/rewind <序号>` → 回退到该决策点之前的检查点：先打印将丢弃的记录与还原文件，
   直接回车取消；仅空闲会话可回退，冲突时整体放弃；无法读取标准输入时拒绝执行并
   提示在 chat 中手动操作；确认后打印“已回退 · 还原 N 个文件 · 丢弃 …”；
+- `/resume <序号>` → 切到该回溯或切回节点对应的另一条分支：先打印两侧记录/run 数、
+  将改动的文件与简报，直接回车取消；目标分支缺树时说明原因并跳过确认；非交互终端
+  拒绝执行；确认后打印“已切换 · 改动 N 个文件”并逐行列出文件；
 - `/plan` → 打印当前待办、完成数与最近一次自动验证结果；
 - `/skill:name [args]` → 作为普通消息交给 Agent Loop 的技能解析器；
 - EOF（Ctrl+D/Ctrl+Z）退出。
