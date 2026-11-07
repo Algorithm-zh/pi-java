@@ -51,11 +51,13 @@ public class RewindBriefBuilder {
      * @param discarded 将被丢弃的 entry；只扫描这里出现的 entry，检查点之前创建且未被后续 run
      *        更新的计划不会出现在简报中
      * @param restoredFiles 将还原的路径
+     * @param fromTreeSha 离开侧工作区树，可为 null
+     * @param toTreeSha 目标工作区树，可为 null
      * @param note 用户备注，可为 null
      * @return 摘要与 details
      */
     public RewindBrief build(SessionEntry checkpointEntry, List<SessionEntry> discarded,
-            List<String> restoredFiles, String note) {
+            List<String> restoredFiles, String fromTreeSha, String toTreeSha, String note) {
         String cleanNote = requireNote(note);
         GitCheckpointPayload checkpoint = (GitCheckpointPayload) checkpointEntry.payload();
         Scan scan = scan(discarded);
@@ -64,7 +66,8 @@ public class RewindBriefBuilder {
                 List.copyOf(restoredFiles), unfinished, scan.deniedTools(), scan.failedCommands(),
                 cleanNote);
         String summary = render(checkpointEntry, facts);
-        return new RewindBrief(summary, details(checkpointEntry, checkpoint, discarded, facts));
+        return new RewindBrief(summary, details(checkpointEntry, checkpoint, discarded, facts,
+                fromTreeSha, toTreeSha));
     }
 
     private String requireNote(String note) {
@@ -117,9 +120,12 @@ public class RewindBriefBuilder {
     }
 
     private Map<String, Object> details(SessionEntry checkpointEntry,
-            GitCheckpointPayload checkpoint, List<SessionEntry> discarded, Facts facts) {
+            GitCheckpointPayload checkpoint, List<SessionEntry> discarded, Facts facts,
+            String fromTreeSha, String toTreeSha) {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("kind", "rewind");
+        putIfPresent(details, "fromTreeSha", fromTreeSha);
+        putIfPresent(details, "toTreeSha", toTreeSha);
         details.put("checkpointEntryId", checkpointEntry.id().toString());
         details.put("runId", checkpoint.runId());
         details.put("discardedEntries", discarded.size());
@@ -131,6 +137,12 @@ public class RewindBriefBuilder {
         details.put("failedVerifications", facts.failed());
         details.put("unfinishedPlanItems", facts.unfinished().size());
         return Collections.unmodifiableMap(details);
+    }
+
+    private void putIfPresent(Map<String, Object> details, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            details.put(key, value);
+        }
     }
 
     private String render(SessionEntry checkpointEntry, Facts facts) {

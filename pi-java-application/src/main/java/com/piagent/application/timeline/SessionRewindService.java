@@ -2,6 +2,7 @@ package com.piagent.application.timeline;
 
 import com.piagent.domain.git.model.GitRestorePlan;
 import com.piagent.domain.git.model.GitRestoreResult;
+import com.piagent.domain.git.model.GitSnapshot;
 import com.piagent.domain.git.port.WorkspaceGit;
 import com.piagent.domain.session.model.ChatSession;
 import com.piagent.domain.session.model.EntryId;
@@ -95,7 +96,8 @@ public class SessionRewindService {
         List<SessionEntry> discarded = List.copyOf(branch.subList(discardStart, branch.size()));
         String latestTree = latestTree(branch, index, checkpoint.baseTreeSha());
         GitRestorePlan plan = plan(session, checkpoint.baseTreeSha(), latestTree);
-        RewindBrief preview = briefs.build(checkpointEntry, discarded, plan.files(), note);
+        RewindBrief preview = briefs.build(checkpointEntry, discarded, plan.files(),
+                latestTree, checkpoint.baseTreeSha(), note);
         if (dryRun) {
             return new SessionRewindResult(true, false, plan.restorable(), plan.files(), List.of(),
                     plan.conflicts(), null, discarded.size(), countRuns(discarded),
@@ -104,19 +106,24 @@ public class SessionRewindService {
         if (!plan.restorable()) {
             return conflict(plan);
         }
+        String fromTree = snapshotTree(session, latestTree);
+        RewindBrief live = briefs.build(checkpointEntry, discarded, plan.files(),
+                fromTree, checkpoint.baseTreeSha(), note);
         EntryId oldLeaf = session.leafEntryId();
         sessions.update(session.rewind(checkpoint.baseLeafId()));
         SessionEntry briefEntry = summaries.append(sessionId,
-                new BranchSummaryPayload(oldLeaf, preview.summary(), preview.details()));
+                new BranchSummaryPayload(oldLeaf, live.summary(), live.details()));
         GitRestoreResult restored = restore(session, checkpoint.baseTreeSha(), latestTree);
         if (!restored.complete()) {
             // 预检后工作区又被改动：restore 未写任何文件，抛异常回滚叶子与简报。
             throw new DomainException(DomainErrorCode.GIT_OPERATION_FAILED,
                     "确认后工作区又发生了变化，已放弃本次回退，请重试");
         }
+        pin(session, oldLeaf, fromTree);
+        pin(session, checkpoint.baseLeafId(), checkpoint.baseTreeSha());
         return new SessionRewindResult(false, true, true, plan.files(), restored.restored(),
                 List.of(), briefEntry.id(), discarded.size(), countRuns(discarded),
-                preview.summary());
+                live.summary());
     }
 
     private SessionRewindResult conflict(GitRestorePlan plan) {
@@ -153,9 +160,37 @@ public class SessionRewindService {
                 latest = change.treeSha();
             } else if (payload instanceof GitCheckpointPayload next) {
                 latest = next.baseTreeSha();
+            } else if (payload instanceof BranchSummaryPayload summary) {
+                Object tree = summary.details().get("toTreeSha");
+                if (tree != null && !String.valueOf(tree).isBlank()) {
+                    latest = String.valueOf(tree);
+                }
             }
         }
         return latest;
+    }
+
+    private String snapshotTree(ChatSession session, String fallback) {
+        try {
+            return git.snapshot(session.config().cwd())
+                    .map(GitSnapshot::treeSha)
+                    .filter(tree -> !tree.isBlank())
+                    .orElse(fallback);
+        } catch (RuntimeException error) {
+            return fallback;
+        }
+    }
+
+    private void pin(ChatSession session, EntryId leaf, String treeSha) {
+        if (leaf == null || treeSha == null || treeSha.isBlank()) {
+            return;
+        }
+        try {
+            git.pinCheckpoint(session.config().cwd(), session.identity().id().toString(),
+                    "branch-" + leaf, treeSha);
+        } catch (RuntimeException error) {
+            // 保活是尽力而为，失败不影响已经完成的切换。
+        }
     }
 
     private int countRuns(List<SessionEntry> discarded) {

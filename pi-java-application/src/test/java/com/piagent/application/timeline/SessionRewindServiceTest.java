@@ -26,6 +26,7 @@ import com.piagent.domain.session.model.SessionEntry;
 import com.piagent.domain.session.model.SessionId;
 import com.piagent.domain.session.model.ThinkingLevel;
 import com.piagent.domain.session.model.TokenUsage;
+import com.piagent.domain.session.model.payload.BranchSummaryPayload;
 import com.piagent.domain.session.model.payload.GitCheckpointPayload;
 import com.piagent.domain.session.model.payload.RunSummaryPayload;
 import com.piagent.domain.shared.DomainErrorCode;
@@ -167,8 +168,27 @@ class SessionRewindServiceTest {
     }
 
     @Test
-    void rejectsConflictDiscoveredDuringExecution() {
+    void executionRecordsLiveSnapshotAndPinsLeftAndTargetTrees() {
         RunIds runs = threeRuns();
+        EntryId oldLeaf = sessions.findById(sessionId).orElseThrow().leafEntryId();
+        git.nextPlan = new GitRestorePlan("tree-0", "tree-2", List.of("a.txt"), List.of());
+        git.nextRestore = new GitRestoreResult(List.of("a.txt"), List.of());
+        git.snapshots.clear();
+        git.snapshots.add(new GitSnapshot("tree-live", "head", "main"));
+
+        SessionRewindResult result = service.rewind(sessionId, runs.secondCheckpoint, false, null);
+
+        SessionEntry brief = entries.findById(sessionId, result.briefEntryId()).orElseThrow();
+        BranchSummaryPayload payload = (BranchSummaryPayload) brief.payload();
+        assertThat(payload.details().get("fromTreeSha")).isEqualTo("tree-live");
+        assertThat(payload.details().get("toTreeSha")).isEqualTo("tree-1");
+        assertThat(git.pins).contains(
+                new FakeGit.Pin(sessionId.toString(), "branch-" + oldLeaf, "tree-live"),
+                new FakeGit.Pin(sessionId.toString(), "branch-" + runs.secondBaseLeaf, "tree-1"));
+    }
+
+    @Test
+    void rejectsConflictDiscoveredDuringExecution() {        RunIds runs = threeRuns();
         git.nextPlan = new GitRestorePlan("tree-0", "tree-2", List.of("a.txt"), List.of());
         git.nextRestore = new GitRestoreResult(List.of(),
                 List.of(new GitConflict("a.txt", "确认后工作区又发生了变化")));
@@ -327,6 +347,7 @@ class SessionRewindServiceTest {
         private String lastPlanLatest;
         private String lastRestoreTarget;
         private String lastRestoreLatest;
+        private final List<Pin> pins = new java.util.ArrayList<>();
 
         @Override
         public Optional<GitSnapshot> snapshot(Path workspace) {
@@ -359,10 +380,14 @@ class SessionRewindServiceTest {
         @Override
         public void pinCheckpoint(Path workspace, String namespace, String checkpointId,
                 String treeSha) {
+            pins.add(new Pin(namespace, checkpointId, treeSha));
         }
 
         @Override
         public void clearCheckpoints(Path workspace, String namespace) {
+        }
+
+        private record Pin(String namespace, String checkpointId, String treeSha) {
         }
     }
 }

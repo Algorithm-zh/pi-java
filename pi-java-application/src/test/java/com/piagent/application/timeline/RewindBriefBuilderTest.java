@@ -50,7 +50,7 @@ class RewindBriefBuilderTest {
 
         RewindBrief brief = builder.build(checkpoint,
                 List.of(user, checkpoint, denied, failed, plan), List.of("a.txt", "b.txt"),
-                "换一种修法");
+                "tree-from", "tree-to", "换一种修法");
 
         assertThat(brief.summary())
                 .contains("从 14:32 的决策点回退")
@@ -65,6 +65,8 @@ class RewindBriefBuilderTest {
         assertThat(brief.summary().length()).isLessThanOrEqualTo(400);
         assertThat(brief.details())
                 .containsEntry("kind", "rewind")
+                .containsEntry("fromTreeSha", "tree-from")
+                .containsEntry("toTreeSha", "tree-to")
                 .containsEntry("discardedEntries", 5)
                 .containsEntry("discardedRuns", 1)
                 .containsEntry("restoredFiles", 2)
@@ -79,7 +81,8 @@ class RewindBriefBuilderTest {
         SessionEntry checkpoint = entry(1, null,
                 new GitCheckpointPayload("run-1", null, "tree-0", "head", "main"), 0);
 
-        assertThatThrownBy(() -> builder.build(checkpoint, List.of(), List.of(), "x".repeat(201)))
+        assertThatThrownBy(() -> builder.build(checkpoint, List.of(), List.of(),
+                "tree-from", "tree-to", "x".repeat(201)))
                 .isInstanceOfSatisfying(DomainException.class, error ->
                         assertThat(error.code()).isEqualTo(DomainErrorCode.INVALID_ARGUMENT));
     }
@@ -94,7 +97,7 @@ class RewindBriefBuilderTest {
                         new PlanItem("x".repeat(200), PlanItemStatus.PENDING))), 2);
 
         RewindBrief brief = builder.build(checkpoint, List.of(checkpoint, plan), List.of("a.txt"),
-                "y".repeat(200));
+                "tree-from", "tree-to", "y".repeat(200));
 
         assertThat(brief.summary()).hasSize(400).endsWith("…");
     }
@@ -104,10 +107,10 @@ class RewindBriefBuilderTest {
         SessionEntry checkpoint = entry(1, null,
                 new GitCheckpointPayload("run-1", null, "tree-0", "head", "main"), 0);
 
-        assertThat(builder.build(checkpoint, List.of(), List.of(), null).summary())
-                .doesNotContain("备注：");
-        assertThat(builder.build(checkpoint, List.of(), List.of(), "   ").summary())
-                .doesNotContain("备注：");
+        assertThat(builder.build(checkpoint, List.of(), List.of(), "tree-from", "tree-to", null)
+                .summary()).doesNotContain("备注：");
+        assertThat(builder.build(checkpoint, List.of(), List.of(), "tree-from", "tree-to", "   ")
+                .summary()).doesNotContain("备注：");
     }
 
     @Test
@@ -115,7 +118,8 @@ class RewindBriefBuilderTest {
         SessionEntry checkpoint = entry(1, null,
                 new GitCheckpointPayload("run-1", null, "tree-0", "head", "main"), 0);
 
-        RewindBrief brief = builder.build(checkpoint, List.of(), List.of(), null);
+        RewindBrief brief = builder.build(checkpoint, List.of(), List.of(),
+                "tree-from", "tree-to", null);
 
         assertThat(brief.summary())
                 .contains("丢弃 0 轮对话")
@@ -138,7 +142,8 @@ class RewindBriefBuilderTest {
                 List.of(new PlanItem("改登录", PlanItemStatus.DONE),
                         new PlanItem("补登录测试", PlanItemStatus.DONE))), 2);
 
-        RewindBrief brief = builder.build(checkpoint, List.of(checkpoint, plan), List.of(), null);
+        RewindBrief brief = builder.build(checkpoint, List.of(checkpoint, plan), List.of(),
+                "tree-from", "tree-to", null);
 
         assertThat(brief.summary()).doesNotContain("未完成");
         assertThat(brief.details()).containsEntry("unfinishedPlanItems", 0);
