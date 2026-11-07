@@ -10,9 +10,9 @@ WHERE id NOT IN (
     ) kept
 );
 
-ALTER TABLE pi_tool_policy DROP INDEX uk_tool_policy;
-
 ALTER TABLE pi_tool_policy DROP FOREIGN KEY fk_policy_tenant;
+
+ALTER TABLE pi_tool_policy DROP INDEX uk_tool_policy;
 
 ALTER TABLE pi_tool_policy DROP COLUMN tenant_id;
 
